@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* opcional: seu fundo escuro */
+body {
+  margin: 0;
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+
+  select {
+  color: white !important;
+}
+
+select option {
+  color: white;
+  background-color: #111827;
+}
+}
+

@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Operador CNC</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 16px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 14px; max-width: 980px; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    button, select, input { padding: 10px 12px; cursor:pointer; }
+    input[type="number"]{ padding: 8px 10px; }
+    .muted { color:#666; font-size: 12px; }
+    .pill { display:inline-block; padding:2px 10px; border:1px solid #ddd; border-radius:999px; font-size:12px; background:#fff; }
+    .ok { border-color:#7bd; }
+    .err { border-color:#f66; }
+    table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+    th, td { border-bottom: 1px solid #eee; padding: 10px 8px; text-align: left; font-size: 14px; vertical-align: top; }
+    th { font-size: 12px; color:#444; }
+    pre { background:#f7f7f7; padding:10px; border-radius:10px; overflow:auto; }
+    .btnSmall { padding: 8px 10px; font-size: 12px; }
+    .titleBox { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .tempoBox { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+    .tempoMeta { margin-top:6px; }
+  </style>
+</head>
+<body>
+  <h1 id="title">Operador</h1>
+
+  <div class="card">
+    <h2>Arquivo cortando no momento</h2>
+    <div class="titleBox">
+      <span class="pill" id="cutNow">Nenhum</span>
+      <button id="btnAtualizarTopo">Atualizar</button>
+      <button id="btnCortadoTopo" class="btnSmall">Marcar CORTADO</button>
+    </div>
+    <div class="muted">
+      Mostra o item com status <b>EM_EXECUCAO</b>. Ao clicar em <b>USINANDO</b>, o título é atualizado na hora.
+      O botão <b>CORTADO</b> finaliza o arquivo em execução.
+    </div>
+
+    <hr/>
+
+    <h2>Status da máquina</h2>
+    <div class="row">
+      <select id="statusSel">
+        <option value="USINANDO">USINANDO</option>
+        <option value="DETALHE CNC">DETALHE CNC</option>
+        <option value="SETUP">SETUP</option>
+        <option value="REFEIÇÃO">REFEIÇÃO</option>
+        <option value="MANUTENÇÃO">MANUTENÇÃO</option>
+        <option value="AGUAR">AGUAR</option>
+        <option value="EMPILHADEIRA">EMPILHADEIRA</option>
+        <option value="REUNIAO">REUNIAO</option>
+        <option value="TROCA CHAPA SACRIFICIO">TROCA CHAPA SACRIFICIO</option>
+      </select>
+      <button id="btnStatus">Atualizar status</button>
+      <span id="statusMsg" class="pill">—</span>
+    </div>
+
+    <hr/>
+
+    <h2>Fila de arquivos</h2>
+    <div class="row">
+      <button id="btnAtualizar">Atualizar fila</button>
+      <label class="muted">
+        <input type="checkbox" id="chkHistorico" />
+        Mostrar histórico (BAIXADO/CORTADO/etc)
+      </label>
+      <span id="filaMsg" class="pill">—</span>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:70px;">Pos</th>
+          <th>Arquivo</th>
+          <th style="width:520px;">Ações</th>
+        </tr>
+      </thead>
+      <tbody id="filaBody">
+        <tr><td colspan="3" class="muted">Carregando…</td></tr>
+      </tbody>
+    </table>
+
+    <hr/>
+    <div class="muted">Log</div>
+    <pre id="log"></pre>
+  </div>
+
+<script>
+  const BACKEND = window.location.origin;
+  const maquinaId = (location.pathname.split("/").pop() || "CNC01").toUpperCase();
+  document.getElementById("title").textContent = `Operador - ${maquinaId}`;
+
+  let currentExecId = null; // fila_item_id atual EM_EXECUCAO
+
+  function log(msg){
+    const el = document.getElementById("log");
+    el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + el.textContent;
+  }
+
+  async function apiGet(path){
+    const r = await fetch(BACKEND + path, { headers: { "accept":"application/json" }, cache:"no-store" });
+    const t = await r.text();
+    if(!r.ok) throw new Error(t);
+    return t ? JSON.parse(t) : {};
+  }
+
+  async function apiPost(path, body){
+    const r = await fetch(BACKEND + path, {
+      method:"POST",
+      headers: { "accept":"application/json", "content-type":"application/json" },
+      body: JSON.stringify(body || {})
+    });
+    const t = await r.text();
+    if(!r.ok) throw new Error(t);
+    return t ? JSON.parse(t) : {};
+  }
+
+  function setCutNowTitle(nome){
+    const el = document.getElementById("cutNow");
+    el.textContent = nome && String(nome).trim() ? nome : "Nenhum";
+  }
+
+  function escapeAttr(s){
+    return String(s ?? "").replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  }
+
+  function fmtMinFromSeg(seg){
+    const s = Number(seg || 0);
+    if(!s || s <= 0) return "-";
+    return Math.round(s/60) + " min";
+  }
+
+  function fmtElapsed(isoStart){
+    if(!isoStart) return "-";
+    try{
+      const start = new Date(isoStart);
+      const now = new Date();
+      const diff = Math.max(0, Math.floor((now - start)/1000));
+      const m = Math.floor(diff/60);
+      const h = Math.floor(m/60);
+      const mm = m % 60;
+      if(h > 0) return `${h}h ${mm}m`;
+      return `${mm}m`;
+    }catch{
+      return "-";
+    }
+  }
+
+  async function refreshTopo(){
+    const itens = await apiGet(`/fila/${maquinaId}?include_done=true`);
+    const exec = Array.isArray(itens)
+      ? itens.find(x => (x.status || "").toUpperCase() === "EM_EXECUCAO")
+      : null;
+
+    if(exec){
+      currentExecId = exec.id;
+      setCutNowTitle(exec.arquivo_nome || "(sem nome)");
+    } else {
+      currentExecId = null;
+      setCutNowTitle("Nenhum");
+    }
+    document.getElementById("btnCortadoTopo").disabled = !currentExecId;
+  }
+
+  // ✅ STATUS do item usando sua rota do backend:
+  // POST /fila/{maquina_id}/status  body: { id, status: "USINANDO" | "PROGRAMADO" | "CONCLUIDO" | "CANCELADO" }
+  async function setFilaItemStatus(filaItemId, novoStatus){
+    await apiPost(`/fila/${maquinaId}/status`, { id: Number(filaItemId), status: String(novoStatus || "").toUpperCase() });
+    log(`OK: fila_item_id=${filaItemId} -> ${novoStatus}`);
+    await refreshAll();
+  }
+
+  // ✅ CORTADO usando rota existente no backend:
+  // POST /agente/{maquina_id}/fila/{fila_item_id}/cortado
+  async function marcarCortado(filaItemId){
+    if(!filaItemId){
+      log("Não há arquivo EM_EXECUCAO para marcar CORTADO.");
+      return;
+    }
+    if(!confirm("Confirmar: este arquivo foi cortado?")) return;
+
+    await apiPost(`/agente/${maquinaId}/fila/${filaItemId}/cortado`, {});
+    log(`Marcado CORTADO fila_item_id=${filaItemId}`);
+    await refreshAll();
+  }
+
+  // ✅ Definir tempo estimado (minutos) no item:
+  // POST /fila/item/{item_id}/tempo_estimado  body: { minutos }
+  async function definirTempo(itemId, minutos){
+    const m = parseInt(minutos || "0", 10);
+    if(!m || m <= 0){
+      alert("Informe minutos > 0");
+      return;
+    }
+    await apiPost(`/fila/item/${itemId}/tempo_estimado`, { minutos: m });
+    log(`Tempo definido: fila_item_id=${itemId} -> ${m} min`);
+    await refreshAll();
+  }
+
+  async function refreshAll(){
+    const includeDone = document.getElementById("chkHistorico").checked;
+    const body = document.getElementById("filaBody");
+    body.innerHTML = `<tr><td colspan="3" class="muted">Carregando…</td></tr>`;
+
+    try{
+      const itens = await apiGet(`/fila/${maquinaId}?include_done=${includeDone ? "true" : "false"}`);
+
+      await refreshTopo();
+
+      body.innerHTML = "";
+      if(!Array.isArray(itens) || itens.length === 0){
+        body.innerHTML = `<tr><td colspan="3" class="muted">(fila vazia)</td></tr>`;
+        document.getElementById("filaMsg").textContent = "fila vazia";
+        return;
+      }
+
+      itens.forEach(it => {
+        const st = (it.status || "").toUpperCase();
+        const nome = it.arquivo_nome ?? "-";
+
+        const podeBaixar = (st === "AGUARDANDO" || st === "PROGRAMANDO");
+        const podeMudar = !["CORTADO","CANCELADO"].includes(st);
+        const podeCortado = (st === "EM_EXECUCAO");
+
+        const tempoEst = fmtMinFromSeg(it.tempo_estimado_seg);
+        const tempoDec = fmtElapsed(it.tempo_inicio_em);
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${it.posicao ?? "-"}</td>
+          <td>
+            <div><b>${nome}</b></div>
+            <div class="muted tempoMeta">
+              Tempo estimado: <b>${tempoEst}</b> &nbsp;|&nbsp; Decorrido: <b>${tempoDec}</b>
+            </div>
+          </td>
+          <td>
+            <div class="actions">
+              ${podeBaixar ? `<button class="btnSmall" data-act="baixar" data-id="${it.id}">Baixar</button>` : `<span class="muted">—</span>`}
+              ${podeMudar ? `<button class="btnSmall" data-act="prog" data-id="${it.id}">PROGRAMANDO</button>` : ``}
+              ${podeMudar ? `<button class="btnSmall" data-act="usin" data-id="${it.id}" data-nome="${escapeAttr(nome)}">USINANDO</button>` : ``}
+              ${podeCortado ? `<button class="btnSmall" data-act="cortado" data-id="${it.id}">CORTADO</button>` : ``}
+            </div>
+
+            <div class="tempoBox" style="margin-top:8px;">
+              <input type="number" min="1" placeholder="Tempo (min)" id="min_${it.id}" style="width:110px" />
+              <button class="btnSmall" data-act="tempo" data-id="${it.id}">Definir tempo</button>
+            </div>
+          </td>
+        `;
+        body.appendChild(tr);
+      });
+
+      // handlers
+      body.querySelectorAll('button[data-act="baixar"]').forEach(btn => {
+        btn.onclick = () => {
+          const filaId = btn.getAttribute("data-id");
+          const url = `${BACKEND}/agente/${maquinaId}/download/fila/${filaId}`;
+          window.open(url, "_blank");
+          log(`Baixando fila_item_id=${filaId}`);
+        };
+      });
+
+      body.querySelectorAll('button[data-act="prog"]').forEach(btn => {
+        btn.onclick = () => setFilaItemStatus(btn.getAttribute("data-id"), "PROGRAMADO")
+          .catch(e => log("ERRO status arquivo: " + e.message));
+      });
+
+      body.querySelectorAll('button[data-act="usin"]').forEach(btn => {
+        btn.onclick = async () => {
+          try{
+            const filaItemId = btn.getAttribute("data-id");
+            const nome = btn.getAttribute("data-nome") || "";
+            await setFilaItemStatus(filaItemId, "USINANDO");
+            setCutNowTitle(nome);
+            log(`Cortando agora: ${nome}`);
+          }catch(e){
+            log("ERRO status arquivo: " + e.message);
+          }
+        };
+      });
+
+      body.querySelectorAll('button[data-act="cortado"]').forEach(btn => {
+        btn.onclick = () => marcarCortado(btn.getAttribute("data-id"))
+          .catch(e => log("ERRO cortado: " + e.message));
+      });
+
+      body.querySelectorAll('button[data-act="tempo"]').forEach(btn => {
+        btn.onclick = () => {
+          const itemId = btn.getAttribute("data-id");
+          const inp = document.getElementById(`min_${itemId}`);
+          definirTempo(itemId, inp ? inp.value : "")
+            .catch(e => log("ERRO tempo: " + e.message));
+        };
+      });
+
+      document.getElementById("filaMsg").textContent = `${itens.length} item(ns)`;
+    }catch(e){
+      document.getElementById("filaMsg").textContent = "ERRO";
+      log("ERRO fila: " + e.message);
+      body.innerHTML = `<tr><td colspan="3"><pre>${e.message}</pre></td></tr>`;
+    }
+  }
+
+  document.getElementById("btnAtualizar").onclick = () => refreshAll().catch(e=>log("ERRO: "+e.message));
+  document.getElementById("btnAtualizarTopo").onclick = () => refreshTopo().catch(e=>log("ERRO topo: "+e.message));
+  document.getElementById("btnCortadoTopo").onclick = () => marcarCortado(currentExecId).catch(e=>log("ERRO cortado topo: "+e.message));
+  document.getElementById("chkHistorico").onchange = () => refreshAll().catch(e=>log("ERRO: "+e.message));
+
+  document.getElementById("btnStatus").onclick = async () => {
+    try{
+      const status = document.getElementById("statusSel").value;
+      await apiPost(`/maquinas/${maquinaId}/status`, { status });
+      const msg = document.getElementById("statusMsg");
+      msg.className = "pill ok";
+      msg.textContent = `OK: ${status}`;
+      log(`Status máquina -> ${status}`);
+    }catch(e){
+      const msg = document.getElementById("statusMsg");
+      msg.className = "pill err";
+      msg.textContent = "ERRO";
+      log("ERRO status: " + e.message);
+    }
+  };
+
+  // init
+  refreshAll().then(()=>log("Tela carregada.")).catch(e=>log("ERRO init: " + e.message));
+</script>
+</body>
+</html>

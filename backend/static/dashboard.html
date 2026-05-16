@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dashboard CNC</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background:#0b0f14; color:#e8eef6; }
+    .topbar { padding:16px 20px; display:flex; align-items:center; justify-content:space-between; background:#0f1621; position:sticky; top:0; }
+    .title { font-size:18px; font-weight:700; }
+    .subtitle { font-size:12px; opacity:.8; }
+    .grid { padding:18px; display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:14px; }
+    .card { border-radius:14px; padding:14px; background:#121a26; box-shadow: 0 8px 18px rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.06); }
+    .row { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .cnc { font-size:16px; font-weight:800; letter-spacing:.3px; }
+    .badge { font-size:12px; padding:6px 10px; border-radius:999px; font-weight:700; }
+    .meta { margin-top:10px; font-size:13px; line-height:1.35; }
+    .label { opacity:.75; }
+    .value { font-weight:700; }
+    .muted { opacity:.7; font-size:12px; margin-top:10px; }
+    .ok { color:#9ff2c2; } .warn{ color:#ffe08a; } .bad{ color:#ff9aa0; } .info{ color:#9ad6ff; }
+
+    /* cores por status */
+    .PARADA { border-left:8px solid #ff5c6a; }
+    .CORTANDO { border-left:8px solid #35e38b; }
+    .SETUP { border-left:8px solid #ffd54a; }
+    .MANUTENÇÃO { border-left:8px solid #4bb3ff; }
+
+    .bPARADA { background: rgba(255,92,106,.18); color:#ffb3ba; border:1px solid rgba(255,92,106,.35); }
+    .bCORTANDO { background: rgba(53,227,139,.16); color:#b7ffd9; border:1px solid rgba(53,227,139,.35); }
+    .bSETUP { background: rgba(255,213,74,.16); color:#ffe9a6; border:1px solid rgba(255,213,74,.35); }
+    .bMANUTENÇÃO { background: rgba(75,179,255,.16); color:#b9e6ff; border:1px solid rgba(75,179,255,.35); }
+
+    .tv { font-size:12px; opacity:.7; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <div class="title">Dashboard CNC</div>
+      <div class="subtitle">Atualização automática • pronto para TV</div>
+    </div>
+    <div class="tv" id="last">—</div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <script>
+    function pad(n){ return String(n).padStart(2,"0"); }
+    function fmtTempo(seg){
+      if (seg === null || seg === undefined) return "—";
+      const s = Math.max(0, seg);
+      const h = Math.floor(s/3600);
+      const m = Math.floor((s%3600)/60);
+      const ss = s%60;
+      return `${pad(h)}:${pad(m)}:${pad(ss)}`;
+    }
+    function safe(v){ return (v===null || v===undefined || v==="") ? "—" : v; }
+
+    function cardHTML(item){
+      const status = safe(item.status).toUpperCase();
+      const cls = ["card", status].join(" ");
+      const badge = "badge " + ("b"+status);
+      const arquivo = safe(item.arquivo);
+      const tempo = fmtTempo(item.tempo_segundos);
+      const desde = safe(item.status_desde);
+
+      return `
+        <div class="${cls}">
+          <div class="row">
+            <div class="cnc">${safe(item.id)}</div>
+            <div class="${badge}">${status}</div>
+          </div>
+
+          <div class="meta">
+            <div><span class="label">Arquivo:</span> <span class="value">${arquivo}</span></div>
+            <div><span class="label">Tempo no status:</span> <span class="value">${tempo}</span></div>
+            <div><span class="label">Desde:</span> <span class="value">${desde}</span></div>
+          </div>
+
+          <div class="muted">Atualiza automaticamente (2s)</div>
+        </div>
+      `;
+    }
+
+    async function refresh(){
+      try{
+        const r = await fetch("/dashboard/data", {cache:"no-store"});
+        const data = await r.json();
+        const grid = document.getElementById("grid");
+        grid.innerHTML = data.map(cardHTML).join("");
+        document.getElementById("last").textContent = "Última atualização: " + new Date().toLocaleTimeString();
+      }catch(e){
+        document.getElementById("last").textContent = "Erro ao atualizar";
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 2000);
+  </script>
+</body>
+</html>

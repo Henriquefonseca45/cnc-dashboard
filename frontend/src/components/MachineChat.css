@@ -1,0 +1,145 @@
+.mcWrap{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  border:1px solid #22365f;
+  background:rgba(11,19,40,.78);
+  border-radius:16px;
+  padding:14px;
+  box-shadow:0 10px 25px rgba(0,0,0,.20);
+  min-height:0;
+}
+
+.mcWrapCompact{
+  padding:12px;
+}
+
+.mcHead{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+}
+
+.mcTitle{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-weight:700;
+  color:#eaf0ff;
+}
+
+.mcMeta{
+  font-size:12px;
+  color:#9db0d6;
+}
+
+.mcList{
+  overflow:auto;
+  border:1px solid #1b2a4b;
+  border-radius:14px;
+  padding:10px;
+  background:rgba(7,10,18,.55);
+}
+
+.mcEmpty{
+  height:100%;
+  min-height:120px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#7f93bd;
+  font-size:14px;
+}
+
+.mcMsgRow{
+  display:flex;
+  margin-bottom:10px;
+}
+
+.mcMsgRow.mine{
+  justify-content:flex-end;
+}
+
+.mcMsgRow.other{
+  justify-content:flex-start;
+}
+
+.mcMsg{
+  max-width:min(78%, 580px);
+  border-radius:14px;
+  padding:10px 12px;
+  border:1px solid #22365f;
+}
+
+.mcMsg.mine{
+  background:rgba(74,111,255,.18);
+}
+
+.mcMsg.other{
+  background:rgba(255,255,255,.05);
+}
+
+.mcMsgTop{
+  display:flex;
+  gap:10px;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:6px;
+  font-size:12px;
+  color:#9db0d6;
+}
+
+.mcMsgText{
+  color:#eaf0ff;
+  font-size:14px;
+  line-height:1.35;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+
+.mcSend{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+
+.mcInput{
+  flex:1;
+  min-width:0;
+  height:42px;
+  border-radius:12px;
+  border:1px solid #22365f;
+  background:#0b1328;
+  color:#eaf0ff;
+  padding:0 12px;
+  outline:none;
+}
+
+.mcInput::placeholder{
+  color:#7f93bd;
+}
+
+.mcBtn{
+  height:42px;
+  border:none;
+  border-radius:12px;
+  padding:0 14px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  cursor:pointer;
+  font-weight:700;
+  background:#4a6fff;
+  color:white;
+}
+
+.mcBtn:disabled{
+  opacity:.6;
+  cursor:not-allowed;
+}
+
+.mcError{
+  color:#ff8f8f;
+  font-size:13px;
+}
