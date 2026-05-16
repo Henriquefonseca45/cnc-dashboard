@@ -22,3 +22,37 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Python
+
+venv/
+**pycache**/
+*.pyc
+
+# Banco
+
+*.db
+*.sqlite
+
+# Deploys e builds
+
+build/
+release/
+dist/
+deploy-data/
+
+# Uploads e arquivos CNC
+
+storage/
+backend/data/
+backend/temp/
+
+# Compactados
+
+*.zip
+*.tar.gz
+
+# Env
+
+.env
+frontend/.env
+frontend/src/.env
