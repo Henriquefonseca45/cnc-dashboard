@@ -187,6 +187,14 @@ def _fila_programador_status_list():
     return ("AGUARDANDO", "PROGRAMANDO")
 
 
+def _fila_ativa_status_list():
+    return ("AGUARDANDO", "PROGRAMANDO", "EM_EXECUCAO", "BAIXADO")
+
+
+def _fila_finalizada_status_list():
+    return ("CORTADO", "CANCELADO")
+
+
 def _ensure_arquivos_cols(conn):
     cur = conn.cursor()
     try:
@@ -1344,11 +1352,11 @@ def listar_arquivos_disponiveis():
         """
         SELECT a.id, a.nome, a.status, a.criado_em
         FROM arquivos_dxf a
-        WHERE COALESCE(a.status,'') <> 'EXCLUIDO'
+        WHERE UPPER(COALESCE(a.status,'')) NOT IN ('EXCLUIDO','CORTADO')
           AND a.id NOT IN (
             SELECT DISTINCT arquivo_id
             FROM fila_itens
-            WHERE status IN ('AGUARDANDO','PROGRAMANDO','EM_EXECUCAO','BAIXADO')
+            WHERE status IN ('AGUARDANDO','PROGRAMANDO','EM_EXECUCAO','BAIXADO','CORTADO')
         )
         ORDER BY a.id DESC
         """
@@ -1499,6 +1507,25 @@ def add_fila(maquina_id: str, req: AddFilaRequest):
         conn.close()
         raise HTTPException(status_code=409, detail="Arquivo está EXCLUIDO e não pode entrar na fila.")
 
+    arq_status = (arq["status"] or "").upper()
+    if arq_status == "CORTADO":
+        conn.close()
+        raise HTTPException(status_code=409, detail="Arquivo ja foi CORTADO e nao pode entrar novamente na fila.")
+
+    ja_cortado = cur.execute(
+        """
+        SELECT 1
+        FROM fila_itens
+        WHERE arquivo_id = ?
+          AND status = 'CORTADO'
+        LIMIT 1
+        """,
+        (req.arquivo_id,),
+    ).fetchone()
+    if ja_cortado:
+        conn.close()
+        raise HTTPException(status_code=409, detail="Arquivo ja foi CORTADO e nao pode entrar novamente na fila.")
+
     last = cur.execute(
         """
         SELECT COALESCE(MAX(posicao), 0) as maxpos
@@ -1614,6 +1641,10 @@ def fila_item_to_pool(item_id: int):
         conn.close()
         raise HTTPException(status_code=409, detail="Não pode voltar para o pool: item está EM_EXECUCAO.")
 
+    if st in _fila_finalizada_status_list():
+        conn.close()
+        raise HTTPException(status_code=409, detail=f"Nao pode voltar para o pool: item ja foi finalizado ({st}).")
+
     cur.execute("DELETE FROM fila_itens WHERE id=?", (item_id,))
     _reindex_fila(conn, row["maquina_id"])
 
@@ -1642,6 +1673,10 @@ def fila_item_hard_delete(item_id: int):
     if st == "EM_EXECUCAO":
         conn.close()
         raise HTTPException(status_code=409, detail="Não pode excluir: item está EM_EXECUCAO.")
+
+    if st in _fila_finalizada_status_list():
+        conn.close()
+        raise HTTPException(status_code=409, detail=f"Nao pode excluir: item ja foi finalizado ({st}).")
 
     cur.execute("DELETE FROM fila_itens WHERE id=?", (item_id,))
     _reindex_fila(conn, row["maquina_id"])
@@ -1684,6 +1719,10 @@ def mover_item_para_outra_cnc(item_id: int, dest_maquina_id: str, req: MoveFilaI
     if st == "EM_EXECUCAO":
         conn.close()
         raise HTTPException(status_code=409, detail="Não pode mover: item está EM_EXECUCAO.")
+
+    if st in _fila_finalizada_status_list():
+        conn.close()
+        raise HTTPException(status_code=409, detail=f"Nao pode mover: item ja foi finalizado ({st}).")
 
     m = cur.execute("SELECT id FROM maquinas WHERE id = ?", (dest,)).fetchone()
     if not m:
@@ -2071,6 +2110,19 @@ def set_status_fila_item(maquina_id: str, req: FilaStatusRequest):
             """,
             (target, agora, req.id, maquina_id),
         )
+        if target == "CORTADO":
+            cur.execute(
+                """
+                UPDATE arquivos_dxf
+                SET status='CORTADO'
+                WHERE id = (
+                    SELECT arquivo_id
+                    FROM fila_itens
+                    WHERE id=? AND maquina_id=?
+                )
+                """,
+                (req.id, maquina_id),
+            )
 
     else:
         cur.execute(
@@ -2261,6 +2313,18 @@ def agente_cortado(maquina_id: str, fila_item_id: int, req: CortadoRequest):
     cur.execute(
         "UPDATE fila_itens SET status='CORTADO', finalizado_em=? WHERE id = ?",
         (datetime.now().isoformat(timespec="seconds"), fila_item_id),
+    )
+    cur.execute(
+        """
+        UPDATE arquivos_dxf
+        SET status='CORTADO'
+        WHERE id = (
+            SELECT arquivo_id
+            FROM fila_itens
+            WHERE id = ?
+        )
+        """,
+        (fila_item_id,),
     )
     _reindex_fila(conn, maquina_id)
 

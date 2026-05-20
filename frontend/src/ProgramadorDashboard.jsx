@@ -15,6 +15,14 @@ function U(s) {
   return normUpper(s);
 }
 
+function isFilaVivaStatus(status) {
+  return ["AGUARDANDO", "PROGRAMANDO", "BAIXADO"].includes(U(status));
+}
+
+function isFilaExecutandoStatus(status) {
+  return U(status) === "EM_EXECUCAO";
+}
+
 function badgeTone(status = "") {
   const s = U(status);
   if (s.includes("USIN") || s.includes("CORT")) return "tone-green";
@@ -479,7 +487,7 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
 
   const filaTotal = Object.values(filasById || {}).reduce((acc, arr) => {
     const list = Array.isArray(arr) ? arr : [];
-    return acc + list.filter((it) => U(it.status) !== "EM_EXECUCAO").length;
+    return acc + list.filter((it) => isFilaVivaStatus(it.status)).length;
   }, 0);
 
   const usinandoAgora = (maquinas || []).filter((m) => isUsinando(m.status)).length;
@@ -1478,12 +1486,12 @@ async function exportarPDF() {
   }, [maquinas, selectedId]);
 
   const emExecucao = useMemo(() => {
-    return (fila || []).find((it) => U(it.status) === "EM_EXECUCAO") || null;
+    return (fila || []).find((it) => isFilaExecutandoStatus(it.status)) || null;
   }, [fila]);
 
   const filaVisivel = useMemo(() => {
     return (fila || [])
-      .filter((it) => U(it.status) !== "EM_EXECUCAO")
+      .filter((it) => isFilaVivaStatus(it.status))
       .slice()
       .sort((a, b) => (a.posicao ?? 0) - (b.posicao ?? 0));
   }, [fila]);
@@ -1758,9 +1766,9 @@ async function exportarPDF() {
 
   function cardData(maquinaId) {
     const filaM = filasById[maquinaId] || [];
-    const exec = filaM.find((it) => U(it.status) === "EM_EXECUCAO") || null;
+    const exec = filaM.find((it) => isFilaExecutandoStatus(it.status)) || null;
     const aguard = filaM
-      .filter((it) => U(it.status) !== "EM_EXECUCAO")
+      .filter((it) => isFilaVivaStatus(it.status))
       .slice()
       .sort((a, b) => (a.posicao ?? 0) - (b.posicao ?? 0));
 
