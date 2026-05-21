@@ -1623,13 +1623,13 @@ async function exportarPDF() {
   <style>
     * { box-sizing: border-box; }
     :root {
-      --font-size: 12px;
-      --row-padding: 8px;
-      --col-machine: 130px;
-      --col-order: 74px;
-      --col-file: 360px;
-      --col-status: 130px;
-      --col-operator: 120px;
+      --font-size: 14px;
+      --row-padding: 11px;
+      --col-machine: 80px;
+      --col-order: 71px;
+      --col-file: 185px;
+      --col-status: 101px;
+      --col-operator: 129px;
       --col-item: 74px;
       --col-file-id: 74px;
       --col-date: 150px;
@@ -1740,7 +1740,7 @@ async function exportarPDF() {
     }
   </style>
 </head>
-<body>
+<body class="hide-col-2 hide-col-5 hide-col-6 hide-col-7 hide-col-8">
   <div class="printControls">
     <div class="printControlsTop">
       <div class="printControlsTitle">Ajustar tabela</div>
@@ -1753,13 +1753,13 @@ async function exportarPDF() {
       </div>
     </div>
     <div class="printControlsGrid">
-      <label>Fonte <input type="range" min="9" max="16" value="12" data-var="--font-size" data-unit="px" /><output>12px</output></label>
-      <label>Altura <input type="range" min="3" max="16" value="8" data-var="--row-padding" data-unit="px" /><output>8px</output></label>
-      <label>Maquina <input type="range" min="80" max="220" value="130" data-var="--col-machine" data-unit="px" /><output>130px</output></label>
-      <label>Ordem <input type="range" min="45" max="120" value="74" data-var="--col-order" data-unit="px" /><output>74px</output></label>
-      <label>Arquivo <input type="range" min="180" max="620" value="360" data-var="--col-file" data-unit="px" /><output>360px</output></label>
-      <label>Status <input type="range" min="80" max="220" value="130" data-var="--col-status" data-unit="px" /><output>130px</output></label>
-      <label>Operador <input type="range" min="80" max="220" value="120" data-var="--col-operator" data-unit="px" /><output>120px</output></label>
+      <label>Fonte <input type="range" min="9" max="16" value="14" data-var="--font-size" data-unit="px" /><output>14px</output></label>
+      <label>Altura <input type="range" min="3" max="16" value="11" data-var="--row-padding" data-unit="px" /><output>11px</output></label>
+      <label>Maquina <input type="range" min="80" max="220" value="80" data-var="--col-machine" data-unit="px" /><output>80px</output></label>
+      <label>Ordem <input type="range" min="45" max="120" value="71" data-var="--col-order" data-unit="px" /><output>71px</output></label>
+      <label>Arquivo <input type="range" min="180" max="620" value="185" data-var="--col-file" data-unit="px" /><output>185px</output></label>
+      <label>Status <input type="range" min="80" max="220" value="101" data-var="--col-status" data-unit="px" /><output>101px</output></label>
+      <label>Operador <input type="range" min="80" max="220" value="129" data-var="--col-operator" data-unit="px" /><output>129px</output></label>
       <label>Item <input type="range" min="45" max="120" value="74" data-var="--col-item" data-unit="px" /><output>74px</output></label>
       <label>Arquivo ID <input type="range" min="55" max="140" value="74" data-var="--col-file-id" data-unit="px" /><output>74px</output></label>
       <label>Entrada <input type="range" min="105" max="240" value="150" data-var="--col-date" data-unit="px" /><output>150px</output></label>
@@ -1771,13 +1771,13 @@ async function exportarPDF() {
       </div>
       <div class="toggleGrid">
         <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="1" /> Maquina</label>
-        <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="2" /> Ordem</label>
+        <label class="toggleLabel"><input type="checkbox" data-col-toggle="2" /> Ordem</label>
         <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="3" /> Arquivo</label>
         <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="4" /> Status</label>
-        <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="5" /> Operador</label>
-        <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="6" /> Item</label>
-        <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="7" /> Arquivo ID</label>
-        <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="8" /> Entrada</label>
+        <label class="toggleLabel"><input type="checkbox" data-col-toggle="5" /> Operador</label>
+        <label class="toggleLabel"><input type="checkbox" data-col-toggle="6" /> Item</label>
+        <label class="toggleLabel"><input type="checkbox" data-col-toggle="7" /> Arquivo ID</label>
+        <label class="toggleLabel"><input type="checkbox" data-col-toggle="8" /> Entrada</label>
       </div>
     </div>
     <div class="printEditSection">
@@ -1847,13 +1847,13 @@ async function exportarPDF() {
           "--col-date": 125
         },
         comfortable: {
-          "--font-size": 12,
-          "--row-padding": 8,
-          "--col-machine": 130,
-          "--col-order": 74,
-          "--col-file": 360,
-          "--col-status": 130,
-          "--col-operator": 120,
+          "--font-size": 14,
+          "--row-padding": 11,
+          "--col-machine": 80,
+          "--col-order": 71,
+          "--col-file": 185,
+          "--col-status": 101,
+          "--col-operator": 129,
           "--col-item": 74,
           "--col-file-id": 74,
           "--col-date": 150
