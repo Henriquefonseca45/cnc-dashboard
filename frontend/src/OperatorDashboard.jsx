@@ -843,7 +843,7 @@ export default function OperatorDashboard() {
                     <select
                       value={operadorDraft}
                       onChange={(e) => setOperadorDraft(e.target.value)}
-                      className="flex-1 min-w-0 h-10 rounded-xl bg-white border border-[rgba(47,55,125,.12)] px-3 text-sm text-slate-800 outline-none appearance-auto"
+                      className="flex-1 min-w-0 h-10 rounded-xl bg-white border border-[rgba(47,55,125,.12)] px-3 text-sm text-[#2f377d] font-semibold outline-none appearance-auto"
                       autoFocus
                       disabled={salvandoOperador || maquinaDesligada}
                     >
