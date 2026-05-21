@@ -195,6 +195,53 @@ def _fila_finalizada_status_list():
     return ("CORTADO", "CANCELADO")
 
 
+def _normalizar_nome_arquivo(nome: str | None) -> str:
+    return Path(str(nome or "")).name.strip().lower()
+
+
+def _arquivo_ja_cortado_por_nome(conn, nome: str | None):
+    nome_norm = _normalizar_nome_arquivo(nome)
+    if not nome_norm:
+        return None
+
+    return conn.execute(
+        """
+        SELECT
+            a.id AS arquivo_id,
+            a.nome AS arquivo_nome,
+            fi.id AS fila_item_id,
+            fi.maquina_id
+        FROM arquivos_dxf a
+        LEFT JOIN fila_itens fi
+               ON fi.arquivo_id = a.id
+              AND UPPER(COALESCE(fi.status,'')) = 'CORTADO'
+        WHERE LOWER(TRIM(a.nome)) = ?
+          AND (
+            UPPER(COALESCE(a.status,'')) = 'CORTADO'
+            OR fi.id IS NOT NULL
+          )
+        ORDER BY COALESCE(fi.finalizado_em, fi.criado_em, a.criado_em) DESC, a.id DESC
+        LIMIT 1
+        """,
+        (nome_norm,),
+    ).fetchone()
+
+
+def _marcar_arquivos_mesmo_nome_como_cortado(conn, arquivo_id: int):
+    conn.execute(
+        """
+        UPDATE arquivos_dxf
+        SET status='CORTADO'
+        WHERE LOWER(TRIM(nome)) = (
+            SELECT LOWER(TRIM(nome))
+            FROM arquivos_dxf
+            WHERE id = ?
+        )
+        """,
+        (arquivo_id,),
+    )
+
+
 def _ensure_arquivos_cols(conn):
     cur = conn.cursor()
     try:
@@ -1300,6 +1347,18 @@ async def upload_dxf(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Apenas arquivos .dxf são permitidos")
 
     safe_name = Path(nome).name
+
+    conn = get_conn()
+    _ensure_fila_itens_cols(conn)
+    _ensure_arquivos_cols(conn)
+    ja_cortado = _arquivo_ja_cortado_por_nome(conn, safe_name)
+    conn.close()
+    if ja_cortado:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Arquivo '{safe_name}' ja foi CORTADO e nao pode ser enviado novamente.",
+        )
+
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     stored_name = f"{stamp}__{safe_name}"
     dest = DXF_DIR / stored_name
@@ -1357,6 +1416,18 @@ def listar_arquivos_disponiveis():
             SELECT DISTINCT arquivo_id
             FROM fila_itens
             WHERE status IN ('AGUARDANDO','PROGRAMANDO','EM_EXECUCAO','BAIXADO','CORTADO')
+        )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM arquivos_dxf ac
+            LEFT JOIN fila_itens fic
+                   ON fic.arquivo_id = ac.id
+                  AND UPPER(COALESCE(fic.status,'')) = 'CORTADO'
+            WHERE LOWER(TRIM(ac.nome)) = LOWER(TRIM(a.nome))
+              AND (
+                UPPER(COALESCE(ac.status,'')) = 'CORTADO'
+                OR fic.id IS NOT NULL
+              )
         )
         ORDER BY a.id DESC
         """
@@ -1511,6 +1582,14 @@ def add_fila(maquina_id: str, req: AddFilaRequest):
     if arq_status == "CORTADO":
         conn.close()
         raise HTTPException(status_code=409, detail="Arquivo ja foi CORTADO e nao pode entrar novamente na fila.")
+
+    ja_cortado_nome = _arquivo_ja_cortado_por_nome(conn, arq["nome"])
+    if ja_cortado_nome:
+        conn.close()
+        raise HTTPException(
+            status_code=409,
+            detail=f"Arquivo '{arq['nome']}' ja foi CORTADO pelo nome e nao pode entrar novamente na fila.",
+        )
 
     ja_cortado = cur.execute(
         """
@@ -2026,7 +2105,7 @@ def set_status_fila_item(maquina_id: str, req: FilaStatusRequest):
     cur = conn.cursor()
 
     row = cur.execute(
-        "SELECT id, maquina_id, status FROM fila_itens WHERE id=? AND maquina_id=?",
+        "SELECT id, maquina_id, arquivo_id, status FROM fila_itens WHERE id=? AND maquina_id=?",
         (req.id, maquina_id),
     ).fetchone()
 
@@ -2078,18 +2157,7 @@ def set_status_fila_item(maquina_id: str, req: FilaStatusRequest):
             (target, agora, req.id, maquina_id),
         )
         if target == "CORTADO":
-            cur.execute(
-                """
-                UPDATE arquivos_dxf
-                SET status='CORTADO'
-                WHERE id = (
-                    SELECT arquivo_id
-                    FROM fila_itens
-                    WHERE id=? AND maquina_id=?
-                )
-                """,
-                (req.id, maquina_id),
-            )
+            _marcar_arquivos_mesmo_nome_como_cortado(conn, row["arquivo_id"])
 
     else:
         cur.execute(
@@ -2225,7 +2293,7 @@ def agente_executar(maquina_id: str, fila_item_id: int):
 
     row = cur.execute(
         """
-        SELECT id, maquina_id, status
+        SELECT id, maquina_id, arquivo_id, status
         FROM fila_itens
         WHERE id = ? AND maquina_id = ?
         """,
@@ -2281,18 +2349,7 @@ def agente_cortado(maquina_id: str, fila_item_id: int, req: CortadoRequest):
         "UPDATE fila_itens SET status='CORTADO', finalizado_em=? WHERE id = ?",
         (datetime.now().isoformat(timespec="seconds"), fila_item_id),
     )
-    cur.execute(
-        """
-        UPDATE arquivos_dxf
-        SET status='CORTADO'
-        WHERE id = (
-            SELECT arquivo_id
-            FROM fila_itens
-            WHERE id = ?
-        )
-        """,
-        (fila_item_id,),
-    )
+    _marcar_arquivos_mesmo_nome_como_cortado(conn, row["arquivo_id"])
     _reindex_fila(conn, maquina_id)
 
     conn.commit()
