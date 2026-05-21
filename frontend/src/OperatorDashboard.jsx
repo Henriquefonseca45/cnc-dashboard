@@ -844,12 +844,15 @@ export default function OperatorDashboard() {
                       value={operadorDraft}
                       onChange={(e) => setOperadorDraft(e.target.value)}
                       className="flex-1 min-w-0 h-10 rounded-xl bg-white border border-[rgba(47,55,125,.12)] px-3 text-sm text-[#2f377d] font-semibold outline-none appearance-auto"
+                      style={{ color: "#2f377d", WebkitTextFillColor: "#2f377d" }}
                       autoFocus
                       disabled={salvandoOperador || maquinaDesligada}
                     >
-                      <option value="">Selecione o operador</option>
+                      <option value="" style={{ color: "#2f377d", backgroundColor: "#ffffff" }}>
+                        Selecione o operador
+                      </option>
                       {OPERADORES.map((nome) => (
-                        <option key={nome} value={nome}>
+                        <option key={nome} value={nome} style={{ color: "#2f377d", backgroundColor: "#ffffff" }}>
                           {nome}
                         </option>
                       ))}
