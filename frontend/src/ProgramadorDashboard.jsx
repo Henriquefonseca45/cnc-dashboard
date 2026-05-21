@@ -3595,18 +3595,18 @@ const limparLista = (lista) =>
 
             <div className="pgDashIefStat">
               <div className="pgDashIefStatLabel">Capacidade total</div>
-              <div className="pgDashIefStatValue">{Math.round(dashboardData.capacidadePlanejadaTotalMin)} min</div>
+              <div className="pgDashIefStatValue">{fmtHoursHuman(dashboardData.capacidadePlanejadaTotalMin)}</div>
             </div>
 
             <div className="pgDashIefStat">
               <div className="pgDashIefStatLabel">Tempo usinando</div>
-              <div className="pgDashIefStatValue">{Math.round(dashboardData.tempoUsinandoMin)} min</div>
+              <div className="pgDashIefStatValue">{fmtHoursHuman(dashboardData.tempoUsinandoMin)}</div>
             </div>
 
             <div className="pgDashIefStat">
               <div className="pgDashIefStatLabel">Tempo não usado</div>
               <div className="pgDashIefStatValue">
-                {Math.max(0, Math.round(dashboardData.capacidadePlanejadaTotalMin - dashboardData.tempoUsinandoMin))} min
+                {fmtHoursHuman(Math.max(0, dashboardData.capacidadePlanejadaTotalMin - dashboardData.tempoUsinandoMin))}
               </div>
             </div>
           </div>
