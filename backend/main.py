@@ -1894,20 +1894,9 @@ def exportar_historico_excel(
     rows = cur.execute(
         f"""
         SELECT
-            fi.id,
             fi.maquina_id,
-            fi.arquivo_id,
-            fi.posicao,
             fi.status,
-            fi.criado_em,
-            fi.started_em,
-            fi.finalizado_em,
-            fi.tempo_estimado_seg,
-            fi.tempo_inicio_em,
-            fi.tempo_pausado_seg,
-            fi.tempo_pausa_inicio_em,
-            a.nome AS arquivo_nome,
-            a.status AS arquivo_status
+            a.nome AS arquivo_nome
         FROM fila_itens fi
         JOIN arquivos_dxf a ON a.id = fi.arquivo_id
         WHERE {where_sql}
@@ -1923,38 +1912,16 @@ def exportar_historico_excel(
     ws.title = "Historico CNC"
 
     ws.append([
-        "ID",
-        "MAQUINA_ID",
-        "ARQUIVO_ID",
-        "POSICAO",
+        "ARQUIVO",
         "STATUS",
-        "CRIADO_EM",
-        "STARTED_EM",
-        "FINALIZADO_EM",
-        "TEMPO_ESTIMADO_SEG",
-        "TEMPO_INICIO_EM",
-        "TEMPO_PAUSADO_SEG",
-        "TEMPO_PAUSA_INICIO_EM",
-        "ARQUIVO_NOME",
-        "ARQUIVO_STATUS",
+        "MAQUINA",
     ])
 
     for r in rows:
         ws.append([
-            r["id"],
-            r["maquina_id"],
-            r["arquivo_id"],
-            r["posicao"],
-            r["status"],
-            r["criado_em"],
-            r["started_em"],
-            r["finalizado_em"],
-            r["tempo_estimado_seg"],
-            r["tempo_inicio_em"],
-            r["tempo_pausado_seg"],
-            r["tempo_pausa_inicio_em"],
             r["arquivo_nome"],
-            r["arquivo_status"],
+            r["status"],
+            r["maquina_id"],
         ])
 
     for col in ws.columns:
