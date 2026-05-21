@@ -1520,35 +1520,67 @@ async function exportarPDF() {
       .sort((a, b) => (a.posicao ?? 0) - (b.posicao ?? 0));
   }, [fila]);
 
-  function exportarListaFilaParaImpressao() {
-    const machine = selectedMachine || { id: selectedId, nome: selectedId, status: "", operador_nome: "" };
-    const itens = (Array.isArray(fila) ? fila : [])
-      .filter((it) => isFilaExecutandoStatus(it.status) || isFilaVivaStatus(it.status))
-      .slice()
-      .sort((a, b) => {
-        const aAtual = isFilaExecutandoStatus(a.status) ? -1 : 0;
-        const bAtual = isFilaExecutandoStatus(b.status) ? -1 : 0;
-        if (aAtual !== bAtual) return aAtual - bAtual;
-        return (a.posicao ?? 999999) - (b.posicao ?? 999999);
-      });
+  async function exportarListaFilaParaImpressao() {
+    const machineList = Array.isArray(maquinas) ? maquinas.filter((m) => m?.id) : [];
+    const machineIds = machineList.map((m) => m.id);
+
+    if (machineIds.length === 0) {
+      alert("Nao ha maquinas cadastradas para imprimir.");
+      return;
+    }
+
+    let filasAtualizadas = filasById;
+    try {
+      filasAtualizadas = await fetchAllFilas(machineIds, false);
+    } catch {
+      filasAtualizadas = filasById || {};
+    }
+
+    const machineById = Object.fromEntries(machineList.map((m) => [m.id, m]));
+    const itens = machineIds.flatMap((machineId) => {
+      const machine = machineById[machineId] || { id: machineId, nome: machineId, status: "", operador_nome: "" };
+      return (Array.isArray(filasAtualizadas?.[machineId]) ? filasAtualizadas[machineId] : [])
+        .filter((it) => isFilaExecutandoStatus(it.status) || isFilaVivaStatus(it.status))
+        .map((it) => ({
+          ...it,
+          machineId,
+          machineNome: machine.nome || machineId,
+          machineStatus: machine.status || "-",
+          operadorNome: machine.operador_nome || "-",
+        }));
+    });
+
+    itens.sort((a, b) => {
+      const machineOrder = machineIds.indexOf(a.machineId) - machineIds.indexOf(b.machineId);
+      if (machineOrder !== 0) return machineOrder;
+      const aAtual = isFilaExecutandoStatus(a.status) ? -1 : 0;
+      const bAtual = isFilaExecutandoStatus(b.status) ? -1 : 0;
+      if (aAtual !== bAtual) return aAtual - bAtual;
+      return (a.posicao ?? 999999) - (b.posicao ?? 999999);
+    });
 
     if (itens.length === 0) {
-      alert("Nao ha arquivos na maquina selecionada para imprimir.");
+      alert("Nao ha arquivos nas maquinas para imprimir.");
       return;
     }
 
     const emitidoEm = new Date().toLocaleString("pt-BR");
-    const machineLabel = `${machine.id || selectedId}${machine.nome && machine.nome !== machine.id ? ` - ${machine.nome}` : ""}`;
+    const totalsByMachine = machineIds
+      .map((id) => `${id}: ${itens.filter((it) => it.machineId === id).length}`)
+      .join(" | ");
     const rows = itens
       .map((it, idx) => {
         const status = U(it.status) || "-";
         const ordem = isFilaExecutandoStatus(it.status) ? "Atual" : String(it.posicao ?? idx + 1);
         const nome = it.arquivo_nome || `arquivo_id: ${it.arquivo_id || "-"}`;
+        const machineLabel = `${it.machineId}${it.machineNome && it.machineNome !== it.machineId ? ` - ${it.machineNome}` : ""}`;
         return `
           <tr>
+            <td>${escapeHtml(machineLabel)}</td>
             <td>${escapeHtml(ordem)}</td>
             <td>${escapeHtml(nome)}</td>
             <td>${escapeHtml(status)}</td>
+            <td>${escapeHtml(it.operadorNome)}</td>
             <td>${escapeHtml(it.id ?? "-")}</td>
             <td>${escapeHtml(it.arquivo_id ?? "-")}</td>
             <td>${escapeHtml(fmtDate(it.criado_em))}</td>
@@ -1560,7 +1592,7 @@ async function exportarPDF() {
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
-  <title>Lista de arquivos - ${escapeHtml(machine.id || selectedId)}</title>
+  <title>Lista geral de arquivos das maquinas</title>
   <style>
     * { box-sizing: border-box; }
     body { margin: 32px; color: #111827; font-family: Arial, Helvetica, sans-serif; }
@@ -1571,9 +1603,11 @@ async function exportarPDF() {
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th, td { border: 1px solid #d1d5db; padding: 8px 10px; text-align: left; vertical-align: top; }
     th { background: #f3f4f6; color: #111827; font-size: 11px; text-transform: uppercase; }
-    td:first-child, th:first-child { width: 74px; text-align: center; }
-    td:nth-child(3), th:nth-child(3) { width: 140px; }
-    td:nth-child(4), th:nth-child(4), td:nth-child(5), th:nth-child(5) { width: 84px; text-align: center; }
+    td:first-child, th:first-child { width: 130px; }
+    td:nth-child(2), th:nth-child(2) { width: 74px; text-align: center; }
+    td:nth-child(4), th:nth-child(4) { width: 130px; }
+    td:nth-child(5), th:nth-child(5) { width: 120px; }
+    td:nth-child(6), th:nth-child(6), td:nth-child(7), th:nth-child(7) { width: 74px; text-align: center; }
     footer { margin-top: 18px; color: #6b7280; font-size: 11px; }
     @media print {
       body { margin: 12mm; }
@@ -1585,26 +1619,27 @@ async function exportarPDF() {
 <body>
   <header>
     <div>
-      <h1>Lista de arquivos na maquina</h1>
+      <h1>Lista geral de arquivos das maquinas</h1>
       <div class="meta">
-        Maquina: <strong>${escapeHtml(machineLabel)}</strong><br />
-        Operador: <strong>${escapeHtml(machine.operador_nome || "-")}</strong><br />
-        Status da maquina: <strong>${escapeHtml(machine.status || "-")}</strong>
+        Maquinas: <strong>${escapeHtml(machineIds.join(", "))}</strong><br />
+        Arquivos por maquina: <strong>${escapeHtml(totalsByMachine)}</strong>
       </div>
     </div>
     <div class="summary">
       Emitido em: <strong>${escapeHtml(emitidoEm)}</strong><br />
       Total de arquivos: <strong>${itens.length}</strong><br />
-      Inclui arquivo atual e fila aberta.
+      Inclui arquivos atuais e filas abertas.
     </div>
   </header>
 
   <table>
     <thead>
       <tr>
+        <th>Maquina</th>
         <th>Ordem</th>
         <th>Arquivo</th>
         <th>Status</th>
+        <th>Operador</th>
         <th>Item</th>
         <th>Arquivo ID</th>
         <th>Entrada</th>
@@ -2621,7 +2656,7 @@ const limparLista = (lista) =>
                   </button>
 
                   <button className="pgBtn pgBtnGhost" onClick={exportarListaFilaParaImpressao} disabled={loading || reorderBusy}>
-                    Imprimir lista
+                    Imprimir lista geral
                   </button>
 
                   <button className="pgBtn pgBtnPrimary" onClick={voltarSelecionadosParaPool} disabled={selectedFilaItemIds.size === 0 || reorderBusy}>
