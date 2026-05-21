@@ -1595,28 +1595,113 @@ async function exportarPDF() {
   <title>Lista geral de arquivos das maquinas</title>
   <style>
     * { box-sizing: border-box; }
+    :root {
+      --font-size: 12px;
+      --row-padding: 8px;
+      --col-machine: 130px;
+      --col-order: 74px;
+      --col-file: 360px;
+      --col-status: 130px;
+      --col-operator: 120px;
+      --col-item: 74px;
+      --col-file-id: 74px;
+      --col-date: 150px;
+    }
     body { margin: 32px; color: #111827; font-family: Arial, Helvetica, sans-serif; }
+    .printControls {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      margin: -16px -16px 20px;
+      padding: 12px 16px;
+      background: #ffffff;
+      border: 1px solid #d1d5db;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, .10);
+    }
+    .printControlsTop { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .printControlsTitle { font-weight: 700; font-size: 14px; }
+    .printControlsActions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .printControls button {
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #111827;
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .printControls button.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+    .printControlsGrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 8px 12px;
+    }
+    .printControls label {
+      display: grid;
+      grid-template-columns: 82px 1fr 48px;
+      gap: 8px;
+      align-items: center;
+      color: #334155;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .printControls input { width: 100%; }
+    .printControls output { color: #111827; font-family: Consolas, monospace; text-align: right; }
     header { display: flex; justify-content: space-between; gap: 24px; border-bottom: 2px solid #111827; padding-bottom: 16px; margin-bottom: 18px; }
     h1 { margin: 0 0 8px; font-size: 24px; }
     .meta { color: #374151; font-size: 13px; line-height: 1.55; }
     .summary { text-align: right; font-size: 13px; color: #374151; line-height: 1.55; }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th, td { border: 1px solid #d1d5db; padding: 8px 10px; text-align: left; vertical-align: top; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: var(--font-size); }
+    col.col-machine { width: var(--col-machine); }
+    col.col-order { width: var(--col-order); }
+    col.col-file { width: var(--col-file); }
+    col.col-status { width: var(--col-status); }
+    col.col-operator { width: var(--col-operator); }
+    col.col-item { width: var(--col-item); }
+    col.col-file-id { width: var(--col-file-id); }
+    col.col-date { width: var(--col-date); }
+    th, td {
+      border: 1px solid #d1d5db;
+      padding: var(--row-padding) 8px;
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
     th { background: #f3f4f6; color: #111827; font-size: 11px; text-transform: uppercase; }
-    td:first-child, th:first-child { width: 130px; }
-    td:nth-child(2), th:nth-child(2) { width: 74px; text-align: center; }
-    td:nth-child(4), th:nth-child(4) { width: 130px; }
-    td:nth-child(5), th:nth-child(5) { width: 120px; }
-    td:nth-child(6), th:nth-child(6), td:nth-child(7), th:nth-child(7) { width: 74px; text-align: center; }
+    td:nth-child(2), th:nth-child(2), td:nth-child(6), th:nth-child(6), td:nth-child(7), th:nth-child(7) { text-align: center; }
     footer { margin-top: 18px; color: #6b7280; font-size: 11px; }
     @media print {
       body { margin: 12mm; }
-      button { display: none; }
+      .printControls { display: none; }
       tr { break-inside: avoid; }
     }
   </style>
 </head>
 <body>
+  <div class="printControls">
+    <div class="printControlsTop">
+      <div class="printControlsTitle">Ajustar tabela</div>
+      <div class="printControlsActions">
+        <button type="button" data-preset="compact">Compacta</button>
+        <button type="button" data-preset="comfortable">Confortavel</button>
+        <button type="button" class="primary" onclick="window.print()">Imprimir</button>
+      </div>
+    </div>
+    <div class="printControlsGrid">
+      <label>Fonte <input type="range" min="9" max="16" value="12" data-var="--font-size" data-unit="px" /><output>12px</output></label>
+      <label>Altura <input type="range" min="3" max="16" value="8" data-var="--row-padding" data-unit="px" /><output>8px</output></label>
+      <label>Maquina <input type="range" min="80" max="220" value="130" data-var="--col-machine" data-unit="px" /><output>130px</output></label>
+      <label>Ordem <input type="range" min="45" max="120" value="74" data-var="--col-order" data-unit="px" /><output>74px</output></label>
+      <label>Arquivo <input type="range" min="180" max="620" value="360" data-var="--col-file" data-unit="px" /><output>360px</output></label>
+      <label>Status <input type="range" min="80" max="220" value="130" data-var="--col-status" data-unit="px" /><output>130px</output></label>
+      <label>Operador <input type="range" min="80" max="220" value="120" data-var="--col-operator" data-unit="px" /><output>120px</output></label>
+      <label>Item <input type="range" min="45" max="120" value="74" data-var="--col-item" data-unit="px" /><output>74px</output></label>
+      <label>Arquivo ID <input type="range" min="55" max="140" value="74" data-var="--col-file-id" data-unit="px" /><output>74px</output></label>
+      <label>Entrada <input type="range" min="105" max="240" value="150" data-var="--col-date" data-unit="px" /><output>150px</output></label>
+    </div>
+  </div>
+
   <header>
     <div>
       <h1>Lista geral de arquivos das maquinas</h1>
@@ -1633,6 +1718,16 @@ async function exportarPDF() {
   </header>
 
   <table>
+    <colgroup>
+      <col class="col-machine" />
+      <col class="col-order" />
+      <col class="col-file" />
+      <col class="col-status" />
+      <col class="col-operator" />
+      <col class="col-item" />
+      <col class="col-file-id" />
+      <col class="col-date" />
+    </colgroup>
     <thead>
       <tr>
         <th>Maquina</th>
@@ -1650,10 +1745,61 @@ async function exportarPDF() {
 
   <footer>Gerado pelo painel CNC.</footer>
   <script>
-    window.onload = function () {
+    (function () {
+      var root = document.documentElement;
+      var presets = {
+        compact: {
+          "--font-size": 10,
+          "--row-padding": 4,
+          "--col-machine": 100,
+          "--col-order": 55,
+          "--col-file": 300,
+          "--col-status": 100,
+          "--col-operator": 95,
+          "--col-item": 55,
+          "--col-file-id": 65,
+          "--col-date": 125
+        },
+        comfortable: {
+          "--font-size": 12,
+          "--row-padding": 8,
+          "--col-machine": 130,
+          "--col-order": 74,
+          "--col-file": 360,
+          "--col-status": 130,
+          "--col-operator": 120,
+          "--col-item": 74,
+          "--col-file-id": 74,
+          "--col-date": 150
+        }
+      };
+
+      function applyInput(input) {
+        var unit = input.getAttribute("data-unit") || "px";
+        root.style.setProperty(input.getAttribute("data-var"), input.value + unit);
+        var out = input.parentElement.querySelector("output");
+        if (out) out.textContent = input.value + unit;
+      }
+
+      document.querySelectorAll("[data-var]").forEach(function (input) {
+        input.addEventListener("input", function () { applyInput(input); });
+        applyInput(input);
+      });
+
+      document.querySelectorAll("[data-preset]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          var preset = presets[button.getAttribute("data-preset")] || {};
+          Object.keys(preset).forEach(function (varName) {
+            var input = document.querySelector('[data-var="' + varName + '"]');
+            if (!input) return;
+            input.value = preset[varName];
+            applyInput(input);
+          });
+        });
+      });
+
       window.focus();
-      setTimeout(function () { window.print(); }, 150);
-    };
+    })();
   </script>
 </body>
 </html>`;
