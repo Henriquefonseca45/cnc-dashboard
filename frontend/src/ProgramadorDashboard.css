@@ -479,12 +479,28 @@ body::after{
   background:rgba(47,55,125,.035);
 }
 .pgEspessuraSummaryTitle{
-  margin-bottom:10px;
   color:var(--muted);
   font-size:12px;
   font-weight:900;
   letter-spacing:.06em;
   text-transform:uppercase;
+}
+.pgEspessuraSummaryHeader{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+}
+.pgEspessuraClear{
+  border:1px solid var(--stroke);
+  background:rgba(255,255,255,.72);
+  color:var(--brand);
+  border-radius:999px;
+  padding:6px 10px;
+  font-size:12px;
+  font-weight:800;
+  cursor:pointer;
 }
 .pgEspessuraSummaryGrid{
   display:flex;
@@ -492,6 +508,7 @@ body::after{
   gap:8px;
 }
 .pgEspessuraChip{
+  appearance:none;
   display:inline-flex;
   align-items:center;
   gap:10px;
@@ -503,6 +520,16 @@ body::after{
   color:var(--text);
   font-size:12px;
   font-weight:800;
+  cursor:pointer;
+}
+.pgEspessuraChip:hover{
+  border-color:rgba(47,55,125,.32);
+  background:rgba(47,55,125,.08);
+}
+.pgEspessuraChip.active{
+  color:#fff;
+  border-color:#1d4ed8;
+  background:linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
 }
 .pgEspessuraChip strong{
   min-width:24px;
@@ -515,6 +542,11 @@ body::after{
   color:var(--brand);
   background:rgba(47,55,125,.09);
   border:1px solid rgba(47,55,125,.12);
+}
+.pgEspessuraChip.active strong{
+  color:#1d4ed8;
+  background:#fff;
+  border-color:rgba(255,255,255,.8);
 }
 .pgTone{
   display:inline-flex;

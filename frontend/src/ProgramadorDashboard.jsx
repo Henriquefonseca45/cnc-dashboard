@@ -637,6 +637,7 @@ export default function ProgramadorDashboard() {
   const [histLoading, setHistLoading] = useState(false);
   const [materialHistory, setMaterialHistory] = useState([]);
   const [materialHistoryLoading, setMaterialHistoryLoading] = useState(false);
+  const [histEspessuraFiltro, setHistEspessuraFiltro] = useState("");
 
   const [histFrom, setHistFrom] = useState("");
   const [histTo, setHistTo] = useState("");
@@ -2381,6 +2382,11 @@ async function exportarPDF() {
     return buildEspessuraSummary(historicoFiltrado, (item) => item.arquivo_nome || "");
   }, [historicoFiltrado]);
 
+  const historicoPorEspessura = useMemo(() => {
+    if (!histEspessuraFiltro) return historicoFiltrado;
+    return historicoFiltrado.filter((item) => extractEspessuraLabel(item.arquivo_nome || "") === histEspessuraFiltro);
+  }, [historicoFiltrado, histEspessuraFiltro]);
+
   const materialEspessuraSummary = useMemo(() => {
     return buildEspessuraSummary(
       materialHistoryFiltered,
@@ -3957,8 +3963,9 @@ const limparLista = (lista) =>
                   onClick={() => {
                     setHistFrom("");
                     setHistTo("");
+                    setHistEspessuraFiltro("");
                   }}
-                  disabled={histLoading || (!histFrom && !histTo)}
+                  disabled={histLoading || (!histFrom && !histTo && !histEspessuraFiltro)}
                 >
                   Limpar
                 </button>
@@ -3968,7 +3975,7 @@ const limparLista = (lista) =>
                 </button>
 
                 <div className="pgTiny">
-                  Mostrando: <span className="pgMono">{historicoFiltrado.length}</span> / Total:{" "}
+                  Mostrando: <span className="pgMono">{historicoPorEspessura.length}</span> / Total:{" "}
                   <span className="pgMono">{historicoAll.length}</span>
                 </div>
               </div>
@@ -3981,17 +3988,39 @@ const limparLista = (lista) =>
             ) : (
               <div style={{ overflow: "auto" }}>
                 <div className="pgEspessuraSummary">
-                  <div className="pgEspessuraSummaryTitle">Cortes por espessura</div>
+                  <div className="pgEspessuraSummaryHeader">
+                    <div className="pgEspessuraSummaryTitle">Cortes por espessura</div>
+                    {histEspessuraFiltro && (
+                      <button type="button" className="pgEspessuraClear" onClick={() => setHistEspessuraFiltro("")}>
+                        Limpar filtro
+                      </button>
+                    )}
+                  </div>
                   <div className="pgEspessuraSummaryGrid">
                     {corteEspessuraSummary.map((item) => (
-                      <div key={item.label} className="pgEspessuraChip">
+                      <button
+                        key={item.label}
+                        type="button"
+                        className={`pgEspessuraChip ${histEspessuraFiltro === item.label ? "active" : ""}`}
+                        onClick={() => setHistEspessuraFiltro((prev) => (prev === item.label ? "" : item.label))}
+                        title={`Mostrar arquivos de ${item.label}`}
+                      >
                         <span>{item.label}</span>
                         <strong>{item.count}</strong>
-                      </div>
+                      </button>
                     ))}
                   </div>
+                  {histEspessuraFiltro && (
+                    <div className="pgTiny" style={{ marginTop: 10 }}>
+                      Exibindo arquivos da espessura <span className="pgMono">{histEspessuraFiltro}</span>.
+                    </div>
+                  )}
                 </div>
 
+                {historicoPorEspessura.length === 0 ? (
+                  <div className="pgEmpty" style={{ padding: 14 }}>Nenhum arquivo para a espessura selecionada.</div>
+                ) : (
+                  <>
                 <table className="pgTable" style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 8px" }}>
                   <thead>
                     <tr className="pgTiny" style={{ opacity: 0.85 }}>
@@ -4004,7 +4033,7 @@ const limparLista = (lista) =>
                     </tr>
                   </thead>
                   <tbody>
-                    {historicoFiltrado.slice(0, 300).map((h) => (
+                    {historicoPorEspessura.slice(0, 300).map((h) => (
                       <tr key={`${h._maquina_id}-${h.id}`} className="pgRow">
                         <td style={{ padding: "10px", fontWeight: 900 }}>{h._maquina_id}</td>
                         <td style={{ padding: "10px" }}>{h.arquivo_nome || "-"}</td>
@@ -4035,6 +4064,8 @@ const limparLista = (lista) =>
                 <div className="pgTiny" style={{ marginTop: 10, opacity: 0.9 }}>
                   Mostrando até 300 registros mais recentes.
                 </div>
+                  </>
+                )}
               </div>
             )}
           </section>
