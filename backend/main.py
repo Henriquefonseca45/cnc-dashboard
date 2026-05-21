@@ -2225,7 +2225,7 @@ def agente_download_fila(maquina_id: str, fila_item_id: int):
         conn.close()
         raise HTTPException(status_code=404, detail="Item de fila não encontrado")
 
-    if (row["status"] or "").upper() not in ("AGUARDANDO", "PROGRAMANDO"):
+    if (row["status"] or "").upper() not in ("AGUARDANDO", "PROGRAMANDO", "BAIXADO"):
         conn.rollback()
         conn.close()
         raise HTTPException(status_code=400, detail=f"Item não pode ser baixado (status={row['status']})")
@@ -2270,7 +2270,7 @@ def agente_executar(maquina_id: str, fila_item_id: int):
         raise HTTPException(status_code=404, detail="Item de fila não encontrado")
 
     st = row["status"]
-    if st not in ("AGUARDANDO", "PROGRAMANDO", "EM_EXECUCAO"):
+    if st not in ("AGUARDANDO", "PROGRAMANDO", "BAIXADO", "EM_EXECUCAO"):
         conn.close()
         raise HTTPException(status_code=400, detail=f"Item não pode entrar em execução (status={st})")
 
