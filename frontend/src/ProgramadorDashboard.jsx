@@ -23,6 +23,11 @@ function isFilaExecutandoStatus(status) {
   return U(status) === "EM_EXECUCAO";
 }
 
+function isNearScrollBottom(el, gap = 80) {
+  if (!el) return true;
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= gap;
+}
+
 function badgeTone(status = "") {
   const s = U(status);
   if (s.includes("USIN") || s.includes("CORT")) return "tone-green";
@@ -320,6 +325,15 @@ function isoDay(dateLike) {
   } catch {
     return "";
   }
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function buildDashboardParams(filter, histFrom, histTo, nowTick) {
@@ -630,6 +644,8 @@ export default function ProgramadorDashboard() {
 
   const freezeMsByMachineRef = useRef({});
   const chatListRef = useRef(null);
+  const chatShouldScrollRef = useRef(true);
+  const chatForceScrollRef = useRef(true);
   const audioCtxRef = useRef(null);
   const chatNotifyBootstrappedRef = useRef(false);
   const chatSeenByMachineRef = useRef({});
@@ -1131,6 +1147,9 @@ async function exportarPDF() {
     try {
       const r = await api.get(`/chat/${maquinaId}`);
       const data = Array.isArray(r.data) ? [...r.data].reverse() : [];
+      const el = chatListRef.current;
+      chatShouldScrollRef.current = chatForceScrollRef.current || !el || isNearScrollBottom(el);
+      chatForceScrollRef.current = false;
       setChatMsgs(data);
       return data;
     } catch (e) {
@@ -1254,6 +1273,7 @@ async function exportarPDF() {
 
       setChatText("");
       setMsg(`Mensagem enviada para ${selectedId}.`);
+      chatForceScrollRef.current = true;
       const data = await fetchChat(selectedId, true);
       markMachineChatAsRead(selectedId, data);
     } catch (e) {
@@ -1384,6 +1404,7 @@ async function exportarPDF() {
     if (view !== "chat") return;
     if (!selectedId) return;
 
+    chatForceScrollRef.current = true;
     const t = setInterval(() => {
       fetchChat(selectedId, true).then((data) => {
         markMachineChatAsRead(selectedId, data);
@@ -1397,6 +1418,7 @@ async function exportarPDF() {
     if (readOnly) return;
     if (view !== "chat") return;
 
+    chatForceScrollRef.current = true;
     fetchChat(selectedId, false).then((data) => {
       markMachineChatAsRead(selectedId, data);
     });
@@ -1405,7 +1427,9 @@ async function exportarPDF() {
   useEffect(() => {
     const el = chatListRef.current;
     if (!el) return;
+    if (!chatShouldScrollRef.current) return;
     el.scrollTop = el.scrollHeight;
+    chatShouldScrollRef.current = false;
   }, [chatMsgs]);
 
   useEffect(() => {
@@ -1495,6 +1519,119 @@ async function exportarPDF() {
       .slice()
       .sort((a, b) => (a.posicao ?? 0) - (b.posicao ?? 0));
   }, [fila]);
+
+  function exportarListaFilaParaImpressao() {
+    const machine = selectedMachine || { id: selectedId, nome: selectedId, status: "", operador_nome: "" };
+    const itens = (Array.isArray(fila) ? fila : [])
+      .filter((it) => isFilaExecutandoStatus(it.status) || isFilaVivaStatus(it.status))
+      .slice()
+      .sort((a, b) => {
+        const aAtual = isFilaExecutandoStatus(a.status) ? -1 : 0;
+        const bAtual = isFilaExecutandoStatus(b.status) ? -1 : 0;
+        if (aAtual !== bAtual) return aAtual - bAtual;
+        return (a.posicao ?? 999999) - (b.posicao ?? 999999);
+      });
+
+    if (itens.length === 0) {
+      alert("Nao ha arquivos na maquina selecionada para imprimir.");
+      return;
+    }
+
+    const emitidoEm = new Date().toLocaleString("pt-BR");
+    const machineLabel = `${machine.id || selectedId}${machine.nome && machine.nome !== machine.id ? ` - ${machine.nome}` : ""}`;
+    const rows = itens
+      .map((it, idx) => {
+        const status = U(it.status) || "-";
+        const ordem = isFilaExecutandoStatus(it.status) ? "Atual" : String(it.posicao ?? idx + 1);
+        const nome = it.arquivo_nome || `arquivo_id: ${it.arquivo_id || "-"}`;
+        return `
+          <tr>
+            <td>${escapeHtml(ordem)}</td>
+            <td>${escapeHtml(nome)}</td>
+            <td>${escapeHtml(status)}</td>
+            <td>${escapeHtml(it.id ?? "-")}</td>
+            <td>${escapeHtml(it.arquivo_id ?? "-")}</td>
+            <td>${escapeHtml(fmtDate(it.criado_em))}</td>
+          </tr>`;
+      })
+      .join("");
+
+    const html = `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Lista de arquivos - ${escapeHtml(machine.id || selectedId)}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 32px; color: #111827; font-family: Arial, Helvetica, sans-serif; }
+    header { display: flex; justify-content: space-between; gap: 24px; border-bottom: 2px solid #111827; padding-bottom: 16px; margin-bottom: 18px; }
+    h1 { margin: 0 0 8px; font-size: 24px; }
+    .meta { color: #374151; font-size: 13px; line-height: 1.55; }
+    .summary { text-align: right; font-size: 13px; color: #374151; line-height: 1.55; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border: 1px solid #d1d5db; padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: #f3f4f6; color: #111827; font-size: 11px; text-transform: uppercase; }
+    td:first-child, th:first-child { width: 74px; text-align: center; }
+    td:nth-child(3), th:nth-child(3) { width: 140px; }
+    td:nth-child(4), th:nth-child(4), td:nth-child(5), th:nth-child(5) { width: 84px; text-align: center; }
+    footer { margin-top: 18px; color: #6b7280; font-size: 11px; }
+    @media print {
+      body { margin: 12mm; }
+      button { display: none; }
+      tr { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Lista de arquivos na maquina</h1>
+      <div class="meta">
+        Maquina: <strong>${escapeHtml(machineLabel)}</strong><br />
+        Operador: <strong>${escapeHtml(machine.operador_nome || "-")}</strong><br />
+        Status da maquina: <strong>${escapeHtml(machine.status || "-")}</strong>
+      </div>
+    </div>
+    <div class="summary">
+      Emitido em: <strong>${escapeHtml(emitidoEm)}</strong><br />
+      Total de arquivos: <strong>${itens.length}</strong><br />
+      Inclui arquivo atual e fila aberta.
+    </div>
+  </header>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Ordem</th>
+        <th>Arquivo</th>
+        <th>Status</th>
+        <th>Item</th>
+        <th>Arquivo ID</th>
+        <th>Entrada</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+
+  <footer>Gerado pelo painel CNC.</footer>
+  <script>
+    window.onload = function () {
+      window.focus();
+      setTimeout(function () { window.print(); }, 150);
+    };
+  </script>
+</body>
+</html>`;
+
+    const printWindow = window.open("", "_blank", "width=1100,height=800");
+    if (!printWindow) {
+      alert("O navegador bloqueou a janela de impressao. Libere pop-ups e tente novamente.");
+      return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+  }
 
   function onPickFiles() {
     if (readOnly) return;
@@ -2481,6 +2618,10 @@ const limparLista = (lista) =>
                 <div className="pgQueueActions">
                   <button className="pgBtn pgBtnGhost" onClick={clearFilaSelection} disabled={selectedFilaItemIds.size === 0 || reorderBusy}>
                     Limpar seleção
+                  </button>
+
+                  <button className="pgBtn pgBtnGhost" onClick={exportarListaFilaParaImpressao} disabled={loading || reorderBusy}>
+                    Imprimir lista
                   </button>
 
                   <button className="pgBtn pgBtnPrimary" onClick={voltarSelecionadosParaPool} disabled={selectedFilaItemIds.size === 0 || reorderBusy}>

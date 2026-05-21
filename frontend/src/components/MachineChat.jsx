@@ -11,6 +11,11 @@ function fmtDate(iso) {
   }
 }
 
+function isNearScrollBottom(el, gap = 80) {
+  if (!el) return true;
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= gap;
+}
+
 export default function MachineChat({
   maquinaId,
   autor = "PROGRAMADOR",
@@ -24,6 +29,8 @@ export default function MachineChat({
   const [sending, setSending] = useState(false);
   const [erro, setErro] = useState("");
   const listRef = useRef(null);
+  const shouldScrollRef = useRef(true);
+  const forceScrollRef = useRef(true);
 
   async function loadChat(silent = false) {
     if (!maquinaId) return;
@@ -33,6 +40,9 @@ export default function MachineChat({
     try {
       const res = await api.get(`/chat/${maquinaId}?limit=100`);
       const arr = Array.isArray(res.data) ? [...res.data].reverse() : [];
+      const el = listRef.current;
+      shouldScrollRef.current = forceScrollRef.current || !el || isNearScrollBottom(el);
+      forceScrollRef.current = false;
       setMensagens(arr);
     } catch (e) {
       setErro(getErrMsg?.(e) || "Falha ao carregar chat");
@@ -56,6 +66,7 @@ export default function MachineChat({
       });
 
       setTexto("");
+      forceScrollRef.current = true;
       await loadChat(true);
     } catch (e) {
       setErro(getErrMsg?.(e) || "Falha ao enviar mensagem");
@@ -65,6 +76,7 @@ export default function MachineChat({
   }
 
   useEffect(() => {
+    forceScrollRef.current = true;
     loadChat();
     const t = setInterval(() => loadChat(true), 5000);
     return () => clearInterval(t);
@@ -73,7 +85,9 @@ export default function MachineChat({
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
+    if (!shouldScrollRef.current) return;
     el.scrollTop = el.scrollHeight;
+    shouldScrollRef.current = false;
   }, [mensagens]);
 
   const total = useMemo(() => mensagens.length, [mensagens]);

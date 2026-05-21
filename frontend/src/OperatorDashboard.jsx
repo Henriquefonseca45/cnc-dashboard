@@ -37,6 +37,11 @@ function fmtDate(iso) {
   }
 }
 
+function isNearScrollBottom(el, gap = 80) {
+  if (!el) return true;
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= gap;
+}
+
 function pad2(n) {
   return String(Math.max(0, Math.floor(n))).padStart(2, "0");
 }
@@ -307,6 +312,8 @@ export default function OperatorDashboard() {
   const [chatLoading, setChatLoading] = useState(false);
   const [chatSending, setChatSending] = useState(false);
   const chatListRef = useRef(null);
+  const chatShouldScrollRef = useRef(true);
+  const chatForceScrollRef = useRef(true);
   const [materialRequestingId, setMaterialRequestingId] = useState(null);
   const [materialSetupId, setMaterialSetupId] = useState(null);
 
@@ -415,6 +422,9 @@ export default function OperatorDashboard() {
     try {
       const r = await http.get(`/chat/${cnc}`);
       const data = Array.isArray(r.data) ? [...r.data].reverse() : [];
+      const el = chatListRef.current;
+      chatShouldScrollRef.current = chatForceScrollRef.current || !el || isNearScrollBottom(el);
+      chatForceScrollRef.current = false;
       setChatMsgs(data);
     } catch (e) {
       console.error("fetchChat erro:", e);
@@ -438,6 +448,7 @@ export default function OperatorDashboard() {
       });
 
       setChatText("");
+      chatForceScrollRef.current = true;
       await fetchChat(true);
     } catch (e) {
       console.error("sendChat erro:", e);
@@ -476,6 +487,7 @@ export default function OperatorDashboard() {
   }
 
   useEffect(() => {
+    chatForceScrollRef.current = true;
     carregarTudo();
     fetchChat();
   }, [cnc]);
@@ -491,7 +503,9 @@ export default function OperatorDashboard() {
   useEffect(() => {
     const el = chatListRef.current;
     if (!el) return;
+    if (!chatShouldScrollRef.current) return;
     el.scrollTop = el.scrollHeight;
+    chatShouldScrollRef.current = false;
   }, [chatMsgs]);
 
   async function atualizarStatusMaquina(novo) {
