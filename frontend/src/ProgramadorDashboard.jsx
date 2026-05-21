@@ -1568,6 +1568,9 @@ async function exportarPDF() {
     const totalsByMachine = machineIds
       .map((id) => `${id}: ${itens.filter((it) => it.machineId === id).length}`)
       .join(" | ");
+    const machineControls = machineIds
+      .map((id) => `<label class="toggleLabel"><input type="checkbox" checked data-machine-toggle="${escapeHtml(id)}" /> ${escapeHtml(id)}</label>`)
+      .join("");
     const rows = itens
       .map((it, idx) => {
         const status = U(it.status) || "-";
@@ -1575,7 +1578,7 @@ async function exportarPDF() {
         const nome = it.arquivo_nome || `arquivo_id: ${it.arquivo_id || "-"}`;
         const machineLabel = `${it.machineId}${it.machineNome && it.machineNome !== it.machineId ? ` - ${it.machineNome}` : ""}`;
         return `
-          <tr>
+          <tr data-row-id="${escapeHtml(it.id ?? idx)}" data-machine="${escapeHtml(it.machineId)}">
             <td>${escapeHtml(machineLabel)}</td>
             <td>${escapeHtml(ordem)}</td>
             <td>${escapeHtml(nome)}</td>
@@ -1584,6 +1587,7 @@ async function exportarPDF() {
             <td>${escapeHtml(it.id ?? "-")}</td>
             <td>${escapeHtml(it.arquivo_id ?? "-")}</td>
             <td>${escapeHtml(fmtDate(it.criado_em))}</td>
+            <td class="screenOnlyCol"><button type="button" class="rowRemoveBtn" data-remove-row>Excluir</button></td>
           </tr>`;
       })
       .join("");
@@ -1606,6 +1610,7 @@ async function exportarPDF() {
       --col-item: 74px;
       --col-file-id: 74px;
       --col-date: 150px;
+      --col-action: 86px;
     }
     body { margin: 32px; color: #111827; font-family: Arial, Helvetica, sans-serif; }
     .printControls {
@@ -1647,6 +1652,27 @@ async function exportarPDF() {
     }
     .printControls input { width: 100%; }
     .printControls output { color: #111827; font-family: Consolas, monospace; text-align: right; }
+    .printEditSection { margin-top: 12px; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+    .printEditHead { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .printEditTitle { font-weight: 700; color: #111827; font-size: 12px; }
+    .toggleGrid { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+    .toggleLabel {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #334155;
+    }
+    .toggleLabel input { width: auto; }
+    .rowRemoveBtn {
+      border: 1px solid #fecaca;
+      background: #fff1f2;
+      color: #991b1b;
+      border-radius: 5px;
+      padding: 4px 7px;
+      font-size: 11px;
+      cursor: pointer;
+    }
     header { display: flex; justify-content: space-between; gap: 24px; border-bottom: 2px solid #111827; padding-bottom: 16px; margin-bottom: 18px; }
     h1 { margin: 0 0 8px; font-size: 24px; }
     .meta { color: #374151; font-size: 13px; line-height: 1.55; }
@@ -1660,6 +1686,7 @@ async function exportarPDF() {
     col.col-item { width: var(--col-item); }
     col.col-file-id { width: var(--col-file-id); }
     col.col-date { width: var(--col-date); }
+    col.col-action { width: var(--col-action); }
     th, td {
       border: 1px solid #d1d5db;
       padding: var(--row-padding) 8px;
@@ -1670,10 +1697,22 @@ async function exportarPDF() {
     }
     th { background: #f3f4f6; color: #111827; font-size: 11px; text-transform: uppercase; }
     td:nth-child(2), th:nth-child(2), td:nth-child(6), th:nth-child(6), td:nth-child(7), th:nth-child(7) { text-align: center; }
+    .machine-hidden, .removed-row { display: none; }
+    body.hide-col-1 .col-machine, body.hide-col-1 th:nth-child(1), body.hide-col-1 td:nth-child(1),
+    body.hide-col-2 .col-order, body.hide-col-2 th:nth-child(2), body.hide-col-2 td:nth-child(2),
+    body.hide-col-3 .col-file, body.hide-col-3 th:nth-child(3), body.hide-col-3 td:nth-child(3),
+    body.hide-col-4 .col-status, body.hide-col-4 th:nth-child(4), body.hide-col-4 td:nth-child(4),
+    body.hide-col-5 .col-operator, body.hide-col-5 th:nth-child(5), body.hide-col-5 td:nth-child(5),
+    body.hide-col-6 .col-item, body.hide-col-6 th:nth-child(6), body.hide-col-6 td:nth-child(6),
+    body.hide-col-7 .col-file-id, body.hide-col-7 th:nth-child(7), body.hide-col-7 td:nth-child(7),
+    body.hide-col-8 .col-date, body.hide-col-8 th:nth-child(8), body.hide-col-8 td:nth-child(8) {
+      display: none;
+    }
     footer { margin-top: 18px; color: #6b7280; font-size: 11px; }
     @media print {
       body { margin: 12mm; }
       .printControls { display: none; }
+      .screenOnlyCol { display: none !important; }
       tr { break-inside: avoid; }
     }
   </style>
@@ -1685,6 +1724,8 @@ async function exportarPDF() {
       <div class="printControlsActions">
         <button type="button" data-preset="compact">Compacta</button>
         <button type="button" data-preset="comfortable">Confortavel</button>
+        <button type="button" data-restore-rows>Restaurar linhas</button>
+        <button type="button" data-show-all>Mostrar tudo</button>
         <button type="button" class="primary" onclick="window.print()">Imprimir</button>
       </div>
     </div>
@@ -1699,6 +1740,26 @@ async function exportarPDF() {
       <label>Item <input type="range" min="45" max="120" value="74" data-var="--col-item" data-unit="px" /><output>74px</output></label>
       <label>Arquivo ID <input type="range" min="55" max="140" value="74" data-var="--col-file-id" data-unit="px" /><output>74px</output></label>
       <label>Entrada <input type="range" min="105" max="240" value="150" data-var="--col-date" data-unit="px" /><output>150px</output></label>
+    </div>
+    <div class="printEditSection">
+      <div class="printEditHead">
+        <div class="printEditTitle">Colunas visiveis</div>
+        <div class="printEditTitle">Linhas visiveis: <span id="visibleCount">${itens.length}</span></div>
+      </div>
+      <div class="toggleGrid">
+        <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="1" /> Maquina</label>
+        <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="2" /> Ordem</label>
+        <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="3" /> Arquivo</label>
+        <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="4" /> Status</label>
+        <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="5" /> Operador</label>
+        <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="6" /> Item</label>
+        <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="7" /> Arquivo ID</label>
+        <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="8" /> Entrada</label>
+      </div>
+    </div>
+    <div class="printEditSection">
+      <div class="printEditTitle">Maquinas visiveis</div>
+      <div class="toggleGrid">${machineControls}</div>
     </div>
   </div>
 
@@ -1727,6 +1788,7 @@ async function exportarPDF() {
       <col class="col-item" />
       <col class="col-file-id" />
       <col class="col-date" />
+      <col class="col-action screenOnlyCol" />
     </colgroup>
     <thead>
       <tr>
@@ -1738,6 +1800,7 @@ async function exportarPDF() {
         <th>Item</th>
         <th>Arquivo ID</th>
         <th>Entrada</th>
+        <th class="screenOnlyCol">Editar</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -1781,6 +1844,15 @@ async function exportarPDF() {
         if (out) out.textContent = input.value + unit;
       }
 
+      function updateVisibleCount() {
+        var rows = Array.prototype.slice.call(document.querySelectorAll("tbody tr"));
+        var visibleRows = rows.filter(function (row) {
+          return !row.classList.contains("removed-row") && !row.classList.contains("machine-hidden");
+        });
+        var count = document.getElementById("visibleCount");
+        if (count) count.textContent = visibleRows.length;
+      }
+
       document.querySelectorAll("[data-var]").forEach(function (input) {
         input.addEventListener("input", function () { applyInput(input); });
         applyInput(input);
@@ -1798,7 +1870,60 @@ async function exportarPDF() {
         });
       });
 
+      document.querySelectorAll("[data-col-toggle]").forEach(function (input) {
+        input.addEventListener("change", function () {
+          document.body.classList.toggle("hide-col-" + input.getAttribute("data-col-toggle"), !input.checked);
+        });
+      });
+
+      document.querySelectorAll("[data-machine-toggle]").forEach(function (input) {
+        input.addEventListener("change", function () {
+          var machine = input.getAttribute("data-machine-toggle");
+          document.querySelectorAll('tbody tr[data-machine="' + machine + '"]').forEach(function (row) {
+            row.classList.toggle("machine-hidden", !input.checked);
+          });
+          updateVisibleCount();
+        });
+      });
+
+      document.querySelectorAll("[data-remove-row]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          var row = button.closest("tr");
+          if (row) row.classList.add("removed-row");
+          updateVisibleCount();
+        });
+      });
+
+      var restoreRows = document.querySelector("[data-restore-rows]");
+      if (restoreRows) {
+        restoreRows.addEventListener("click", function () {
+          document.querySelectorAll("tbody tr").forEach(function (row) {
+            row.classList.remove("removed-row");
+          });
+          updateVisibleCount();
+        });
+      }
+
+      var showAll = document.querySelector("[data-show-all]");
+      if (showAll) {
+        showAll.addEventListener("click", function () {
+          document.querySelectorAll("[data-col-toggle]").forEach(function (input) {
+            input.checked = true;
+            document.body.classList.remove("hide-col-" + input.getAttribute("data-col-toggle"));
+          });
+          document.querySelectorAll("[data-machine-toggle]").forEach(function (input) {
+            input.checked = true;
+          });
+          document.querySelectorAll("tbody tr").forEach(function (row) {
+            row.classList.remove("machine-hidden");
+            row.classList.remove("removed-row");
+          });
+          updateVisibleCount();
+        });
+      }
+
       window.focus();
+      updateVisibleCount();
     })();
   </script>
 </body>
