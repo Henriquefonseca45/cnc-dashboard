@@ -336,23 +336,25 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
-function getArquivoJaCortadoDetail(err) {
+function getArquivoBloqueadoDetail(err) {
   const detail = err?.response?.data?.detail;
   if (!detail || typeof detail !== "object") return null;
-  return detail.code === "ARQUIVO_JA_CORTADO" ? detail : null;
+  return ["ARQUIVO_JA_CORTADO", "ARQUIVO_JA_EM_FILA"].includes(detail.code) ? detail : null;
 }
 
-function mostrarAvisoArquivoJaCortado(err) {
-  const detail = getArquivoJaCortadoDetail(err);
+function mostrarAvisoArquivoBloqueado(err) {
+  const detail = getArquivoBloqueadoDetail(err);
   if (!detail) return false;
 
   const arquivo = detail.arquivo_nome || "Arquivo";
   const maquina = detail.maquina_id || "nao identificada";
+  const titulo = detail.code === "ARQUIVO_JA_EM_FILA" ? "Arquivo ja esta na fila" : "Arquivo ja cortado";
+  const linhaStatus = detail.status ? `\nStatus: ${detail.status}` : "";
   const msg =
     detail.message ||
-    `Arquivo '${arquivo}' ja foi cortado na maquina ${maquina} e nao pode entrar novamente na fila.`;
+    `Arquivo '${arquivo}' nao pode ser enviado novamente para a fila.`;
 
-  window.alert(`Arquivo ja cortado\n\nArquivo: ${arquivo}\nMaquina: ${maquina}\n\n${msg}`);
+  window.alert(`${titulo}\n\nArquivo: ${arquivo}\nMaquina: ${maquina}${linhaStatus}\n\n${msg}`);
   return true;
 }
 
@@ -2016,7 +2018,7 @@ async function exportarPDF() {
     } catch (e) {
       const msgErro = getErrMsg(e);
       setErr(msgErro);
-      mostrarAvisoArquivoJaCortado(e);
+      mostrarAvisoArquivoBloqueado(e);
     } finally {
       setUploading(false);
     }
@@ -2225,7 +2227,7 @@ async function exportarPDF() {
     } catch (e2) {
       const msgErro = getErrMsg(e2);
       setErr(msgErro);
-      mostrarAvisoArquivoJaCortado(e2);
+      mostrarAvisoArquivoBloqueado(e2);
     } finally {
       setDraggingId(null);
     }

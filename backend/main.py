@@ -230,6 +230,31 @@ def _arquivo_ja_cortado_por_nome(conn, nome: str | None):
     ).fetchone()
 
 
+def _arquivo_ja_em_fila_por_nome(conn, nome: str | None):
+    nome_norm = _normalizar_nome_arquivo(nome)
+    if not nome_norm:
+        return None
+
+    return conn.execute(
+        """
+        SELECT
+            a.id AS arquivo_id,
+            a.nome AS arquivo_nome,
+            fi.id AS fila_item_id,
+            fi.maquina_id,
+            fi.status
+        FROM arquivos_dxf a
+        JOIN fila_itens fi ON fi.arquivo_id = a.id
+        WHERE LOWER(TRIM(a.nome)) = ?
+          AND UPPER(COALESCE(a.status,'')) <> 'EXCLUIDO'
+          AND UPPER(COALESCE(fi.status,'')) IN ('AGUARDANDO','PROGRAMANDO','BAIXADO','EM_EXECUCAO')
+        ORDER BY fi.criado_em DESC, fi.id DESC
+        LIMIT 1
+        """,
+        (nome_norm,),
+    ).fetchone()
+
+
 def _detalhe_arquivo_ja_cortado(nome: str | None, row=None):
     arquivo_nome = Path(str(nome or "")).name
     maquina_id = None
@@ -249,6 +274,34 @@ def _detalhe_arquivo_ja_cortado(nome: str | None, row=None):
         "message": msg,
         "arquivo_nome": arquivo_nome,
         "maquina_id": maquina_id,
+    }
+
+
+def _detalhe_arquivo_ja_em_fila(nome: str | None, row=None):
+    arquivo_nome = Path(str(nome or "")).name
+    maquina_id = None
+    status = None
+    if row is not None:
+        try:
+            maquina_id = row["maquina_id"]
+        except Exception:
+            maquina_id = None
+        try:
+            status = row["status"]
+        except Exception:
+            status = None
+
+    if maquina_id:
+        msg = f"Arquivo '{arquivo_nome}' ja esta na fila da maquina {maquina_id}."
+    else:
+        msg = f"Arquivo '{arquivo_nome}' ja esta em uma fila de maquina."
+
+    return {
+        "code": "ARQUIVO_JA_EM_FILA",
+        "message": msg,
+        "arquivo_nome": arquivo_nome,
+        "maquina_id": maquina_id,
+        "status": status,
     }
 
 
@@ -1377,11 +1430,17 @@ async def upload_dxf(file: UploadFile = File(...)):
     _ensure_fila_itens_cols(conn)
     _ensure_arquivos_cols(conn)
     ja_cortado = _arquivo_ja_cortado_por_nome(conn, safe_name)
+    ja_em_fila = _arquivo_ja_em_fila_por_nome(conn, safe_name) if not ja_cortado else None
     conn.close()
     if ja_cortado:
         raise HTTPException(
             status_code=409,
             detail=_detalhe_arquivo_ja_cortado(safe_name, ja_cortado),
+        )
+    if ja_em_fila:
+        raise HTTPException(
+            status_code=409,
+            detail=_detalhe_arquivo_ja_em_fila(safe_name, ja_em_fila),
         )
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1609,6 +1668,14 @@ def add_fila(maquina_id: str, req: AddFilaRequest):
         raise HTTPException(
             status_code=409,
             detail=_detalhe_arquivo_ja_cortado(arq["nome"], ja_cortado_nome),
+        )
+
+    ja_em_fila_nome = _arquivo_ja_em_fila_por_nome(conn, arq["nome"])
+    if ja_em_fila_nome:
+        conn.close()
+        raise HTTPException(
+            status_code=409,
+            detail=_detalhe_arquivo_ja_em_fila(arq["nome"], ja_em_fila_nome),
         )
 
     arq_status = (arq["status"] or "").upper()
