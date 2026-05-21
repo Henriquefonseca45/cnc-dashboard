@@ -220,11 +220,36 @@ def _arquivo_ja_cortado_por_nome(conn, nome: str | None):
             UPPER(COALESCE(a.status,'')) = 'CORTADO'
             OR fi.id IS NOT NULL
           )
-        ORDER BY COALESCE(fi.finalizado_em, fi.criado_em, a.criado_em) DESC, a.id DESC
+        ORDER BY
+            CASE WHEN fi.id IS NOT NULL THEN 0 ELSE 1 END,
+            COALESCE(fi.finalizado_em, fi.criado_em, a.criado_em) DESC,
+            a.id DESC
         LIMIT 1
         """,
         (nome_norm,),
     ).fetchone()
+
+
+def _detalhe_arquivo_ja_cortado(nome: str | None, row=None):
+    arquivo_nome = Path(str(nome or "")).name
+    maquina_id = None
+    if row is not None:
+        try:
+            maquina_id = row["maquina_id"]
+        except Exception:
+            maquina_id = None
+
+    if maquina_id:
+        msg = f"Arquivo '{arquivo_nome}' ja foi CORTADO na maquina {maquina_id} e nao pode entrar novamente na fila."
+    else:
+        msg = f"Arquivo '{arquivo_nome}' ja foi CORTADO e nao pode entrar novamente na fila."
+
+    return {
+        "code": "ARQUIVO_JA_CORTADO",
+        "message": msg,
+        "arquivo_nome": arquivo_nome,
+        "maquina_id": maquina_id,
+    }
 
 
 def _marcar_arquivos_mesmo_nome_como_cortado(conn, arquivo_id: int):
@@ -1356,7 +1381,7 @@ async def upload_dxf(file: UploadFile = File(...)):
     if ja_cortado:
         raise HTTPException(
             status_code=409,
-            detail=f"Arquivo '{safe_name}' ja foi CORTADO e nao pode ser enviado novamente.",
+            detail=_detalhe_arquivo_ja_cortado(safe_name, ja_cortado),
         )
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1578,18 +1603,18 @@ def add_fila(maquina_id: str, req: AddFilaRequest):
         conn.close()
         raise HTTPException(status_code=409, detail="Arquivo está EXCLUIDO e não pode entrar na fila.")
 
-    arq_status = (arq["status"] or "").upper()
-    if arq_status == "CORTADO":
-        conn.close()
-        raise HTTPException(status_code=409, detail="Arquivo ja foi CORTADO e nao pode entrar novamente na fila.")
-
     ja_cortado_nome = _arquivo_ja_cortado_por_nome(conn, arq["nome"])
     if ja_cortado_nome:
         conn.close()
         raise HTTPException(
             status_code=409,
-            detail=f"Arquivo '{arq['nome']}' ja foi CORTADO pelo nome e nao pode entrar novamente na fila.",
+            detail=_detalhe_arquivo_ja_cortado(arq["nome"], ja_cortado_nome),
         )
+
+    arq_status = (arq["status"] or "").upper()
+    if arq_status == "CORTADO":
+        conn.close()
+        raise HTTPException(status_code=409, detail=_detalhe_arquivo_ja_cortado(arq["nome"]))
 
     ja_cortado = cur.execute(
         """
@@ -1603,7 +1628,7 @@ def add_fila(maquina_id: str, req: AddFilaRequest):
     ).fetchone()
     if ja_cortado:
         conn.close()
-        raise HTTPException(status_code=409, detail="Arquivo ja foi CORTADO e nao pode entrar novamente na fila.")
+        raise HTTPException(status_code=409, detail=_detalhe_arquivo_ja_cortado(arq["nome"]))
 
     last = cur.execute(
         """
