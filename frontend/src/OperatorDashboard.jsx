@@ -23,6 +23,21 @@ console.log("API_URL", http?.defaults?.baseURL);
 
 const CNC_IDS = ["CNC01", "CNC02", "CNC03", "CNC04", "CNC05", "CNC06", "CNC07"];
 const DEFAULT_CNC = (import.meta.env.VITE_CNC_ID || "CNC01").toUpperCase();
+const OPERADORES = [
+  "AGNALDO",
+  "GILBERTO",
+  "LUCAS",
+  "ALEIXO",
+  "EDSON",
+  "CRISTIANO",
+  "GIOVANI",
+  "PIERRE",
+  "IVANILDO",
+  "MARCOS",
+  "EDUARDO",
+  "JONATHAN",
+  "MATHEUS",
+];
 
 function cn(...s) {
   return s.filter(Boolean).join(" ");
@@ -825,14 +840,20 @@ export default function OperatorDashboard() {
                   </button>
                 ) : (
                   <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-                    <input
+                    <select
                       value={operadorDraft}
                       onChange={(e) => setOperadorDraft(e.target.value)}
-                      className="flex-1 min-w-0 h-10 rounded-xl bg-white border border-[rgba(47,55,125,.12)] px-3 text-sm text-slate-800 outline-none"
-                      placeholder="Nome do operador"
+                      className="flex-1 min-w-0 h-10 rounded-xl bg-white border border-[rgba(47,55,125,.12)] px-3 text-sm text-slate-800 outline-none appearance-auto"
                       autoFocus
                       disabled={salvandoOperador || maquinaDesligada}
-                    />
+                    >
+                      <option value="">Selecione o operador</option>
+                      {OPERADORES.map((nome) => (
+                        <option key={nome} value={nome}>
+                          {nome}
+                        </option>
+                      ))}
+                    </select>
 
                     <div className="flex w-full gap-2 lg:w-auto lg:flex-shrink-0">
                       <button
