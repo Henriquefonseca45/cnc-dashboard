@@ -1591,9 +1591,6 @@ async function exportarPDF() {
     const totalsByMachine = machineIds
       .map((id) => `${id}: ${itens.filter((it) => it.machineId === id).length}`)
       .join(" | ");
-    const machineControls = machineIds
-      .map((id) => `<label class="toggleLabel"><input type="checkbox" checked data-machine-toggle="${escapeHtml(id)}" /> ${escapeHtml(id)}</label>`)
-      .join("");
     const rows = itens
       .map((it, idx) => {
         const status = U(it.status) || "-";
@@ -1610,7 +1607,6 @@ async function exportarPDF() {
             <td>${escapeHtml(it.id ?? "-")}</td>
             <td>${escapeHtml(it.arquivo_id ?? "-")}</td>
             <td>${escapeHtml(fmtDate(it.criado_em))}</td>
-            <td class="screenOnlyCol"><button type="button" class="rowRemoveBtn" data-remove-row>Excluir</button></td>
           </tr>`;
       })
       .join("");
@@ -1633,69 +1629,8 @@ async function exportarPDF() {
       --col-item: 74px;
       --col-file-id: 74px;
       --col-date: 150px;
-      --col-action: 86px;
     }
     body { margin: 32px; color: #111827; font-family: Arial, Helvetica, sans-serif; }
-    .printControls {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      margin: -16px -16px 20px;
-      padding: 12px 16px;
-      background: #ffffff;
-      border: 1px solid #d1d5db;
-      box-shadow: 0 8px 20px rgba(15, 23, 42, .10);
-    }
-    .printControlsTop { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
-    .printControlsTitle { font-weight: 700; font-size: 14px; }
-    .printControlsActions { display: flex; gap: 8px; flex-wrap: wrap; }
-    .printControls button {
-      border: 1px solid #cbd5e1;
-      background: #f8fafc;
-      color: #111827;
-      border-radius: 6px;
-      padding: 7px 10px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    .printControls button.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
-    .printControlsGrid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-      gap: 8px 12px;
-    }
-    .printControls label {
-      display: grid;
-      grid-template-columns: 82px 1fr 48px;
-      gap: 8px;
-      align-items: center;
-      color: #334155;
-      font-size: 12px;
-      white-space: nowrap;
-    }
-    .printControls input { width: 100%; }
-    .printControls output { color: #111827; font-family: Consolas, monospace; text-align: right; }
-    .printEditSection { margin-top: 12px; border-top: 1px solid #e2e8f0; padding-top: 10px; }
-    .printEditHead { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
-    .printEditTitle { font-weight: 700; color: #111827; font-size: 12px; }
-    .toggleGrid { display: flex; flex-wrap: wrap; gap: 8px 14px; }
-    .toggleLabel {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: #334155;
-    }
-    .toggleLabel input { width: auto; }
-    .rowRemoveBtn {
-      border: 1px solid #fecaca;
-      background: #fff1f2;
-      color: #991b1b;
-      border-radius: 5px;
-      padding: 4px 7px;
-      font-size: 11px;
-      cursor: pointer;
-    }
     header { display: flex; justify-content: space-between; gap: 24px; border-bottom: 2px solid #111827; padding-bottom: 16px; margin-bottom: 18px; }
     h1 { margin: 0 0 8px; font-size: 24px; }
     .meta { color: #374151; font-size: 13px; line-height: 1.55; }
@@ -1709,7 +1644,6 @@ async function exportarPDF() {
     col.col-item { width: var(--col-item); }
     col.col-file-id { width: var(--col-file-id); }
     col.col-date { width: var(--col-date); }
-    col.col-action { width: var(--col-action); }
     th, td {
       border: 1px solid #d1d5db;
       padding: var(--row-padding) 8px;
@@ -1734,58 +1668,11 @@ async function exportarPDF() {
     footer { margin-top: 18px; color: #6b7280; font-size: 11px; }
     @media print {
       body { margin: 12mm; }
-      .printControls { display: none; }
-      .screenOnlyCol { display: none !important; }
       tr { break-inside: avoid; }
     }
   </style>
 </head>
 <body class="hide-col-2 hide-col-5 hide-col-6 hide-col-7 hide-col-8">
-  <div class="printControls">
-    <div class="printControlsTop">
-      <div class="printControlsTitle">Ajustar tabela</div>
-      <div class="printControlsActions">
-        <button type="button" data-preset="compact">Compacta</button>
-        <button type="button" data-preset="comfortable">Confortavel</button>
-        <button type="button" data-restore-rows>Restaurar linhas</button>
-        <button type="button" data-show-all>Mostrar tudo</button>
-        <button type="button" class="primary" onclick="window.print()">Imprimir</button>
-      </div>
-    </div>
-    <div class="printControlsGrid">
-      <label>Fonte <input type="range" min="9" max="16" value="14" data-var="--font-size" data-unit="px" /><output>14px</output></label>
-      <label>Altura <input type="range" min="3" max="16" value="11" data-var="--row-padding" data-unit="px" /><output>11px</output></label>
-      <label>Maquina <input type="range" min="80" max="220" value="80" data-var="--col-machine" data-unit="px" /><output>80px</output></label>
-      <label>Ordem <input type="range" min="45" max="120" value="71" data-var="--col-order" data-unit="px" /><output>71px</output></label>
-      <label>Arquivo <input type="range" min="180" max="620" value="185" data-var="--col-file" data-unit="px" /><output>185px</output></label>
-      <label>Status <input type="range" min="80" max="220" value="101" data-var="--col-status" data-unit="px" /><output>101px</output></label>
-      <label>Operador <input type="range" min="80" max="220" value="129" data-var="--col-operator" data-unit="px" /><output>129px</output></label>
-      <label>Item <input type="range" min="45" max="120" value="74" data-var="--col-item" data-unit="px" /><output>74px</output></label>
-      <label>Arquivo ID <input type="range" min="55" max="140" value="74" data-var="--col-file-id" data-unit="px" /><output>74px</output></label>
-      <label>Entrada <input type="range" min="105" max="240" value="150" data-var="--col-date" data-unit="px" /><output>150px</output></label>
-    </div>
-    <div class="printEditSection">
-      <div class="printEditHead">
-        <div class="printEditTitle">Colunas visiveis</div>
-        <div class="printEditTitle">Linhas visiveis: <span id="visibleCount">${itens.length}</span></div>
-      </div>
-      <div class="toggleGrid">
-        <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="1" /> Maquina</label>
-        <label class="toggleLabel"><input type="checkbox" data-col-toggle="2" /> Ordem</label>
-        <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="3" /> Arquivo</label>
-        <label class="toggleLabel"><input type="checkbox" checked data-col-toggle="4" /> Status</label>
-        <label class="toggleLabel"><input type="checkbox" data-col-toggle="5" /> Operador</label>
-        <label class="toggleLabel"><input type="checkbox" data-col-toggle="6" /> Item</label>
-        <label class="toggleLabel"><input type="checkbox" data-col-toggle="7" /> Arquivo ID</label>
-        <label class="toggleLabel"><input type="checkbox" data-col-toggle="8" /> Entrada</label>
-      </div>
-    </div>
-    <div class="printEditSection">
-      <div class="printEditTitle">Maquinas visiveis</div>
-      <div class="toggleGrid">${machineControls}</div>
-    </div>
-  </div>
-
   <header>
     <div>
       <h1>Lista geral de arquivos das maquinas</h1>
@@ -1811,7 +1698,6 @@ async function exportarPDF() {
       <col class="col-item" />
       <col class="col-file-id" />
       <col class="col-date" />
-      <col class="col-action screenOnlyCol" />
     </colgroup>
     <thead>
       <tr>
@@ -1823,7 +1709,6 @@ async function exportarPDF() {
         <th>Item</th>
         <th>Arquivo ID</th>
         <th>Entrada</th>
-        <th class="screenOnlyCol">Editar</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -1832,121 +1717,8 @@ async function exportarPDF() {
   <footer>Gerado pelo painel CNC.</footer>
   <script>
     (function () {
-      var root = document.documentElement;
-      var presets = {
-        compact: {
-          "--font-size": 10,
-          "--row-padding": 4,
-          "--col-machine": 100,
-          "--col-order": 55,
-          "--col-file": 300,
-          "--col-status": 100,
-          "--col-operator": 95,
-          "--col-item": 55,
-          "--col-file-id": 65,
-          "--col-date": 125
-        },
-        comfortable: {
-          "--font-size": 14,
-          "--row-padding": 11,
-          "--col-machine": 80,
-          "--col-order": 71,
-          "--col-file": 185,
-          "--col-status": 101,
-          "--col-operator": 129,
-          "--col-item": 74,
-          "--col-file-id": 74,
-          "--col-date": 150
-        }
-      };
-
-      function applyInput(input) {
-        var unit = input.getAttribute("data-unit") || "px";
-        root.style.setProperty(input.getAttribute("data-var"), input.value + unit);
-        var out = input.parentElement.querySelector("output");
-        if (out) out.textContent = input.value + unit;
-      }
-
-      function updateVisibleCount() {
-        var rows = Array.prototype.slice.call(document.querySelectorAll("tbody tr"));
-        var visibleRows = rows.filter(function (row) {
-          return !row.classList.contains("removed-row") && !row.classList.contains("machine-hidden");
-        });
-        var count = document.getElementById("visibleCount");
-        if (count) count.textContent = visibleRows.length;
-      }
-
-      document.querySelectorAll("[data-var]").forEach(function (input) {
-        input.addEventListener("input", function () { applyInput(input); });
-        applyInput(input);
-      });
-
-      document.querySelectorAll("[data-preset]").forEach(function (button) {
-        button.addEventListener("click", function () {
-          var preset = presets[button.getAttribute("data-preset")] || {};
-          Object.keys(preset).forEach(function (varName) {
-            var input = document.querySelector('[data-var="' + varName + '"]');
-            if (!input) return;
-            input.value = preset[varName];
-            applyInput(input);
-          });
-        });
-      });
-
-      document.querySelectorAll("[data-col-toggle]").forEach(function (input) {
-        input.addEventListener("change", function () {
-          document.body.classList.toggle("hide-col-" + input.getAttribute("data-col-toggle"), !input.checked);
-        });
-      });
-
-      document.querySelectorAll("[data-machine-toggle]").forEach(function (input) {
-        input.addEventListener("change", function () {
-          var machine = input.getAttribute("data-machine-toggle");
-          document.querySelectorAll('tbody tr[data-machine="' + machine + '"]').forEach(function (row) {
-            row.classList.toggle("machine-hidden", !input.checked);
-          });
-          updateVisibleCount();
-        });
-      });
-
-      document.querySelectorAll("[data-remove-row]").forEach(function (button) {
-        button.addEventListener("click", function () {
-          var row = button.closest("tr");
-          if (row) row.classList.add("removed-row");
-          updateVisibleCount();
-        });
-      });
-
-      var restoreRows = document.querySelector("[data-restore-rows]");
-      if (restoreRows) {
-        restoreRows.addEventListener("click", function () {
-          document.querySelectorAll("tbody tr").forEach(function (row) {
-            row.classList.remove("removed-row");
-          });
-          updateVisibleCount();
-        });
-      }
-
-      var showAll = document.querySelector("[data-show-all]");
-      if (showAll) {
-        showAll.addEventListener("click", function () {
-          document.querySelectorAll("[data-col-toggle]").forEach(function (input) {
-            input.checked = true;
-            document.body.classList.remove("hide-col-" + input.getAttribute("data-col-toggle"));
-          });
-          document.querySelectorAll("[data-machine-toggle]").forEach(function (input) {
-            input.checked = true;
-          });
-          document.querySelectorAll("tbody tr").forEach(function (row) {
-            row.classList.remove("machine-hidden");
-            row.classList.remove("removed-row");
-          });
-          updateVisibleCount();
-        });
-      }
-
       window.focus();
-      updateVisibleCount();
+      setTimeout(function () { window.print(); }, 150);
     })();
   </script>
 </body>
