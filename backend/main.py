@@ -673,6 +673,43 @@ def _normalize_status_compare(status: str) -> str:
     return (status or "").strip().upper()
 
 
+def _get_usinagem_required_text(status: str) -> str | None:
+    s = _normalize_status_compare(status)
+    if s == "USINANDO DETALHE":
+        return "DETALHE"
+    if s == "USINANDO RNC":
+        return "RNC"
+    if s == "USINANDO ABERTURA DE MATERIAL":
+        return "ABERTURA DE MATERIAL"
+    return None
+
+
+def _validate_usinagem_status_arquivo(conn, maquina_id: str, status: str):
+    required = _get_usinagem_required_text(status)
+    if not required:
+        return
+
+    row = conn.execute(
+        """
+        SELECT a.nome AS arquivo_nome
+        FROM fila_itens fi
+        JOIN arquivos_dxf a ON a.id = fi.arquivo_id
+        WHERE fi.maquina_id = ?
+          AND fi.status = 'EM_EXECUCAO'
+        ORDER BY fi.posicao ASC, fi.id ASC
+        LIMIT 1
+        """,
+        (maquina_id,),
+    ).fetchone()
+
+    arquivo_nome = row["arquivo_nome"] if row else ""
+    if required not in (arquivo_nome or "").upper():
+        raise HTTPException(
+            status_code=409,
+            detail=f"Status {status} so pode ser usado quando o arquivo em execucao tiver '{required}' no nome.",
+        )
+
+
 def _close_open_status_log(conn, maquina_id: str, fim_iso: str):
     _ensure_maquina_status_log_table(conn)
     cur = conn.cursor()
@@ -1304,6 +1341,12 @@ def atualizar_status(maquina_id: str, req: StatusRequest):
 
     anterior_norm = _normalize_status_compare(status_anterior)
     novo_norm = _normalize_status_compare(novo_status)
+    if anterior_norm != novo_norm:
+        try:
+            _validate_usinagem_status_arquivo(conn, maquina_id, novo_status)
+        except HTTPException:
+            conn.close()
+            raise
 
     # Se não mudou o status, não fecha/reabre log.
     if anterior_norm == novo_norm:

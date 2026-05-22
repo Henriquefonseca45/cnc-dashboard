@@ -23,6 +23,16 @@ console.log("API_URL", http?.defaults?.baseURL);
 
 const CNC_IDS = ["CNC01", "CNC02", "CNC03", "CNC04", "CNC05", "CNC06", "CNC07", "CNC_TESTE"];
 const DEFAULT_CNC = (import.meta.env.VITE_CNC_ID || "CNC01").toUpperCase();
+const USINAGEM_TIPOS = [
+  { value: "USINANDO", label: "USINANDO", requiredText: "" },
+  { value: "USINANDO DETALHE", label: "USINANDO DETALHE", requiredText: "DETALHE" },
+  { value: "USINANDO RNC", label: "USINANDO RNC", requiredText: "RNC" },
+  {
+    value: "USINANDO ABERTURA DE MATERIAL",
+    label: "USINANDO ABERTURA DE MATERIAL",
+    requiredText: "ABERTURA DE MATERIAL",
+  },
+];
 const OPERADORES = [
   "AGNALDO",
   "GILBERTO",
@@ -76,6 +86,22 @@ function U(s) {
 function isUsinandoMachineStatus(machineStatus = "") {
   const s = U(machineStatus);
   return s.includes("USIN") || s.includes("CORT");
+}
+
+function getArquivoNome(item) {
+  return item?.arquivo_nome || item?.nome || `Item #${item?.id || "-"}`;
+}
+
+function canUseUsinagemTipo(item, tipo) {
+  const rule = USINAGEM_TIPOS.find((x) => x.value === tipo);
+  if (!rule?.requiredText) return true;
+  return U(getArquivoNome(item)).includes(U(rule.requiredText));
+}
+
+function getUsinagemTipoBloqueio(item, tipo) {
+  const rule = USINAGEM_TIPOS.find((x) => x.value === tipo);
+  if (!rule || !rule.requiredText || canUseUsinagemTipo(item, tipo)) return "";
+  return `A opção ${rule.label} só pode ser usada quando o nome do arquivo tiver "${rule.requiredText}".`;
 }
 
 function toInt(n, fallback = 0) {
@@ -321,6 +347,7 @@ export default function OperatorDashboard() {
   const [tempoModalOpen, setTempoModalOpen] = useState(false);
   const [tempoModalItem, setTempoModalItem] = useState(null);
   const [tempoModalMin, setTempoModalMin] = useState("45");
+  const [tempoModalTipo, setTempoModalTipo] = useState("USINANDO");
   const [tempoModalSaving, setTempoModalSaving] = useState(false);
 
   const [chatMsgs, setChatMsgs] = useState([]);
@@ -746,6 +773,7 @@ export default function OperatorDashboard() {
     if (seg > 0) setTempoModalMin(String(Math.max(1, Math.round(seg / 60))));
     else setTempoModalMin("45");
 
+    setTempoModalTipo("USINANDO");
     setTempoModalItem(item);
     setTempoModalOpen(true);
   }
@@ -765,6 +793,12 @@ export default function OperatorDashboard() {
         return;
       }
 
+      const tipoBloqueio = getUsinagemTipoBloqueio(tempoModalItem, tempoModalTipo);
+      if (tipoBloqueio) {
+        alert(tipoBloqueio);
+        return;
+      }
+
       await salvarTempoEstimado(tempoModalItem, tempoModalMin);
 
       await http.post(`/fila/${cnc}/status`, {
@@ -773,10 +807,10 @@ export default function OperatorDashboard() {
       });
 
       await http.post(`/maquinas/${cnc}/status`, {
-        status: "USINANDO",
+        status: tempoModalTipo,
       });
 
-      setStatusMaquina("USINANDO");
+      setStatusMaquina(tempoModalTipo);
       setTempoModalOpen(false);
       setTempoModalItem(null);
       setMenuOpenId(null);
@@ -992,6 +1026,8 @@ export default function OperatorDashboard() {
                   <option value="DESLIGADA">DESLIGADA</option>
                   <option value="USINANDO">USINANDO</option>
                   <option value="USINANDO DETALHE">DETALHE CNC</option>
+                  <option value="USINANDO RNC">USINANDO RNC</option>
+                  <option value="USINANDO ABERTURA DE MATERIAL">USINANDO ABERTURA DE MATERIAL</option>
                   <option value="SETUP">SETUP</option>
                   <option value="REFEIÇÃO">REFEIÇÃO</option>
                   <option value="MANUTENÇÃO">MANUTENÇÃO</option>
@@ -1377,7 +1413,7 @@ export default function OperatorDashboard() {
             onClick={() => !tempoModalSaving && setTempoModalOpen(false)}
           />
           <div
-            className="fixed z-[100] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-md rounded-2xl bg-white/95 border border-[rgba(47,55,125,.12)] shadow-[0_25px_70px_-40px_rgba(32,37,61,.30)] backdrop-blur p-4"
+            className="fixed z-[100] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-md max-h-[92vh] overflow-y-auto rounded-2xl bg-white/95 border border-[rgba(47,55,125,.12)] shadow-[0_25px_70px_-40px_rgba(32,37,61,.30)] backdrop-blur p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
@@ -1391,7 +1427,7 @@ export default function OperatorDashboard() {
                     `Item #${tempoModalItem?.id}`}
                 </div>
                 <div className="text-xs text-slate-400 mt-1">
-                  Ao confirmar, o tempo começa e o item vai para <b>USINANDO</b>.
+                  Ao confirmar, o tempo começa e o item vai para o tipo escolhido.
                 </div>
               </div>
 
@@ -1403,6 +1439,44 @@ export default function OperatorDashboard() {
               >
                 <X size={16} />
               </button>
+            </div>
+
+            <div className="mt-4">
+              <label className="text-[10px] tracking-[0.20em] text-slate-500">
+                TIPO DE USINAGEM
+              </label>
+
+              <div className="mt-2 grid grid-cols-1 gap-2">
+                {USINAGEM_TIPOS.map((tipo) => {
+                  const bloqueio = getUsinagemTipoBloqueio(tempoModalItem, tipo.value);
+                  const active = tempoModalTipo === tipo.value;
+
+                  return (
+                    <button
+                      key={tipo.value}
+                      type="button"
+                      onClick={() => {
+                        if (bloqueio) {
+                          alert(bloqueio);
+                          return;
+                        }
+                        setTempoModalTipo(tipo.value);
+                      }}
+                      disabled={tempoModalSaving}
+                      title={bloqueio || tipo.label}
+                      className={cn(
+                        "h-10 rounded-xl border px-3 text-sm font-semibold text-left transition",
+                        active
+                          ? "bg-emerald-600 border-emerald-600 text-white"
+                          : "bg-white border-[rgba(47,55,125,.12)] text-slate-800 hover:bg-[rgba(47,55,125,.05)]",
+                        bloqueio ? "opacity-45" : ""
+                      )}
+                    >
+                      {tipo.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="mt-4">
