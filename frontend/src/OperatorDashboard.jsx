@@ -296,6 +296,7 @@ export default function OperatorDashboard() {
 
   const [executando, setExecutando] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [baixandoId, setBaixandoId] = useState(null);
 
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0, width: 224 });
@@ -572,7 +573,17 @@ export default function OperatorDashboard() {
   }
 
   async function baixarArquivo(item) {
+    if (!item?.id) return;
+    if (baixandoId) return;
+
+    const bloqueio = getDownloadBloqueio(item);
+    if (bloqueio) {
+      alert(bloqueio);
+      return;
+    }
+
     try {
+      setBaixandoId(item.id);
       const res = await http.get(`/agente/${cnc}/download/fila/${item.id}`, {
         responseType: "blob",
       });
@@ -603,7 +614,18 @@ export default function OperatorDashboard() {
       await carregarTudo();
     } catch (e) {
       console.error(e);
-      alert("Erro ao baixar: " + getErrMsg(e));
+      let msg = getErrMsg(e);
+      try {
+        const data = e?.response?.data;
+        if (typeof Blob !== "undefined" && data instanceof Blob) {
+          const text = await data.text();
+          const parsed = JSON.parse(text);
+          msg = parsed?.detail ? String(parsed.detail) : text || msg;
+        }
+      } catch {}
+      alert("Erro ao baixar: " + msg);
+    } finally {
+      setBaixandoId(null);
     }
   }
 
@@ -748,6 +770,25 @@ export default function OperatorDashboard() {
       return st !== "CORTADO" && st !== "CANCELADO";
     });
   }, [fila]);
+
+  const baixadoPendente = useMemo(() => {
+    return filaVisivel.find((it) => String(it.status || "").toUpperCase() === "BAIXADO") || null;
+  }, [filaVisivel]);
+
+  function getDownloadBloqueio(item) {
+    if (!item?.id) return "Item invalido.";
+    const st = String(item.status || "").toUpperCase();
+    if (!["AGUARDANDO", "PROGRAMANDO", "BAIXADO"].includes(st)) {
+      return `Este arquivo nao pode ser baixado agora (status: ${item.status || "-"}).`;
+    }
+
+    if (baixadoPendente && Number(baixadoPendente.id) !== Number(item.id)) {
+      const nome = baixadoPendente.arquivo_nome || baixadoPendente.nome || `Arquivo #${baixadoPendente.id}`;
+      return `Ja existe um arquivo baixado aguardando USINANDO:\n\n${nome}\n\nColoque esse arquivo em USINANDO antes de baixar outro.`;
+    }
+
+    return "";
+  }
 
   const menuItem = useMemo(() => {
     if (!menuOpenId) return null;
@@ -1102,6 +1143,12 @@ export default function OperatorDashboard() {
               <div className="mt-3 text-xs text-slate-500">
                 Regra: o item só deve sair da fila quando marcar <b>Concluído</b> ou <b>Cancelado</b>.
               </div>
+
+              {baixadoPendente && (
+                <div className="mt-2 text-xs rounded-xl border border-amber-200 bg-amber-50 text-amber-800 px-3 py-2">
+                  Para baixar outro arquivo, coloque em <b>USINANDO</b>: {baixadoPendente.arquivo_nome || baixadoPendente.nome || `Arquivo #${baixadoPendente.id}`}
+                </div>
+              )}
             </Card>
 
             <Card
@@ -1134,6 +1181,8 @@ export default function OperatorDashboard() {
                     : null;
 
                   const restante = restanteItem(item);
+                  const downloadBloqueio = getDownloadBloqueio(item);
+                  const isBaixando = Number(baixandoId) === Number(item.id);
 
                   const subtitle = [
                     item.material || "—",
@@ -1155,10 +1204,17 @@ export default function OperatorDashboard() {
 
                           <button
                             onClick={() => baixarArquivo(item)}
-                            className="h-10 w-10 rounded-xl bg-white border border-[rgba(47,55,125,.12)] hover:bg-[rgba(47,55,125,.05)] flex items-center justify-center"
-                            title="Baixar"
+                            disabled={Boolean(baixandoId)}
+                            aria-disabled={Boolean(downloadBloqueio) || Boolean(baixandoId)}
+                            className={cn(
+                              "h-10 w-10 rounded-xl bg-white border border-[rgba(47,55,125,.12)] flex items-center justify-center",
+                              downloadBloqueio || baixandoId
+                                ? "opacity-45 cursor-not-allowed"
+                                : "hover:bg-[rgba(47,55,125,.05)]"
+                            )}
+                            title={downloadBloqueio || (isBaixando ? "Baixando..." : "Baixar")}
                           >
-                            <Download size={16} className="text-[#2f377d]/85" />
+                            <Download size={16} className={isBaixando ? "text-[#2f377d]/45 animate-pulse" : "text-[#2f377d]/85"} />
                           </button>
 
                           <button

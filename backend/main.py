@@ -2357,6 +2357,31 @@ def agente_download_fila(maquina_id: str, fila_item_id: int):
         conn.close()
         raise HTTPException(status_code=400, detail=f"Item não pode ser baixado (status={row['status']})")
 
+    baixado_pendente = cur.execute(
+        """
+        SELECT fi.id as fila_item_id, a.nome as arquivo_nome
+        FROM fila_itens fi
+        JOIN arquivos_dxf a ON a.id = fi.arquivo_id
+        WHERE fi.maquina_id = ?
+          AND fi.status = 'BAIXADO'
+          AND fi.id <> ?
+        ORDER BY fi.posicao ASC, fi.id ASC
+        LIMIT 1
+        """,
+        (maquina_id, fila_item_id),
+    ).fetchone()
+
+    if baixado_pendente:
+        conn.rollback()
+        conn.close()
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Ja existe um arquivo baixado aguardando USINANDO nesta maquina: "
+                f"{baixado_pendente['arquivo_nome']}. Coloque esse arquivo em USINANDO antes de baixar outro."
+            ),
+        )
+
     cur.execute(
         """
         UPDATE fila_itens
