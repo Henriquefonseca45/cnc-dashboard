@@ -690,6 +690,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
 
   const freezeMsByMachineRef = useRef({});
   const chatListRef = useRef(null);
+  const chatInputRef = useRef(null);
   const chatShouldScrollRef = useRef(true);
   const chatForceScrollRef = useRef(true);
   const audioCtxRef = useRef(null);
@@ -1315,7 +1316,10 @@ async function exportarPDF() {
 
   async function sendChat() {
     const texto = String(chatText || "").trim();
-    if (!texto || chatSending) return;
+    if (!texto || chatSending) {
+      window.setTimeout(() => chatInputRef.current?.focus(), 0);
+      return;
+    }
 
     setChatSending(true);
     setErr("");
@@ -1337,6 +1341,7 @@ async function exportarPDF() {
       setErr(getErrMsg(e));
     } finally {
       setChatSending(false);
+      window.setTimeout(() => chatInputRef.current?.focus(), 0);
     }
   }
 
@@ -4227,6 +4232,7 @@ const limparLista = (lista) =>
 
 <div className="pgChatComposer">
   <input
+    ref={chatInputRef}
     className="pgChatInput"
     type="text"
     placeholder={`Mensagem para o operador da ${selectedId}...`}

@@ -29,6 +29,7 @@ export default function MachineChat({
   const [sending, setSending] = useState(false);
   const [erro, setErro] = useState("");
   const listRef = useRef(null);
+  const inputRef = useRef(null);
   const shouldScrollRef = useRef(true);
   const forceScrollRef = useRef(true);
 
@@ -53,7 +54,10 @@ export default function MachineChat({
 
   async function sendChat() {
     const msg = texto.trim();
-    if (!msg || !maquinaId || sending) return;
+    if (!msg || !maquinaId || sending) {
+      window.setTimeout(() => inputRef.current?.focus(), 0);
+      return;
+    }
 
     setSending(true);
     setErro("");
@@ -72,6 +76,7 @@ export default function MachineChat({
       setErro(getErrMsg?.(e) || "Falha ao enviar mensagem");
     } finally {
       setSending(false);
+      window.setTimeout(() => inputRef.current?.focus(), 0);
     }
   }
 
@@ -135,6 +140,7 @@ export default function MachineChat({
 
       <div className="mcSend">
         <input
+          ref={inputRef}
           className="mcInput"
           value={texto}
           onChange={(e) => setTexto(e.target.value)}

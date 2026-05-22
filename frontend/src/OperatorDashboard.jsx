@@ -328,6 +328,7 @@ export default function OperatorDashboard() {
   const [chatLoading, setChatLoading] = useState(false);
   const [chatSending, setChatSending] = useState(false);
   const chatListRef = useRef(null);
+  const chatInputRef = useRef(null);
   const chatShouldScrollRef = useRef(true);
   const chatForceScrollRef = useRef(true);
   const [materialRequestingId, setMaterialRequestingId] = useState(null);
@@ -454,7 +455,10 @@ export default function OperatorDashboard() {
 
   async function sendChat() {
     const texto = String(chatText || "").trim();
-    if (!texto || chatSending) return;
+    if (!texto || chatSending) {
+      window.setTimeout(() => chatInputRef.current?.focus(), 0);
+      return;
+    }
 
     try {
       setChatSending(true);
@@ -472,6 +476,7 @@ export default function OperatorDashboard() {
       alert("Erro ao enviar mensagem: " + getErrMsg(e));
     } finally {
       setChatSending(false);
+      window.setTimeout(() => chatInputRef.current?.focus(), 0);
     }
   }
 
@@ -1072,6 +1077,7 @@ export default function OperatorDashboard() {
               <div className="mt-3 w-full min-w-0 overflow-hidden">
                 <div className="flex w-full min-w-0 items-center gap-2">
                   <input
+                    ref={chatInputRef}
                     className="flex-1 min-w-0 h-11 rounded-xl bg-white border border-[rgba(47,55,125,.12)] px-3 text-sm text-slate-800 outline-none"
                     type="text"
                     placeholder="Digite uma mensagem..."
