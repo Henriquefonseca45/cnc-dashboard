@@ -830,6 +830,18 @@ def _dashboard_bucket_from_status(status: str, motivo: str | None = None) -> str
     return "outros"
 
 
+def _dashboard_special_bucket_from_status(status: str, motivo: str | None = None) -> str | None:
+    s = _canonical_usinagem_status(status)
+    m = _normalize_status_compare(motivo or "")
+    txt = f"{s} {m}".strip()
+
+    if s == "RNC" or "USINANDO RNC" in txt:
+        return "rnc"
+    if s == "ABERTURA MATERIAL" or "ABERTURA MATERIAL" in txt or "ABERTURA DE MATERIAL" in txt:
+        return "abertura_material"
+    return None
+
+
 # =========================
 # HELPERS: SNAPSHOT DIÁRIO DO DASHBOARD
 # =========================
@@ -953,16 +965,16 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
         if secs <= 0:
             continue
 
+        special_bucket = _dashboard_special_bucket_from_status(r["status"], r["motivo"])
+        if special_bucket in special_totals:
+            special_totals[special_bucket] += secs
+
         bucket = _dashboard_bucket_from_status(r["status"], r["motivo"])
+        totals[bucket] += secs
+        per_machine[maquina_id][bucket] += secs
 
-        if bucket in special_totals:
-            special_totals[bucket] += secs
-        else:
-            totals[bucket] += secs
-            per_machine[maquina_id][bucket] += secs
-
-            if bucket == "setup":
-                qtd_setups += 1
+        if bucket == "setup":
+            qtd_setups += 1
 
     tempo_usinando_seg = totals["usinando"]
     tempo_setup_seg = totals["setup"]

@@ -1223,7 +1223,7 @@ async function exportarPDF() {
       if (params.data) search.set("data", params.data);
       if (params.data_inicio) search.set("data_inicio", params.data_inicio);
       if (params.data_fim) search.set("data_fim", params.data_fim);
-      search.set("usar_snapshot", "true");
+      search.set("usar_snapshot", "false");
 
       const r = await api.get(`/dashboard/indicadores?${search.toString()}`);
       setDashboardApiRaw(r.data || null);
@@ -2380,10 +2380,18 @@ const limparLista = (lista) =>
 
     const baseRows = order
       .map((bucket) => {
-        const min =
-          bucket === "rnc" || bucket === "abertura_material"
-            ? Number(dashboardData?.specialTotals?.[bucket] || 0)
-            : Number(dashboardData?.totals?.[bucket] || 0);
+        const rncMin = Number(dashboardData?.specialTotals?.rnc || 0);
+        const aberturaMin = Number(dashboardData?.specialTotals?.abertura_material || 0);
+        let min = Number(dashboardData?.totals?.[bucket] || 0);
+
+        if (bucket === "usinando") {
+          min = Math.max(0, min - rncMin - aberturaMin);
+        } else if (bucket === "rnc") {
+          min = rncMin;
+        } else if (bucket === "abertura_material") {
+          min = aberturaMin;
+        }
+
         return {
           bucket,
           label: bucketLabel(bucket),
@@ -3485,7 +3493,7 @@ const limparLista = (lista) =>
                   try {
                     const search = new URLSearchParams();
                     search.set("data", today);
-                    search.set("usar_snapshot", "true");
+                    search.set("usar_snapshot", "false");
 
                     const r = await api.get(`/dashboard/indicadores?${search.toString()}`);
                     setDashboardApiRaw(r.data || null);
