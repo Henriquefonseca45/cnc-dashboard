@@ -525,6 +525,100 @@ def _ensure_fila_itens_cols(conn):
         pass
 
 
+def _ensure_chapa_movimentacao_log_table(conn):
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS chapa_movimentacao_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fila_item_id INTEGER,
+            arquivo_id INTEGER,
+            arquivo_nome TEXT,
+            acao TEXT NOT NULL,
+            maquina_origem TEXT,
+            maquina_destino TEXT,
+            posicao_origem INTEGER,
+            posicao_destino INTEGER,
+            status_origem TEXT,
+            status_destino TEXT,
+            detalhe TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        )
+        """
+    )
+
+
+def _fila_item_log_snapshot(conn, item_id: int):
+    _ensure_fila_itens_cols(conn)
+    cur = conn.cursor()
+    return cur.execute(
+        """
+        SELECT
+            fi.id,
+            fi.maquina_id,
+            fi.arquivo_id,
+            fi.posicao,
+            fi.status,
+            a.nome AS arquivo_nome
+        FROM fila_itens fi
+        LEFT JOIN arquivos_dxf a ON a.id = fi.arquivo_id
+        WHERE fi.id = ?
+        """,
+        (item_id,),
+    ).fetchone()
+
+
+def _log_chapa_movimentacao(
+    conn,
+    acao: str,
+    *,
+    fila_item_id=None,
+    arquivo_id=None,
+    arquivo_nome=None,
+    maquina_origem=None,
+    maquina_destino=None,
+    posicao_origem=None,
+    posicao_destino=None,
+    status_origem=None,
+    status_destino=None,
+    detalhe=None,
+):
+    _ensure_chapa_movimentacao_log_table(conn)
+    conn.execute(
+        """
+        INSERT INTO chapa_movimentacao_log (
+            fila_item_id,
+            arquivo_id,
+            arquivo_nome,
+            acao,
+            maquina_origem,
+            maquina_destino,
+            posicao_origem,
+            posicao_destino,
+            status_origem,
+            status_destino,
+            detalhe,
+            criado_em
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            fila_item_id,
+            arquivo_id,
+            arquivo_nome,
+            acao,
+            maquina_origem,
+            maquina_destino,
+            posicao_origem,
+            posicao_destino,
+            status_origem,
+            status_destino,
+            detalhe,
+            datetime.now().isoformat(timespec="seconds"),
+        ),
+    )
+
+
 # =========================
 # HELPERS: LOG DE STATUS / DASHBOARD
 # =========================
@@ -1771,6 +1865,17 @@ def add_fila(maquina_id: str, req: AddFilaRequest):
 
     item_id = cur.lastrowid
     _reindex_fila(conn, maquina_id)
+    _log_chapa_movimentacao(
+        conn,
+        "ADICIONADO_NA_FILA",
+        fila_item_id=item_id,
+        arquivo_id=req.arquivo_id,
+        arquivo_nome=arq["nome"],
+        maquina_destino=maquina_id,
+        posicao_destino=pos,
+        status_destino="AGUARDANDO",
+        detalhe="Arquivo enviado da fila geral para a CNC.",
+    )
 
     conn.commit()
     conn.close()
@@ -1801,16 +1906,18 @@ def reorder_fila(maquina_id: str, req: ReorderFilaRequest):
 
     rows = cur.execute(
         f"""
-        SELECT id, posicao
-        FROM fila_itens
-        WHERE maquina_id = ?
-          AND status IN ({",".join(["?"] * len(allowed_status))})
-        ORDER BY posicao ASC, id ASC
+        SELECT fi.id, fi.arquivo_id, fi.posicao, fi.status, a.nome AS arquivo_nome
+        FROM fila_itens fi
+        LEFT JOIN arquivos_dxf a ON a.id = fi.arquivo_id
+        WHERE fi.maquina_id = ?
+          AND fi.status IN ({",".join(["?"] * len(allowed_status))})
+        ORDER BY fi.posicao ASC, fi.id ASC
         """,
         (mid, *allowed_status),
     ).fetchall()
 
     existing_ids = [int(r["id"]) for r in rows]
+    before_by_id = {int(r["id"]): dict(r) for r in rows}
     existing_set = set(existing_ids)
 
     wanted = []
@@ -1836,6 +1943,23 @@ def reorder_fila(maquina_id: str, req: ReorderFilaRequest):
             "UPDATE fila_itens SET posicao = ? WHERE id = ? AND maquina_id = ?",
             (i, item_id, mid),
         )
+        before = before_by_id.get(item_id) or {}
+        old_pos = before.get("posicao")
+        if old_pos != i:
+            _log_chapa_movimentacao(
+                conn,
+                "REORDENADO_NA_FILA",
+                fila_item_id=item_id,
+                arquivo_id=before.get("arquivo_id"),
+                arquivo_nome=before.get("arquivo_nome"),
+                maquina_origem=mid,
+                maquina_destino=mid,
+                posicao_origem=old_pos,
+                posicao_destino=i,
+                status_origem=before.get("status"),
+                status_destino=before.get("status"),
+                detalhe="Ordem da fila alterada.",
+            )
 
     _reindex_fila(conn, mid)
 
@@ -1851,12 +1975,9 @@ def fila_item_to_pool(item_id: int):
     _ensure_fila_itens_cols(conn)
     cur = conn.cursor()
 
-    row = cur.execute(
-        "SELECT id, maquina_id, arquivo_id, status FROM fila_itens WHERE id=?",
-        (item_id,),
-    ).fetchone()
+    row = _fila_item_log_snapshot(conn, item_id)
 
-    if not row:
+    if not row or row["maquina_id"] != maquina_id:
         conn.close()
         raise HTTPException(status_code=404, detail="Item não encontrado")
 
@@ -1871,6 +1992,17 @@ def fila_item_to_pool(item_id: int):
 
     cur.execute("DELETE FROM fila_itens WHERE id=?", (item_id,))
     _reindex_fila(conn, row["maquina_id"])
+    _log_chapa_movimentacao(
+        conn,
+        "VOLTOU_PARA_FILA_GERAL",
+        fila_item_id=item_id,
+        arquivo_id=row["arquivo_id"],
+        arquivo_nome=row["arquivo_nome"],
+        maquina_origem=row["maquina_id"],
+        posicao_origem=row["posicao"],
+        status_origem=row["status"],
+        detalhe="Item removido da fila da CNC e voltou para a fila geral.",
+    )
 
     conn.commit()
     conn.close()
@@ -1884,10 +2016,7 @@ def fila_item_hard_delete(item_id: int):
     _ensure_fila_itens_cols(conn)
     cur = conn.cursor()
 
-    row = cur.execute(
-        "SELECT id, maquina_id, arquivo_id, status FROM fila_itens WHERE id=?",
-        (item_id,),
-    ).fetchone()
+    row = _fila_item_log_snapshot(conn, item_id)
 
     if not row:
         conn.close()
@@ -1904,6 +2033,17 @@ def fila_item_hard_delete(item_id: int):
 
     cur.execute("DELETE FROM fila_itens WHERE id=?", (item_id,))
     _reindex_fila(conn, row["maquina_id"])
+    _log_chapa_movimentacao(
+        conn,
+        "EXCLUIDO_DA_FILA",
+        fila_item_id=item_id,
+        arquivo_id=row["arquivo_id"],
+        arquivo_nome=row["arquivo_nome"],
+        maquina_origem=row["maquina_id"],
+        posicao_origem=row["posicao"],
+        status_origem=row["status"],
+        detalhe="Item excluido da fila da CNC.",
+    )
 
     conn.commit()
     conn.close()
@@ -1921,9 +2061,10 @@ def mover_item_para_outra_cnc(item_id: int, dest_maquina_id: str, req: MoveFilaI
 
     item = cur.execute(
         """
-        SELECT id, maquina_id, arquivo_id, status
-        FROM fila_itens
-        WHERE id = ?
+        SELECT fi.id, fi.maquina_id, fi.arquivo_id, fi.posicao, fi.status, a.nome AS arquivo_nome
+        FROM fila_itens fi
+        LEFT JOIN arquivos_dxf a ON a.id = fi.arquivo_id
+        WHERE fi.id = ?
         """,
         (item_id,),
     ).fetchone()
@@ -1987,6 +2128,20 @@ def mover_item_para_outra_cnc(item_id: int, dest_maquina_id: str, req: MoveFilaI
 
     _reindex_fila(conn, origem)
     _reindex_fila(conn, dest)
+    _log_chapa_movimentacao(
+        conn,
+        "MOVIDO_ENTRE_CNCS",
+        fila_item_id=new_item_id,
+        arquivo_id=arquivo_id,
+        arquivo_nome=item["arquivo_nome"],
+        maquina_origem=origem,
+        maquina_destino=dest,
+        posicao_origem=item["posicao"],
+        posicao_destino=new_pos,
+        status_origem=st,
+        status_destino=new_status,
+        detalhe=f"Movido da {origem} para {dest}. Item anterior: {item_id}.",
+    )
 
     conn.commit()
     conn.close()
@@ -2005,6 +2160,73 @@ def mover_item_para_outra_cnc(item_id: int, dest_maquina_id: str, req: MoveFilaI
 # =========================
 # HISTÓRICO
 # =========================
+# =========================
+# RASTREAMENTO DAS CHAPAS
+# =========================
+@app.get("/rastreamento/filas")
+def listar_rastreamento_filas(
+    maquina_id: str | None = Query(None),
+    arquivo_id: int | None = Query(None),
+    item_id: int | None = Query(None),
+    acao: str | None = Query(None),
+    limit: int = Query(300),
+):
+    conn = get_conn()
+    _ensure_chapa_movimentacao_log_table(conn)
+    cur = conn.cursor()
+
+    filtros = []
+    params = []
+
+    mid = (maquina_id or "").upper().strip()
+    if mid:
+        filtros.append("(maquina_origem = ? OR maquina_destino = ?)")
+        params.extend([mid, mid])
+
+    if arquivo_id:
+        filtros.append("arquivo_id = ?")
+        params.append(arquivo_id)
+
+    if item_id:
+        filtros.append("fila_item_id = ?")
+        params.append(item_id)
+
+    act = (acao or "").upper().strip()
+    if act:
+        filtros.append("acao = ?")
+        params.append(act)
+
+    where_sql = "WHERE " + " AND ".join(filtros) if filtros else ""
+    lim = max(1, min(int(limit or 300), 1000))
+
+    rows = cur.execute(
+        f"""
+        SELECT
+            id,
+            fila_item_id,
+            arquivo_id,
+            arquivo_nome,
+            acao,
+            maquina_origem,
+            maquina_destino,
+            posicao_origem,
+            posicao_destino,
+            status_origem,
+            status_destino,
+            detalhe,
+            criado_em
+        FROM chapa_movimentacao_log
+        {where_sql}
+        ORDER BY datetime(criado_em) DESC, id DESC
+        LIMIT ?
+        """,
+        tuple(params + [lim]),
+    ).fetchall()
+
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 @app.get("/historico/{maquina_id}")
 def get_historico(maquina_id: str):
     conn = get_conn()
@@ -2252,10 +2474,7 @@ def set_status_fila_item(maquina_id: str, req: FilaStatusRequest):
     _ensure_fila_itens_cols(conn)
     cur = conn.cursor()
 
-    row = cur.execute(
-        "SELECT id, maquina_id, arquivo_id, status FROM fila_itens WHERE id=? AND maquina_id=?",
-        (req.id, maquina_id),
-    ).fetchone()
+    row = _fila_item_log_snapshot(conn, req.id)
 
     if not row:
         conn.close()
@@ -2317,6 +2536,26 @@ def set_status_fila_item(maquina_id: str, req: FilaStatusRequest):
             (target, req.id, maquina_id),
         )
 
+    _log_chapa_movimentacao(
+        conn,
+        {
+            "PROGRAMANDO": "STATUS_PROGRAMADO",
+            "EM_EXECUCAO": "INICIOU_USINAGEM",
+            "CORTADO": "MARCADO_CORTADO",
+            "CANCELADO": "CANCELADO",
+        }.get(target, "STATUS_ALTERADO"),
+        fila_item_id=req.id,
+        arquivo_id=row["arquivo_id"],
+        arquivo_nome=row["arquivo_nome"],
+        maquina_origem=row["maquina_id"],
+        maquina_destino=row["maquina_id"],
+        posicao_origem=row["posicao"],
+        posicao_destino=row["posicao"],
+        status_origem=atual,
+        status_destino=target,
+        detalhe=f"Status alterado via tela: {action}.",
+    )
+
     _reindex_fila(conn, maquina_id)
     conn.commit()
 
@@ -2373,6 +2612,20 @@ def agente_next(maquina_id: str):
 
     cur.execute("UPDATE fila_itens SET status='PROGRAMANDO' WHERE id = ?", (fila_item_id,))
     _reindex_fila(conn, maquina_id)
+    _log_chapa_movimentacao(
+        conn,
+        "AGENTE_RESERVOU_PROXIMO",
+        fila_item_id=fila_item_id,
+        arquivo_id=row["arquivo_id"],
+        arquivo_nome=row["arquivo_nome"],
+        maquina_origem=maquina_id,
+        maquina_destino=maquina_id,
+        posicao_origem=row["posicao"],
+        posicao_destino=row["posicao"],
+        status_origem=row["status"],
+        status_destino="PROGRAMANDO",
+        detalhe="Agente reservou o proximo arquivo da fila.",
+    )
 
     conn.commit()
     conn.close()
@@ -2398,7 +2651,7 @@ def agente_download_fila(maquina_id: str, fila_item_id: int):
 
     row = cur.execute(
         """
-        SELECT fi.id as fila_item_id, fi.maquina_id, fi.status,
+        SELECT fi.id as fila_item_id, fi.maquina_id, fi.arquivo_id, fi.posicao, fi.status,
                a.nome as arquivo_nome, a.path as arquivo_path
         FROM fila_itens fi
         JOIN arquivos_dxf a ON a.id = fi.arquivo_id
@@ -2452,6 +2705,20 @@ def agente_download_fila(maquina_id: str, fila_item_id: int):
     )
 
     _reindex_fila(conn, maquina_id)
+    _log_chapa_movimentacao(
+        conn,
+        "ARQUIVO_BAIXADO" if (row["status"] or "").upper() != "BAIXADO" else "DOWNLOAD_REFEITO",
+        fila_item_id=fila_item_id,
+        arquivo_id=row["arquivo_id"],
+        arquivo_nome=row["arquivo_nome"],
+        maquina_origem=maquina_id,
+        maquina_destino=maquina_id,
+        posicao_origem=row["posicao"],
+        posicao_destino=row["posicao"],
+        status_origem=row["status"],
+        status_destino="BAIXADO",
+        detalhe="Operador baixou o arquivo da fila.",
+    )
 
     conn.commit()
     conn.close()
@@ -2470,9 +2737,10 @@ def agente_executar(maquina_id: str, fila_item_id: int):
 
     row = cur.execute(
         """
-        SELECT id, maquina_id, arquivo_id, status
-        FROM fila_itens
-        WHERE id = ? AND maquina_id = ?
+        SELECT fi.id, fi.maquina_id, fi.arquivo_id, fi.posicao, fi.status, a.nome AS arquivo_nome
+        FROM fila_itens fi
+        LEFT JOIN arquivos_dxf a ON a.id = fi.arquivo_id
+        WHERE fi.id = ? AND fi.maquina_id = ?
         """,
         (fila_item_id, maquina_id),
     ).fetchone()
@@ -2495,6 +2763,20 @@ def agente_executar(maquina_id: str, fila_item_id: int):
     if st != "EM_EXECUCAO":
         cur.execute("UPDATE fila_itens SET status='EM_EXECUCAO' WHERE id = ?", (fila_item_id,))
         _reindex_fila(conn, maquina_id)
+        _log_chapa_movimentacao(
+            conn,
+            "INICIOU_USINAGEM",
+            fila_item_id=fila_item_id,
+            arquivo_id=row["arquivo_id"],
+            arquivo_nome=row["arquivo_nome"],
+            maquina_origem=maquina_id,
+            maquina_destino=maquina_id,
+            posicao_origem=row["posicao"],
+            posicao_destino=row["posicao"],
+            status_origem=st,
+            status_destino="EM_EXECUCAO",
+            detalhe="Operador/agente colocou o arquivo em usinagem.",
+        )
         conn.commit()
 
     conn.close()
@@ -2508,9 +2790,10 @@ def agente_cortado(maquina_id: str, fila_item_id: int, req: CortadoRequest):
 
     row = cur.execute(
         """
-        SELECT id, maquina_id, status
-        FROM fila_itens
-        WHERE id = ? AND maquina_id = ?
+        SELECT fi.id, fi.maquina_id, fi.arquivo_id, fi.posicao, fi.status, a.nome AS arquivo_nome
+        FROM fila_itens fi
+        LEFT JOIN arquivos_dxf a ON a.id = fi.arquivo_id
+        WHERE fi.id = ? AND fi.maquina_id = ?
         """,
         (fila_item_id, maquina_id),
     ).fetchone()
@@ -2532,6 +2815,20 @@ def agente_cortado(maquina_id: str, fila_item_id: int, req: CortadoRequest):
     )
     _marcar_arquivos_mesmo_nome_como_cortado(conn, row["arquivo_id"])
     _reindex_fila(conn, maquina_id)
+    _log_chapa_movimentacao(
+        conn,
+        "MARCADO_CORTADO",
+        fila_item_id=fila_item_id,
+        arquivo_id=row["arquivo_id"],
+        arquivo_nome=row["arquivo_nome"],
+        maquina_origem=maquina_id,
+        maquina_destino=maquina_id,
+        posicao_origem=row["posicao"],
+        posicao_destino=row["posicao"],
+        status_origem=row["status"],
+        status_destino="CORTADO",
+        detalhe="Operador marcou o arquivo como cortado.",
+    )
 
     conn.commit()
     conn.close()

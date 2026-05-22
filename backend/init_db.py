@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS chat_mensagens (
 )
 """)
     cur.execute("""
-CREATE TABLE IF NOT EXISTS material_solicitacoes (
+    CREATE TABLE IF NOT EXISTS material_solicitacoes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     maquina_id TEXT NOT NULL,
     item_id INTEGER,
@@ -133,6 +133,24 @@ CREATE TABLE IF NOT EXISTS material_solicitacoes (
     atendido_em TEXT
 )
 """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS chapa_movimentacao_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fila_item_id INTEGER,
+        arquivo_id INTEGER,
+        arquivo_nome TEXT,
+        acao TEXT NOT NULL,
+        maquina_origem TEXT,
+        maquina_destino TEXT,
+        posicao_origem INTEGER,
+        posicao_destino INTEGER,
+        status_origem TEXT,
+        status_destino TEXT,
+        detalhe TEXT,
+        criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    )
+    """)
 
     maquinas = [
         ("CNC01", "CNC 01"),

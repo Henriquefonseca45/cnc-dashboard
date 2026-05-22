@@ -660,6 +660,9 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const [histLoading, setHistLoading] = useState(false);
   const [materialHistory, setMaterialHistory] = useState([]);
   const [materialHistoryLoading, setMaterialHistoryLoading] = useState(false);
+  const [rastreamentoFilas, setRastreamentoFilas] = useState([]);
+  const [rastreamentoLoading, setRastreamentoLoading] = useState(false);
+  const [rastreamentoSearch, setRastreamentoSearch] = useState("");
   const [histEspessuraFiltro, setHistEspessuraFiltro] = useState("");
 
   const [histFrom, setHistFrom] = useState("");
@@ -1170,6 +1173,22 @@ async function exportarPDF() {
       setMaterialHistory([]);
     } finally {
       setMaterialHistoryLoading(false);
+    }
+  }
+
+  async function fetchRastreamentoFilas() {
+    setRastreamentoLoading(true);
+    setErr("");
+
+    try {
+      const r = await api.get("/rastreamento/filas?limit=500");
+      const data = Array.isArray(r.data) ? r.data : [];
+      setRastreamentoFilas(data);
+    } catch (e) {
+      setErr(getErrMsg(e));
+      setRastreamentoFilas([]);
+    } finally {
+      setRastreamentoLoading(false);
     }
   }
 
@@ -2191,6 +2210,31 @@ async function exportarPDF() {
     });
   }, [materialHistory, materialHistFrom, materialHistTo, materialHistSearch]);
 
+  const rastreamentoFiltrado = useMemo(() => {
+    const q = U(rastreamentoSearch).trim();
+    if (!q) return rastreamentoFilas || [];
+
+    return (rastreamentoFilas || []).filter((mov) => {
+      const haystack = U(
+        [
+          mov.criado_em,
+          mov.acao,
+          mov.arquivo_nome,
+          mov.arquivo_id,
+          mov.fila_item_id,
+          mov.maquina_origem,
+          mov.maquina_destino,
+          mov.status_origem,
+          mov.status_destino,
+          mov.detalhe,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      );
+      return haystack.includes(q);
+    });
+  }, [rastreamentoFilas, rastreamentoSearch]);
+
   const corteEspessuraSummary = useMemo(() => {
     return buildEspessuraSummary(historicoFiltrado, (item) => item.arquivo_nome || "");
   }, [historicoFiltrado]);
@@ -2411,6 +2455,17 @@ const limparLista = (lista) =>
             >
               <span className="pgNavDot" />
               Histórico de Material
+            </button>
+
+            <button
+              className={`pgNavItem ${view === "rastreamento" ? "pgNavActive" : ""}`}
+              onClick={async () => {
+                setView("rastreamento");
+                await fetchRastreamentoFilas();
+              }}
+            >
+              <span className="pgNavDot" />
+              Rastreamento
             </button>
 
             <button
@@ -3912,6 +3967,98 @@ const limparLista = (lista) =>
                 </div>
                   </>
                 )}
+              </div>
+            )}
+          </section>
+        )}
+
+        {!readOnly && view === "rastreamento" && (
+          <section className="pgPanel" style={{ marginTop: 14 }}>
+            <div className="pgPanelHeader">
+              <div>
+                <div className="pgPanelTitle">Rastreamento das Chapas nas Filas</div>
+                <div className="pgTiny">Log das movimentacoes, downloads, status e trocas de CNC.</div>
+              </div>
+
+              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                <input
+                  type="text"
+                  value={rastreamentoSearch}
+                  onChange={(e) => setRastreamentoSearch(e.target.value)}
+                  className="pgInput"
+                  placeholder="Buscar arquivo, CNC, acao, status..."
+                  style={{ minWidth: 260 }}
+                />
+
+                <button
+                  className="pgBtn pgBtnGhost"
+                  onClick={() => setRastreamentoSearch("")}
+                  disabled={!rastreamentoSearch}
+                >
+                  Limpar
+                </button>
+
+                <button className="pgBtn pgBtnPrimary" onClick={fetchRastreamentoFilas} disabled={rastreamentoLoading}>
+                  {rastreamentoLoading ? "Carregando..." : "Atualizar"}
+                </button>
+
+                <div className="pgTiny">
+                  Mostrando: <span className="pgMono">{rastreamentoFiltrado.length}</span> / Total:{" "}
+                  <span className="pgMono">{rastreamentoFilas.length}</span>
+                </div>
+              </div>
+            </div>
+
+            {rastreamentoLoading ? (
+              <div className="pgEmpty" style={{ padding: 14 }}>Carregando rastreamento...</div>
+            ) : rastreamentoFilas.length === 0 ? (
+              <div className="pgEmpty" style={{ padding: 14 }}>Nenhuma movimentacao registrada ainda.</div>
+            ) : rastreamentoFiltrado.length === 0 ? (
+              <div className="pgEmpty" style={{ padding: 14 }}>Nenhum movimento encontrado com esse filtro.</div>
+            ) : (
+              <div style={{ overflow: "auto" }}>
+                <table className="pgTable" style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 8px" }}>
+                  <thead>
+                    <tr className="pgTiny" style={{ opacity: 0.85 }}>
+                      <th style={{ textAlign: "left", padding: "6px 10px" }}>Data</th>
+                      <th style={{ textAlign: "left", padding: "6px 10px" }}>Acao</th>
+                      <th style={{ textAlign: "left", padding: "6px 10px" }}>Arquivo</th>
+                      <th style={{ textAlign: "left", padding: "6px 10px" }}>Origem</th>
+                      <th style={{ textAlign: "left", padding: "6px 10px" }}>Destino</th>
+                      <th style={{ textAlign: "left", padding: "6px 10px" }}>Status</th>
+                      <th style={{ textAlign: "left", padding: "6px 10px" }}>Detalhe</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rastreamentoFiltrado.slice(0, 500).map((mov) => (
+                      <tr key={mov.id} className="pgRow">
+                        <td style={{ padding: "10px" }} className="pgMono">{fmtDate(mov.criado_em)}</td>
+                        <td style={{ padding: "10px", fontWeight: 900 }}>{mov.acao || "-"}</td>
+                        <td style={{ padding: "10px" }}>
+                          <div style={{ fontWeight: 800 }}>{mov.arquivo_nome || "-"}</div>
+                          <div className="pgTiny">
+                            item: <span className="pgMono">{mov.fila_item_id || "-"}</span> / arquivo:{" "}
+                            <span className="pgMono">{mov.arquivo_id || "-"}</span>
+                          </div>
+                        </td>
+                        <td style={{ padding: "10px" }}>
+                          <span className="pgMono">{mov.maquina_origem || "-"}</span>
+                          {mov.posicao_origem != null && <div className="pgTiny">pos. {mov.posicao_origem}</div>}
+                        </td>
+                        <td style={{ padding: "10px" }}>
+                          <span className="pgMono">{mov.maquina_destino || "-"}</span>
+                          {mov.posicao_destino != null && <div className="pgTiny">pos. {mov.posicao_destino}</div>}
+                        </td>
+                        <td style={{ padding: "10px" }}>
+                          <span className="pgMono">{mov.status_origem || "-"}</span>
+                          <span>{" -> "}</span>
+                          <span className="pgMono">{mov.status_destino || "-"}</span>
+                        </td>
+                        <td style={{ padding: "10px" }}>{mov.detalhe || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </section>
