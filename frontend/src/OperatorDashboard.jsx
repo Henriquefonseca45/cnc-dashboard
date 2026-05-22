@@ -92,16 +92,25 @@ function getArquivoNome(item) {
   return item?.arquivo_nome || item?.nome || `Item #${item?.id || "-"}`;
 }
 
+function getUsinagemTipoPermitido(item) {
+  const nome = U(getArquivoNome(item));
+  if (nome.includes("ABERTURA DE MATERIAL")) return "USINANDO ABERTURA DE MATERIAL";
+  if (nome.includes("DETALHE")) return "USINANDO DETALHE";
+  if (nome.includes("RNC")) return "USINANDO RNC";
+  return "USINANDO";
+}
+
 function canUseUsinagemTipo(item, tipo) {
-  const rule = USINAGEM_TIPOS.find((x) => x.value === tipo);
-  if (!rule?.requiredText) return true;
-  return U(getArquivoNome(item)).includes(U(rule.requiredText));
+  return getUsinagemTipoPermitido(item) === tipo;
 }
 
 function getUsinagemTipoBloqueio(item, tipo) {
   const rule = USINAGEM_TIPOS.find((x) => x.value === tipo);
-  if (!rule || !rule.requiredText || canUseUsinagemTipo(item, tipo)) return "";
-  return `A opção ${rule.label} só pode ser usada quando o nome do arquivo tiver "${rule.requiredText}".`;
+  if (!rule || canUseUsinagemTipo(item, tipo)) return "";
+
+  const permitido = getUsinagemTipoPermitido(item);
+  const permitidoLabel = USINAGEM_TIPOS.find((x) => x.value === permitido)?.label || permitido;
+  return `Este arquivo so pode ser colocado como ${permitidoLabel}.`;
 }
 
 function toInt(n, fallback = 0) {
@@ -564,6 +573,14 @@ export default function OperatorDashboard() {
   }, [chatMsgs]);
 
   async function atualizarStatusMaquina(novo) {
+    if (USINAGEM_TIPOS.some((tipo) => tipo.value === novo)) {
+      const bloqueio = getUsinagemTipoBloqueio(executando, novo);
+      if (bloqueio) {
+        alert(bloqueio);
+        return;
+      }
+    }
+
     setStatusMaquina(novo);
 
     try {
@@ -773,7 +790,7 @@ export default function OperatorDashboard() {
     if (seg > 0) setTempoModalMin(String(Math.max(1, Math.round(seg / 60))));
     else setTempoModalMin("45");
 
-    setTempoModalTipo("USINANDO");
+    setTempoModalTipo(getUsinagemTipoPermitido(item));
     setTempoModalItem(item);
     setTempoModalOpen(true);
   }

@@ -8,6 +8,7 @@ import os
 import sqlite3
 import json
 import re
+import unicodedata
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -673,20 +674,36 @@ def _normalize_status_compare(status: str) -> str:
     return (status or "").strip().upper()
 
 
-def _get_usinagem_required_text(status: str) -> str | None:
+def _normalize_match_text(value: str) -> str:
+    text = unicodedata.normalize("NFD", value or "")
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+    return text.upper()
+
+
+def _get_usinagem_tipo_permitido(arquivo_nome: str) -> str:
+    nome = _normalize_match_text(arquivo_nome)
+    if "ABERTURA DE MATERIAL" in nome:
+        return "USINANDO ABERTURA DE MATERIAL"
+    if "DETALHE" in nome:
+        return "USINANDO DETALHE"
+    if "RNC" in nome:
+        return "USINANDO RNC"
+    return "USINANDO"
+
+
+def _is_usinagem_status(status: str) -> bool:
     s = _normalize_status_compare(status)
-    if s == "USINANDO DETALHE":
-        return "DETALHE"
-    if s == "USINANDO RNC":
-        return "RNC"
-    if s == "USINANDO ABERTURA DE MATERIAL":
-        return "ABERTURA DE MATERIAL"
-    return None
+    return s in {
+        "USINANDO",
+        "USINANDO DETALHE",
+        "USINANDO RNC",
+        "USINANDO ABERTURA DE MATERIAL",
+    }
 
 
 def _validate_usinagem_status_arquivo(conn, maquina_id: str, status: str):
-    required = _get_usinagem_required_text(status)
-    if not required:
+    status_norm = _normalize_status_compare(status)
+    if not _is_usinagem_status(status_norm):
         return
 
     row = conn.execute(
@@ -703,10 +720,11 @@ def _validate_usinagem_status_arquivo(conn, maquina_id: str, status: str):
     ).fetchone()
 
     arquivo_nome = row["arquivo_nome"] if row else ""
-    if required not in (arquivo_nome or "").upper():
+    permitido = _get_usinagem_tipo_permitido(arquivo_nome)
+    if status_norm != permitido:
         raise HTTPException(
             status_code=409,
-            detail=f"Status {status} so pode ser usado quando o arquivo em execucao tiver '{required}' no nome.",
+            detail=f"Este arquivo so pode ser colocado como {permitido}.",
         )
 
 
