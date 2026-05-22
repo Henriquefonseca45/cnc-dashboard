@@ -99,6 +99,9 @@ function pct(n, d) {
 
 function extractEspessuraLabel(text = "") {
   const raw = String(text || "");
+  const numberedSpecialMatch = /\b(\d+(?:[,.]\d+)?\s*(?:EX|MDF))\b/i.exec(raw);
+  if (numberedSpecialMatch) return numberedSpecialMatch[1].replace(/\s+/g, "").toUpperCase();
+
   const namedMatch = /\b(EX|MDF|RNC|DETALHE)\b/i.exec(raw);
   if (namedMatch) return namedMatch[1].toUpperCase();
 
