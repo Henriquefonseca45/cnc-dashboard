@@ -10,6 +10,7 @@ export default function App() {
       <Route path="/operador/:cncId" element={<OperatorDashboard />} />
 
       <Route path="/programador" element={<ProgramadorDashboard />} />
+      <Route path="/facilitador" element={<ProgramadorDashboard mode="facilitador" />} />
 
       {/* ✅ Visual (mesmo painel, readonly por querystring) */}
       <Route path="/visual" element={<ProgramadorDashboard />} />

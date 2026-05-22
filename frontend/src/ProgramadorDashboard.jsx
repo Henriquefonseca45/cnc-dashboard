@@ -580,11 +580,13 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
   };
 }
 
-export default function ProgramadorDashboard() {
+export default function ProgramadorDashboard({ mode = "programador" }) {
+  const isFacilitador = mode === "facilitador";
   const readOnly = useMemo(() => {
     const qs = new URLSearchParams(window.location.search);
-    return qs.get("readonly") === "1";
-  }, []);
+    return isFacilitador || qs.get("readonly") === "1";
+  }, [isFacilitador]);
+  const isVisual = readOnly && !isFacilitador;
   const dashboardRef = useRef(null);
   const [exportandoPdf, setExportandoPdf] = useState(false);
   const [exportandoExcel, setExportandoExcel] = useState(false);
@@ -2326,7 +2328,7 @@ const limparLista = (lista) =>
 
   return (
     <div
-      className={`pgShell ${readOnly ? "pgReadOnly pgVisual" : ""} ${
+      className={`pgShell ${readOnly ? "pgReadOnly" : ""} ${isVisual ? "pgVisual" : ""} ${
         themeMode === "light" ? "pgThemeLight" : "pgThemeDark"
       }`}
     >
@@ -2503,6 +2505,9 @@ const limparLista = (lista) =>
 
       <div className="pgTitle">
         Painel de Produção
+        {isFacilitador && (
+          <span className="pgTopChatBadge">Facilitador</span>
+        )}
         {!readOnly && totalChatUnread > 0 && (
           <span className="pgTopChatBadge">
             {totalChatUnread} nova(s)
@@ -2514,7 +2519,7 @@ const limparLista = (lista) =>
       </div>
     </div>
 
-    {readOnly && (
+    {isVisual && (
       <div className="pgVisualTabs">
         <button
           className={`pgVisualTabBtn ${visualTab === "almox" ? "active" : ""}`}
@@ -2600,6 +2605,21 @@ const limparLista = (lista) =>
         </button>
       </>
     )}
+    {isFacilitador && (
+      <>
+        <button className="pgBtn pgBtnGhost" onClick={exportarListaFilaParaImpressao} disabled={loading}>
+          Imprimir lista geral
+        </button>
+
+        <button className="pgBtn pgBtnPrimary" onClick={reloadAll} disabled={loading}>
+          {loading ? "Atualizando..." : "Atualizar"}
+        </button>
+
+        <div className="pgTiny">
+          Atualizado: <span className="pgMono">{lastUpdate ? fmtDate(lastUpdate) : "-"}</span>
+        </div>
+      </>
+    )}
   </div>
 </div>
 
@@ -2611,7 +2631,7 @@ const limparLista = (lista) =>
           </div>
         )}
 
-        {!readOnly && view === "dashboard" && (
+        {((!readOnly && view === "dashboard") || isFacilitador) && (
           <>
             <section className="pgKpis">
               <div className="pgKpiCard">
@@ -2699,10 +2719,11 @@ const limparLista = (lista) =>
               <div
                 className="pgPanel pgQueuePanel"
                 onDragOver={(e) => {
+                  if (readOnly) return;
                   e.preventDefault();
                   e.stopPropagation();
                 }}
-                onDrop={(e) => handleDropOnMachine(e, selectedId)}
+                onDrop={readOnly ? undefined : (e) => handleDropOnMachine(e, selectedId)}
               >
                 <div className="pgPanelHeader">
                   <div>
@@ -2726,17 +2747,21 @@ const limparLista = (lista) =>
                 </div>
 
                 <div className="pgQueueActions">
-                  <button className="pgBtn pgBtnGhost" onClick={clearFilaSelection} disabled={selectedFilaItemIds.size === 0 || reorderBusy}>
-                    Limpar seleção
-                  </button>
+                  {!readOnly && (
+                    <button className="pgBtn pgBtnGhost" onClick={clearFilaSelection} disabled={selectedFilaItemIds.size === 0 || reorderBusy}>
+                      Limpar seleção
+                    </button>
+                  )}
 
                   <button className="pgBtn pgBtnGhost" onClick={exportarListaFilaParaImpressao} disabled={loading || reorderBusy}>
                     Imprimir lista geral
                   </button>
 
-                  <button className="pgBtn pgBtnPrimary" onClick={voltarSelecionadosParaPool} disabled={selectedFilaItemIds.size === 0 || reorderBusy}>
-                    Voltar p/fila
-                  </button>
+                  {!readOnly && (
+                    <button className="pgBtn pgBtnPrimary" onClick={voltarSelecionadosParaPool} disabled={selectedFilaItemIds.size === 0 || reorderBusy}>
+                      Voltar p/fila
+                    </button>
+                  )}
                 </div>
 
                 <div className="pgQueueListWrap">
@@ -2758,21 +2783,24 @@ const limparLista = (lista) =>
                         return (
                           <li
                             key={it.id}
-                            className={`pgQueueItem ${checked ? "sel" : ""} ${isDragging ? "dragging" : ""}`}
-                            draggable
+                            className={`pgQueueItem ${checked ? "sel" : ""} ${isDragging ? "dragging" : ""} ${readOnly ? "viewOnly" : ""}`}
+                            draggable={!readOnly}
                             onDragStart={(e) => {
+                              if (readOnly) return;
                               const startedOnGrip = e.target?.closest?.(".pgQueueGrip");
                               if (startedOnGrip) return;
                               onDragStartFilaMove(e, it);
                             }}
                             onDragEnd={onDragEndAny}
                             onDragOver={(e) => {
+                              if (readOnly) return;
                               const dt = getDragType(e.dataTransfer);
                               if (dt !== "FILA_REORDER") return;
                               e.preventDefault();
                               e.stopPropagation();
                             }}
                             onDrop={(e) => {
+                              if (readOnly) return;
                               const dt = getDragType(e.dataTransfer);
                               if (dt !== "FILA_REORDER") return;
 
@@ -2785,26 +2813,30 @@ const limparLista = (lista) =>
 
                               reorderFilaLocalAndPersist(dragItemId, it.id);
                             }}
-                            onClick={() => toggleFilaSelection(it.id)}
+                            onClick={readOnly ? undefined : () => toggleFilaSelection(it.id)}
                           >
-                            <button
-                              className="pgQueueGrip"
-                              title="Arraste aqui para reordenar"
-                              draggable
-                              onDragStart={(e) => onDragStartFilaReorderHandle(e, it)}
-                              onDragEnd={onDragEndAny}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <span className="pgGripDots" />
-                            </button>
+                            {!readOnly && (
+                              <>
+                                <button
+                                  className="pgQueueGrip"
+                                  title="Arraste aqui para reordenar"
+                                  draggable
+                                  onDragStart={(e) => onDragStartFilaReorderHandle(e, it)}
+                                  onDragEnd={onDragEndAny}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <span className="pgGripDots" />
+                                </button>
 
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleFilaSelection(it.id)}
-                              onClick={(e) => e.stopPropagation()}
-                              style={bigCheckStyle}
-                            />
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleFilaSelection(it.id)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={bigCheckStyle}
+                                />
+                              </>
+                            )}
 
                             <div className="pgQueuePos">{it.posicao}</div>
 
@@ -2861,11 +2893,12 @@ const limparLista = (lista) =>
                         className={`pgCard ${m.id === selectedId ? "active" : ""} ${statusClass}`}
                         onClick={() => setSelectedId(m.id)}
                         onDragOver={(e) => {
+                          if (readOnly) return;
                           e.preventDefault();
                           e.stopPropagation();
                         }}
-                        onDrop={(e) => handleDropOnMachine(e, m.id)}
-                        disabled={reorderBusy}
+                        onDrop={readOnly ? undefined : (e) => handleDropOnMachine(e, m.id)}
+                        disabled={!readOnly && reorderBusy}
                       >
                         <div className="pgCardTop">
                           <div className="pgCardId">{m.id}</div>
@@ -2907,7 +2940,9 @@ const limparLista = (lista) =>
                           </div>
                         </div>
 
-                        <div className="pgCardHint">Arraste do pool OU da fila e solte aqui</div>
+                        <div className="pgCardHint">
+                          {readOnly ? "Clique para ver a fila completa" : "Arraste do pool OU da fila e solte aqui"}
+                        </div>
                       </button>
                     );
                   })}
@@ -2917,7 +2952,7 @@ const limparLista = (lista) =>
           </>
         )}
 
-        {readOnly && visualTab === "producao" && (
+        {isVisual && visualTab === "producao" && (
           <>
             <section className="pgKpis">
               <div className="pgKpiCard">
@@ -3102,7 +3137,7 @@ const limparLista = (lista) =>
           </>
         )}
 
-        {readOnly && visualTab === "almox" && (
+        {isVisual && visualTab === "almox" && (
           <section className="pgVisualAlmoxOnly">
             <div className="pgMachinesHeader">
               <div className="pgPanelTitle">Almoxarifado</div>
@@ -3240,7 +3275,7 @@ const limparLista = (lista) =>
           </section>
         )}
 
-       {readOnly && visualTab === "dashboard" && (
+       {isVisual && visualTab === "dashboard" && (
   <div ref={dashboardRef}>
     <section className="pgDashBoardLike">
       <section className="pgDashTopBarLike">

@@ -841,6 +841,13 @@ body::after{
   background: rgba(47,55,125,.08);
 }
 .pgQueueItem.dragging { opacity: .6; }
+.pgQueueItem.viewOnly{
+  grid-template-columns: 34px minmax(0, 1fr);
+  cursor: default;
+}
+.pgQueueItem.viewOnly .pgQueueRight{
+  grid-column: 2;
+}
 .pgQueuePos {
   font-weight: 900;
   font-size: 12px;
