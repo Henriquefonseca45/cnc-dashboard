@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS material_solicitacoes (
         ("CNC05", "CNC 05"),
         ("CNC06", "CNC 06"),
         ("CNC07", "CNC 07"),
+        ("CNC_TESTE", "CNC TESTE"),
     ]
 
     now = datetime.now().isoformat(timespec="seconds")
@@ -199,6 +200,7 @@ CREATE TABLE IF NOT EXISTS material_solicitacoes (
         ("Operador CNC05", "op05", "123", "OPERADOR", "CNC05"),
         ("Operador CNC06", "op06", "123", "OPERADOR", "CNC06"),
         ("Operador CNC07", "op07", "123", "OPERADOR", "CNC07"),
+        ("Operador CNC TESTE", "opteste", "123", "OPERADOR", "CNC_TESTE"),
     ]
     for nome, login, senha, nivel, maquina_id in operadores:
         cur.execute("""

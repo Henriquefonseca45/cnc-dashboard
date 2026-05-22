@@ -21,7 +21,7 @@ import {
 
 console.log("API_URL", http?.defaults?.baseURL);
 
-const CNC_IDS = ["CNC01", "CNC02", "CNC03", "CNC04", "CNC05", "CNC06", "CNC07"];
+const CNC_IDS = ["CNC01", "CNC02", "CNC03", "CNC04", "CNC05", "CNC06", "CNC07", "CNC_TESTE"];
 const DEFAULT_CNC = (import.meta.env.VITE_CNC_ID || "CNC01").toUpperCase();
 const OPERADORES = [
   "AGNALDO",

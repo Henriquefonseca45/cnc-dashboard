@@ -187,7 +187,8 @@
       try{
         meta.textContent = "Atualizando…";
 
-        const maquinas = await jget(`${API_BASE}/maquinas`);
+        const maquinasRaw = await jget(`${API_BASE}/maquinas`);
+        const maquinas = (maquinasRaw || []).filter((m) => String(m.id || "").toUpperCase() !== "CNC_TESTE");
 
         // carrega filas (read-only)
         const filasById = {};

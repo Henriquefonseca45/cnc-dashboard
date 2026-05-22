@@ -162,6 +162,15 @@ function describeArc(cx, cy, rOuter, rInner, startAngle, endAngle) {
 
 const MINUTOS_DIA_MAQUINA = 17 * 60;
 const THEME_STORAGE_KEY = "programador_dashboard_theme";
+const TEST_MACHINE_IDS = new Set(["CNC_TESTE"]);
+
+function isTestMachineId(id) {
+  return TEST_MACHINE_IDS.has(String(id || "").toUpperCase());
+}
+
+function isProductionMachine(machine) {
+  return machine?.id && !isTestMachineId(machine.id);
+}
 
 function dashboardBucket(status = "") {
   const s = U(status);
@@ -483,6 +492,7 @@ function extractMachineReasonRows(raw, machineId) {
 }
 
 function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLabel) {
+  const productionMaquinas = (Array.isArray(maquinas) ? maquinas : []).filter(isProductionMachine);
   const periodo = raw?.periodo || {};
   const parametros = raw?.parametros || {};
   const iefObj = raw?.ief || {};
@@ -493,7 +503,7 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
   const paradas = Array.isArray(raw?.parada_por_motivo) ? raw.parada_por_motivo : [];
   const perMachineApi = Array.isArray(raw?.per_machine) ? raw.per_machine : [];
 
-  const total = Number(parametros.quantidade_maquinas || maquinas.length || 0);
+  const total = Number(parametros.quantidade_maquinas || productionMaquinas.length || 0);
   const periodoDias = Number(periodo.dias || 1);
   const periodoLabel =
     fallbackLabel ||
@@ -531,12 +541,13 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
     abertura_material: Number(specialTotalsObj.abertura_material?.tempo_min || 0),
   };
 
-  const filaTotal = Object.values(filasById || {}).reduce((acc, arr) => {
+  const filaTotal = Object.entries(filasById || {}).reduce((acc, [machineId, arr]) => {
+    if (isTestMachineId(machineId)) return acc;
     const list = Array.isArray(arr) ? arr : [];
     return acc + list.filter((it) => isFilaVivaStatus(it.status)).length;
   }, 0);
 
-  const usinandoAgora = (maquinas || []).filter((m) => isUsinando(m.status)).length;
+  const usinandoAgora = productionMaquinas.filter((m) => isUsinando(m.status)).length;
 
   const producaoPorHora = Array.from({ length: 24 }).map((_, idx) => ({
     hora: `${String(idx).padStart(2, "0")}h`,
@@ -1111,7 +1122,7 @@ async function exportarPDF() {
     setHistLoading(true);
     setErr("");
     try {
-      const ids = (maquinas || []).map((m) => m.id);
+      const ids = (maquinas || []).filter(isProductionMachine).map((m) => m.id);
       if (ids.length === 0) {
         setHistoricoAll([]);
         return;
@@ -1501,7 +1512,7 @@ async function exportarPDF() {
   }, [isVisual, visualTab, dashFilter, histFrom, histTo]);
 
   const kpis = useMemo(() => {
-    const list = Array.isArray(maquinas) ? maquinas : [];
+    const list = Array.isArray(maquinas) ? maquinas.filter(isProductionMachine) : [];
     const total = list.length;
 
     let cortando = 0;
@@ -1546,7 +1557,7 @@ async function exportarPDF() {
   }, [maquinas]);
 
   const paradaNaoProgramadaList = useMemo(() => {
-    const list = Array.isArray(maquinas) ? maquinas : [];
+    const list = Array.isArray(maquinas) ? maquinas.filter(isProductionMachine) : [];
     return list.filter((m) => {
       const s = U(m?.status);
       return s.includes("MANUT") || (s.includes("AGUAR") && s.includes("EMPILH")) || s.includes("OCIOS");

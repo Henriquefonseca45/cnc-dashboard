@@ -28,6 +28,8 @@ app = FastAPI(title="CNC Dashboard API")
 BASE_DIR = Path(__file__).resolve().parent  # .../cnc-dashboard/backend
 FRONT_DIST = BASE_DIR.parent / "frontend" / "dist"
 FRONT_ASSETS = FRONT_DIST / "assets"
+TEST_MACHINE_ID = "CNC_TESTE"
+TEST_MACHINE_IDS = {TEST_MACHINE_ID}
 
 # =========================
 # UI (Painel + Dashboard + Agente + Visual)
@@ -338,6 +340,18 @@ def _ensure_maquinas_cols(conn):
         cur.execute("ALTER TABLE maquinas ADD COLUMN operador_nome TEXT")
     except Exception:
         pass
+
+
+def _ensure_test_maquina(conn):
+    _ensure_maquinas_cols(conn)
+    now = datetime.now().isoformat(timespec="seconds")
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO maquinas (id, nome, status, status_desde)
+        VALUES (?, ?, 'PARADA', ?)
+        """,
+        (TEST_MACHINE_ID, "CNC TESTE", now),
+    )
 
 
 def _ensure_material_solicitacoes_table(conn):
@@ -688,7 +702,13 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
     now_dt = datetime.now()
 
     maquinas = cur.execute(
-        "SELECT id, status, status_desde, operador_nome FROM maquinas ORDER BY id"
+        """
+        SELECT id, status, status_desde, operador_nome
+        FROM maquinas
+        WHERE id NOT IN ({})
+        ORDER BY id
+        """.format(",".join(["?"] * len(TEST_MACHINE_IDS))),
+        tuple(TEST_MACHINE_IDS),
     ).fetchall()
     total_maquinas = len(maquinas)
 
@@ -1094,6 +1114,8 @@ def health():
 def listar_maquinas():
     conn = get_conn()
     _ensure_maquinas_cols(conn)
+    _ensure_test_maquina(conn)
+    conn.commit()
     cur = conn.cursor()
     rows = cur.execute(
         """
@@ -1110,6 +1132,7 @@ def listar_maquinas():
 def set_operador_maquina(maquina_id: str, payload: OperadorPayload):
     conn = get_conn()
     _ensure_maquinas_cols(conn)
+    _ensure_test_maquina(conn)
     cur = conn.cursor()
 
     nome = (payload.nome or "").strip()
@@ -1163,6 +1186,7 @@ def atualizar_status(maquina_id: str, req: StatusRequest):
     _ensure_fila_itens_cols(conn)
     _ensure_maquina_status_log_table(conn)
     _ensure_maquinas_cols(conn)
+    _ensure_test_maquina(conn)
     _ensure_dashboard_snapshot_daily_table(conn)
     cur = conn.cursor()
 
@@ -2083,6 +2107,9 @@ def exportar_historico_excel(
     if maquina_id:
         filtros.append("fi.maquina_id = ?")
         params.append(maquina_id)
+    else:
+        filtros.append("fi.maquina_id NOT IN ({})".format(",".join(["?"] * len(TEST_MACHINE_IDS))))
+        params.extend(TEST_MACHINE_IDS)
 
     if somente_cortados:
         filtros.append("fi.status = 'CORTADO'")
