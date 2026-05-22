@@ -25,11 +25,11 @@ const CNC_IDS = ["CNC01", "CNC02", "CNC03", "CNC04", "CNC05", "CNC06", "CNC07", 
 const DEFAULT_CNC = (import.meta.env.VITE_CNC_ID || "CNC01").toUpperCase();
 const USINAGEM_TIPOS = [
   { value: "USINANDO", label: "USINANDO", requiredText: "" },
-  { value: "USINANDO DETALHE", label: "USINANDO DETALHE", requiredText: "DETALHE" },
-  { value: "USINANDO RNC", label: "USINANDO RNC", requiredText: "RNC" },
+  { value: "DETALHE CNC", label: "DETALHE CNC", requiredText: "DETALHE" },
+  { value: "RNC", label: "RNC", requiredText: "RNC" },
   {
-    value: "USINANDO ABERTURA DE MATERIAL",
-    label: "USINANDO ABERTURA DE MATERIAL",
+    value: "ABERTURA MATERIAL",
+    label: "ABERTURA MATERIAL",
     requiredText: "ABERTURA DE MATERIAL",
   },
 ];
@@ -85,7 +85,23 @@ function U(s) {
 }
 function isUsinandoMachineStatus(machineStatus = "") {
   const s = U(machineStatus);
-  return s.includes("USIN") || s.includes("CORT");
+  return (
+    s.includes("USIN") ||
+    s.includes("CORT") ||
+    s.includes("DETALHE CNC") ||
+    s === "RNC" ||
+    (s.includes("ABERTURA") && s.includes("MATERIAL"))
+  );
+}
+
+function normalizeUsinagemStatusValue(status = "") {
+  const s = U(status);
+  if (s === "USINANDO DETALHE") return "DETALHE CNC";
+  if (s === "USINANDO RNC") return "RNC";
+  if (s === "USINANDO ABERTURA DE MATERIAL" || s === "ABERTURA DE MATERIAL") {
+    return "ABERTURA MATERIAL";
+  }
+  return String(status || "").trim();
 }
 
 function getArquivoNome(item) {
@@ -94,14 +110,16 @@ function getArquivoNome(item) {
 
 function getUsinagemTipoPermitido(item) {
   const nome = U(getArquivoNome(item));
-  if (nome.includes("ABERTURA DE MATERIAL")) return "USINANDO ABERTURA DE MATERIAL";
-  if (nome.includes("DETALHE")) return "USINANDO DETALHE";
-  if (nome.includes("RNC")) return "USINANDO RNC";
+  if (nome.includes("ABERTURA DE MATERIAL") || nome.includes("ABERTURA MATERIAL")) {
+    return "ABERTURA MATERIAL";
+  }
+  if (nome.includes("DETALHE")) return "DETALHE CNC";
+  if (nome.includes("RNC")) return "RNC";
   return "USINANDO";
 }
 
 function canUseUsinagemTipo(item, tipo) {
-  return getUsinagemTipoPermitido(item) === tipo;
+  return getUsinagemTipoPermitido(item) === normalizeUsinagemStatusValue(tipo);
 }
 
 function getUsinagemTipoBloqueio(item, tipo) {
@@ -390,7 +408,7 @@ export default function OperatorDashboard() {
 
   useEffect(() => {
     const s = String(maquinaAtual?.status || "").trim();
-    setStatusMaquina(s || "OCIOSA");
+    setStatusMaquina(normalizeUsinagemStatusValue(s || "OCIOSA"));
   }, [maquinaAtual?.status, cnc]);
 
   useEffect(() => {
@@ -1042,9 +1060,9 @@ export default function OperatorDashboard() {
                 >
                   <option value="DESLIGADA">DESLIGADA</option>
                   <option value="USINANDO">USINANDO</option>
-                  <option value="USINANDO DETALHE">DETALHE CNC</option>
-                  <option value="USINANDO RNC">USINANDO RNC</option>
-                  <option value="USINANDO ABERTURA DE MATERIAL">USINANDO ABERTURA DE MATERIAL</option>
+                  <option value="DETALHE CNC">DETALHE CNC</option>
+                  <option value="RNC">RNC</option>
+                  <option value="ABERTURA MATERIAL">ABERTURA MATERIAL</option>
                   <option value="SETUP">SETUP</option>
                   <option value="REFEIÇÃO">REFEIÇÃO</option>
                   <option value="MANUTENÇÃO">MANUTENÇÃO</option>
@@ -1054,8 +1072,6 @@ export default function OperatorDashboard() {
                     TROCA CHAPA SACRIFICIO
                   </option>
                   <option value="OCIOSA">OCIOSA</option>
-                  <option value="RNC">RNC</option>
-                  <option value="ABERTURA MATERIAL">ABERTURA MATERIAL</option>
                 </select>
 
                 <div className="mt-4">

@@ -222,7 +222,13 @@ function bucketLabel(bucket) {
 
 function isUsinandoMachineStatus(machineStatus = "") {
   const s = U(machineStatus);
-  return s.includes("USIN") || s.includes("CORT");
+  return (
+    s.includes("USIN") ||
+    s.includes("CORT") ||
+    s.includes("DETALHE CNC") ||
+    s === "RNC" ||
+    (s.includes("ABERTURA") && s.includes("MATERIAL"))
+  );
 }
 
 function calcRestanteSeg(
@@ -270,7 +276,13 @@ function isManutencao(status = "") {
 
 function isUsinando(status = "") {
   const s = U(status);
-  return s.includes("USIN") || s.includes("CORT");
+  return (
+    s.includes("USIN") ||
+    s.includes("CORT") ||
+    s.includes("DETALHE CNC") ||
+    s === "RNC" ||
+    (s.includes("ABERTURA") && s.includes("MATERIAL"))
+  );
 }
 
 function normOperStatus(st = "") {
@@ -281,7 +293,15 @@ function normOperStatus(st = "") {
   if (s === "NA_FILA" || s === "NA FILA" || s === "AGUARDANDO") return "NA FILA";
   if (s.includes("BAIX")) return "BAIXADO";
   if (s.includes("PROG")) return "PROGRAMADO";
-  if (s.includes("USIN") || s.includes("CORT")) return "USINANDO";
+  if (
+    s.includes("USIN") ||
+    s.includes("CORT") ||
+    s.includes("DETALHE CNC") ||
+    s === "RNC" ||
+    (s.includes("ABERTURA") && s.includes("MATERIAL"))
+  ) {
+    return "USINANDO";
+  }
   return s0;
 }
 

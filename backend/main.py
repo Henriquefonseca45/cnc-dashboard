@@ -643,6 +643,8 @@ def _ensure_maquina_status_log_table(conn):
 def _infer_motivo_from_status(status: str) -> str | None:
     s = (status or "").strip().upper()
 
+    if _is_machine_usinando(s):
+        return "USINANDO"
     if "RNC" in s:
         return "RNC"
     if "ABERTURA" in s and "MATERIAL" in s:
@@ -682,27 +684,38 @@ def _normalize_match_text(value: str) -> str:
 
 def _get_usinagem_tipo_permitido(arquivo_nome: str) -> str:
     nome = _normalize_match_text(arquivo_nome)
-    if "ABERTURA DE MATERIAL" in nome:
-        return "USINANDO ABERTURA DE MATERIAL"
+    if "ABERTURA DE MATERIAL" in nome or "ABERTURA MATERIAL" in nome:
+        return "ABERTURA MATERIAL"
     if "DETALHE" in nome:
-        return "USINANDO DETALHE"
+        return "DETALHE CNC"
     if "RNC" in nome:
-        return "USINANDO RNC"
+        return "RNC"
     return "USINANDO"
 
 
-def _is_usinagem_status(status: str) -> bool:
+def _canonical_usinagem_status(status: str) -> str:
     s = _normalize_status_compare(status)
+    if s == "USINANDO DETALHE":
+        return "DETALHE CNC"
+    if s == "USINANDO RNC":
+        return "RNC"
+    if s in {"USINANDO ABERTURA DE MATERIAL", "ABERTURA DE MATERIAL"}:
+        return "ABERTURA MATERIAL"
+    return s
+
+
+def _is_usinagem_status(status: str) -> bool:
+    s = _canonical_usinagem_status(status)
     return s in {
         "USINANDO",
-        "USINANDO DETALHE",
-        "USINANDO RNC",
-        "USINANDO ABERTURA DE MATERIAL",
+        "DETALHE CNC",
+        "RNC",
+        "ABERTURA MATERIAL",
     }
 
 
 def _validate_usinagem_status_arquivo(conn, maquina_id: str, status: str):
-    status_norm = _normalize_status_compare(status)
+    status_norm = _canonical_usinagem_status(status)
     if not _is_usinagem_status(status_norm):
         return
 
@@ -786,6 +799,8 @@ def _dashboard_bucket_from_status(status: str, motivo: str | None = None) -> str
 
     txt = f"{s} {m}".strip()
 
+    if _is_machine_usinando(s):
+        return "usinando"
     if "RNC" in txt:
         return "rnc"
     if "ABERTURA" in txt and "MATERIAL" in txt:
@@ -1178,7 +1193,13 @@ def _load_dashboard_snapshot_for_date(conn, data_ref: str):
 # =========================
 def _is_machine_usinando(status: str) -> bool:
     s = (status or "").strip().upper()
-    return ("USIN" in s) or ("CORT" in s)
+    return (
+        ("USIN" in s)
+        or ("CORT" in s)
+        or ("DETALHE CNC" in s)
+        or (s == "RNC")
+        or ("ABERTURA" in s and "MATERIAL" in s)
+    )
 
 
 def _pausar_timer_itens_em_execucao(conn, maquina_id: str, agora_iso: str):
