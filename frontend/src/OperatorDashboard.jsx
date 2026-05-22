@@ -332,6 +332,7 @@ export default function OperatorDashboard() {
   const chatForceScrollRef = useRef(true);
   const [materialRequestingId, setMaterialRequestingId] = useState(null);
   const [materialSetupId, setMaterialSetupId] = useState(null);
+  const [materialRequests, setMaterialRequests] = useState([]);
 
   useEffect(() => {
     if (cncId && !CNC_IDS.includes(cnc)) {
@@ -477,19 +478,24 @@ export default function OperatorDashboard() {
   async function carregarTudo() {
     setLoading(true);
     try {
-      const [mRes, fRes, hRes] = await Promise.all([
+      const [mRes, fRes, hRes, matRes] = await Promise.all([
         http.get("/maquinas"),
         http.get(`/fila/${cnc}`, { params: { include_done: true } }),
         http.get(`/historico/${cnc}`),
+        http.get("/almoxarifado/solicitacoes", {
+          params: { maquina_id: cnc, status: "TODAS", limit: 100 },
+        }).catch(() => ({ data: [] })),
       ]);
 
       const maquinasData = mRes.data || [];
       const filaData = fRes.data || [];
       const histData = hRes.data || [];
+      const materialData = Array.isArray(matRes.data) ? matRes.data : [];
 
       setMaquinas(maquinasData);
       setFila(filaData);
       setHistorico(histData);
+      setMaterialRequests(materialData);
 
       const atual = filaData.find(
         (x) => String(x.status || "").toUpperCase() === "EM_EXECUCAO"
@@ -497,6 +503,7 @@ export default function OperatorDashboard() {
       setExecutando(atual || null);
     } catch (e) {
       console.error("carregarTudo erro:", e);
+      setMaterialRequests([]);
     } finally {
       setLoading(false);
     }
@@ -724,6 +731,12 @@ export default function OperatorDashboard() {
   function abrirPopupTempoParaUsinar(item) {
     setMenuOpenId(null);
 
+    const bloqueio = getSetupMaterialBloqueio(item);
+    if (bloqueio) {
+      alert(bloqueio);
+      return;
+    }
+
     const seg = toInt(item?.tempo_estimado_seg, 0);
     if (seg > 0) setTempoModalMin(String(Math.max(1, Math.round(seg / 60))));
     else setTempoModalMin("45");
@@ -737,6 +750,15 @@ export default function OperatorDashboard() {
 
     try {
       setTempoModalSaving(true);
+
+      const bloqueio = getSetupMaterialBloqueio(tempoModalItem);
+      if (bloqueio) {
+        alert(bloqueio);
+        setTempoModalOpen(false);
+        setTempoModalItem(null);
+        await carregarTudo();
+        return;
+      }
 
       await salvarTempoEstimado(tempoModalItem, tempoModalMin);
 
@@ -774,6 +796,25 @@ export default function OperatorDashboard() {
   const baixadoPendente = useMemo(() => {
     return filaVisivel.find((it) => String(it.status || "").toUpperCase() === "BAIXADO") || null;
   }, [filaVisivel]);
+
+  function getMaterialRequestAberta(item) {
+    if (!item?.id) return null;
+    return (
+      (materialRequests || []).find(
+        (req) =>
+          Number(req?.item_id) === Number(item.id) &&
+          String(req?.status || "").toUpperCase() === "ABERTA"
+      ) || null
+    );
+  }
+
+  function getSetupMaterialBloqueio(item) {
+    const req = getMaterialRequestAberta(item);
+    if (!req) return "";
+
+    const material = req.material || "material solicitado";
+    return `Existe solicitacao de material aberta para este arquivo:\n\n${material}\n\nConfirme o Setup de material antes de colocar em USINANDO.`;
+  }
 
   function getDownloadBloqueio(item) {
     if (!item?.id) return "Item invalido.";
@@ -1182,12 +1223,14 @@ export default function OperatorDashboard() {
 
                   const restante = restanteItem(item);
                   const downloadBloqueio = getDownloadBloqueio(item);
+                  const setupMaterialBloqueio = getSetupMaterialBloqueio(item);
                   const isBaixando = Number(baixandoId) === Number(item.id);
 
                   const subtitle = [
                     item.material || "—",
                     estMin != null ? `Est. ${estMin}min` : null,
                     restante != null ? `Rest. ${fmtHHMMSS(restante)}` : null,
+                    setupMaterialBloqueio ? "Setup material pendente" : null,
                   ]
                     .filter(Boolean)
                     .join(" • ");
@@ -1269,7 +1312,14 @@ export default function OperatorDashboard() {
 
             <button
               onClick={() => abrirPopupTempoParaUsinar(menuItem)}
-              className="w-full px-3 py-2 rounded-xl hover:bg-[rgba(47,55,125,.05)] flex items-center gap-3 text-sm text-slate-800"
+              aria-disabled={Boolean(getSetupMaterialBloqueio(menuItem))}
+              title={getSetupMaterialBloqueio(menuItem) || "Usinando"}
+              className={cn(
+                "w-full px-3 py-2 rounded-xl flex items-center gap-3 text-sm text-slate-800",
+                getSetupMaterialBloqueio(menuItem)
+                  ? "opacity-60 cursor-not-allowed"
+                  : "hover:bg-[rgba(47,55,125,.05)]"
+              )}
             >
               <Play size={16} className="text-emerald-600" />
               Usinando

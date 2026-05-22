@@ -400,6 +400,35 @@ def _marcar_material_solicitacoes_entregues(conn, maquina_id: str, item_id: int,
     return cur.rowcount
 
 
+def _get_material_solicitacao_aberta(conn, maquina_id: str, item_id: int):
+    _ensure_material_solicitacoes_table(conn)
+    cur = conn.cursor()
+    return cur.execute(
+        """
+        SELECT id, material, arquivo_nome
+        FROM material_solicitacoes
+        WHERE maquina_id = ?
+          AND item_id = ?
+          AND status = 'ABERTA'
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        ((maquina_id or "").upper().strip(), item_id),
+    ).fetchone()
+
+
+def _material_setup_bloqueio_detail(conn, maquina_id: str, item_id: int):
+    req = _get_material_solicitacao_aberta(conn, maquina_id, item_id)
+    if not req:
+        return None
+
+    material = req["material"] or "material solicitado"
+    return (
+        "Material solicitado ainda nao teve setup confirmado. "
+        f"Confirme o Setup de material antes de colocar em USINANDO ({material})."
+    )
+
+
 def _get_fila_programador(conn, maquina_id: str):
     cur = conn.cursor()
     status_list = _fila_programador_status_list()
@@ -2214,6 +2243,10 @@ def set_status_fila_item(maquina_id: str, req: FilaStatusRequest):
 
     if target == "EM_EXECUCAO":
         _assert_no_other_em_execucao(conn, maquina_id, req.id)
+        material_bloqueio = _material_setup_bloqueio_detail(conn, maquina_id, req.id)
+        if material_bloqueio:
+            conn.close()
+            raise HTTPException(status_code=409, detail=material_bloqueio)
 
         chk = cur.execute(
             "SELECT tempo_estimado_seg, tempo_inicio_em FROM fila_itens WHERE id=? AND maquina_id=?",
@@ -2427,6 +2460,10 @@ def agente_executar(maquina_id: str, fila_item_id: int):
         raise HTTPException(status_code=400, detail=f"Item não pode entrar em execução (status={st})")
 
     _assert_no_other_em_execucao(conn, maquina_id, fila_item_id)
+    material_bloqueio = _material_setup_bloqueio_detail(conn, maquina_id, fila_item_id)
+    if material_bloqueio:
+        conn.close()
+        raise HTTPException(status_code=409, detail=material_bloqueio)
 
     if st != "EM_EXECUCAO":
         cur.execute("UPDATE fila_itens SET status='EM_EXECUCAO' WHERE id = ?", (fila_item_id,))
