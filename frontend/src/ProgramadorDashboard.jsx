@@ -676,10 +676,20 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const chatSeenByMachineRef = useRef({});
   const chatLastNotifiedByMachineRef = useRef({});
   const viewRef = useRef("dashboard");
+  const selectedIdRef = useRef(selectedId);
+  const includeDoneRef = useRef(includeDone);
 
   useEffect(() => {
     viewRef.current = view;
   }, [view]);
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+
+  useEffect(() => {
+    includeDoneRef.current = includeDone;
+  }, [includeDone]);
 
   const totalChatUnread = useMemo(() => sumUnreadMap(chatUnreadByMachine), [chatUnreadByMachine]);
   const unreadMachines = useMemo(() => getMachinesWithUnread(chatUnreadByMachine), [chatUnreadByMachine]);
@@ -837,7 +847,8 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
     const data = r.data || [];
     setMaquinas(data);
 
-    if (data.length > 0 && !data.find((m) => m.id === selectedId)) {
+    const currentSelectedId = selectedIdRef.current;
+    if (data.length > 0 && !data.find((m) => m.id === currentSelectedId)) {
       setSelectedId(data[0].id);
     }
     return data;
@@ -1328,11 +1339,13 @@ async function exportarPDF() {
       const ids2 = (list || []).map((m) => m.id);
 
       if (ids2.length > 0) {
-        const all = await fetchAllFilas(ids2, includeDone);
-        const sid = (list || []).find((m) => m.id === selectedId) ? selectedId : ids2[0] || selectedId;
+        const currentSelectedId = selectedIdRef.current;
+        const currentIncludeDone = includeDoneRef.current;
+        const all = await fetchAllFilas(ids2, currentIncludeDone);
+        const sid = (list || []).find((m) => m.id === currentSelectedId) ? currentSelectedId : ids2[0] || currentSelectedId;
         setFila(all[sid] || []);
 
-        if (readOnly) {
+        if (isVisual) {
           await fetchMaterialRequests(ids2);
         }
       } else {
@@ -1363,20 +1376,20 @@ async function exportarPDF() {
   useEffect(() => {
     reloadAll();
 
-    if (readOnly) {
+    if (isVisual) {
       fetchHistoricoAll().catch(() => {});
     }
 
-    const intervalMs = readOnly ? 10 * 1000 : 5 * 60 * 1000;
+    const intervalMs = isFacilitador ? 60 * 1000 : readOnly ? 10 * 1000 : 5 * 60 * 1000;
     const t = setInterval(() => {
       reloadAll();
-      if (readOnly) {
+      if (isVisual) {
         fetchHistoricoAll().catch(() => {});
       }
     }, intervalMs);
 
     return () => clearInterval(t);
-  }, [readOnly]);
+  }, [readOnly, isVisual, isFacilitador]);
 
   useEffect(() => {
     if (readOnly) return;
@@ -1465,17 +1478,17 @@ async function exportarPDF() {
   }, [chatUnreadByMachine]);
 
   useEffect(() => {
-    if (!readOnly || visualTab !== "dashboard") return;
+    if (!isVisual || visualTab !== "dashboard") return;
     fetchDashboardAnalytics();
-  }, [readOnly, visualTab, dashFilter, histFrom, histTo]);
+  }, [isVisual, visualTab, dashFilter, histFrom, histTo]);
 
   useEffect(() => {
-    if (!readOnly || visualTab !== "dashboard") return;
+    if (!isVisual || visualTab !== "dashboard") return;
     const t = setInterval(() => {
       fetchDashboardAnalytics({ silent: true });
     }, 10000);
     return () => clearInterval(t);
-  }, [readOnly, visualTab, dashFilter, histFrom, histTo]);
+  }, [isVisual, visualTab, dashFilter, histFrom, histTo]);
 
   const kpis = useMemo(() => {
     const list = Array.isArray(maquinas) ? maquinas : [];
