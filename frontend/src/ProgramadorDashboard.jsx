@@ -99,6 +99,9 @@ function pct(n, d) {
 
 function extractEspessuraLabel(text = "") {
   const raw = String(text || "");
+  const namedMatch = /\b(EX|MDF|RNC|DETALHE)\b/i.exec(raw);
+  if (namedMatch) return namedMatch[1].toUpperCase();
+
   const codeMatch = /\b(\d+(?:[,.]\d+)?\s*(?:TX|KP|AD))\b/i.exec(raw);
   if (codeMatch) return codeMatch[1].replace(/\s+/g, "").toUpperCase();
 
@@ -122,7 +125,11 @@ function buildEspessuraSummary(items = [], getText) {
       count,
       sort: label === "Sem espessura" ? Number.MAX_SAFE_INTEGER : Number.parseFloat(label),
     }))
-    .sort((a, b) => a.sort - b.sort || a.label.localeCompare(b.label));
+    .sort((a, b) => {
+      const aSort = Number.isFinite(a.sort) ? a.sort : 900000;
+      const bSort = Number.isFinite(b.sort) ? b.sort : 900000;
+      return aSort - bSort || a.label.localeCompare(b.label);
+    });
 }
 
 function polarToCartesian(cx, cy, r, angleDeg) {
