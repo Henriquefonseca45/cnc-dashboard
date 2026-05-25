@@ -151,6 +151,39 @@ function dxfNum(v, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function cleanDxfText(value = "") {
+  return String(value)
+    .replace(/\\P/g, " ")
+    .replace(/\\~|\\[A-Za-z][^;]*;/g, " ")
+    .replace(/[{}]/g, "")
+    .trim();
+}
+
+function bulgePathSegment(p1, p2) {
+  const bulge = Number(p1?.bulge || 0);
+  if (!bulge) return `L ${p2.x} ${p2.y}`;
+
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const chord = Math.hypot(dx, dy);
+  if (!chord) return "";
+
+  const radius = (chord * (1 + bulge * bulge)) / (4 * Math.abs(bulge));
+  const largeArc = Math.abs(4 * Math.atan(bulge)) > Math.PI ? 1 : 0;
+  const sweep = bulge > 0 ? 0 : 1;
+  return `A ${radius} ${radius} 0 ${largeArc} ${sweep} ${p2.x} ${p2.y}`;
+}
+
+function polylinePath(points = [], closed = false) {
+  if (!points.length) return "";
+  const pts = closed ? [...points, points[0]] : points;
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 1; i < pts.length; i += 1) {
+    d += ` ${bulgePathSegment(pts[i - 1], pts[i])}`;
+  }
+  return d;
+}
+
 function parseDxfPreview(text) {
   const raw = String(text || "").split(/\r?\n/);
   const pairs = [];
@@ -203,19 +236,61 @@ function parseDxfPreview(text) {
 
     if (entity === "LWPOLYLINE") {
       const points = [];
-      let pendingX = null;
+      let current = null;
       let closed = false;
       for (i += 1; i < pairs.length && pairs[i].code !== "0"; i += 1) {
         const { code, value } = pairs[i];
         if (code === "70") closed = (Math.trunc(dxfNum(value)) & 1) === 1;
-        if (code === "10") pendingX = dxfNum(value);
-        if (code === "20" && pendingX != null) {
-          points.push({ x: pendingX, y: -dxfNum(value) });
-          pendingX = null;
+        if (code === "10") {
+          current = { x: dxfNum(value), y: 0, bulge: 0 };
+          points.push(current);
+        }
+        if (code === "20" && current) {
+          current.y = -dxfNum(value);
+        }
+        if (code === "42" && current) {
+          current.bulge = dxfNum(value);
         }
       }
       i -= 1;
       if (points.length > 1) items.push({ type: "polyline", points, closed });
+      continue;
+    }
+
+    if (entity === "POLYLINE") {
+      const points = [];
+      let closed = false;
+      for (i += 1; i < pairs.length; i += 1) {
+        if (pairs[i].code === "70") closed = (Math.trunc(dxfNum(pairs[i].value)) & 1) === 1;
+        if (pairs[i].code === "0" && pairs[i].value.toUpperCase() === "VERTEX") {
+          const pt = { x: 0, y: 0, bulge: 0 };
+          for (i += 1; i < pairs.length && pairs[i].code !== "0"; i += 1) {
+            const { code, value } = pairs[i];
+            if (code === "10") pt.x = dxfNum(value);
+            if (code === "20") pt.y = -dxfNum(value);
+            if (code === "42") pt.bulge = dxfNum(value);
+          }
+          points.push(pt);
+          i -= 1;
+        }
+        if (pairs[i].code === "0" && pairs[i].value.toUpperCase() === "SEQEND") break;
+      }
+      if (points.length > 1) items.push({ type: "polyline", points, closed });
+      continue;
+    }
+
+    if (entity === "TEXT" || entity === "MTEXT") {
+      const t = { text: "", x: 0, y: 0, size: 120, rot: 0 };
+      for (i += 1; i < pairs.length && pairs[i].code !== "0"; i += 1) {
+        const { code, value } = pairs[i];
+        if (code === "1" || code === "3") t.text += cleanDxfText(value);
+        if (code === "10") t.x = dxfNum(value);
+        if (code === "20") t.y = -dxfNum(value);
+        if (code === "40") t.size = Math.max(40, Math.abs(dxfNum(value, 120)));
+        if (code === "50") t.rot = -dxfNum(value);
+      }
+      i -= 1;
+      if (t.text) items.push({ type: "text", ...t });
     }
   }
 
@@ -239,6 +314,9 @@ function parseDxfPreview(text) {
     } else if (item.type === "circle" || item.type === "arc") {
       addPoint(item.cx - item.r, item.cy - item.r);
       addPoint(item.cx + item.r, item.cy + item.r);
+    } else if (item.type === "text") {
+      addPoint(item.x, item.y);
+      addPoint(item.x + item.text.length * item.size * 0.65, item.y - item.size);
     }
   }
 
@@ -267,6 +345,13 @@ function arcPath(item) {
   const delta = ((item.end - item.start) % 360 + 360) % 360;
   const largeArc = delta > 180 ? 1 : 0;
   return `M ${x1} ${y1} A ${item.r} ${item.r} 0 ${largeArc} 0 ${x2} ${y2}`;
+}
+
+function scaleViewBox(viewBox, factor) {
+  const [x, y, w, h] = String(viewBox || "0 0 100 100").split(/\s+/).map(Number);
+  const nextW = Math.max(1, w * factor);
+  const nextH = Math.max(1, h * factor);
+  return `${x + (w - nextW) / 2} ${y + (h - nextH) / 2} ${nextW} ${nextH}`;
 }
 
 function calcRemainingSecondsFrozen(item, machineStatus, nowMs, freezeNowMs) {
@@ -477,6 +562,10 @@ export default function OperatorDashboard() {
   const [previewItem, setPreviewItem] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewData, setPreviewData] = useState(null);
+  const [previewViewBox, setPreviewViewBox] = useState("0 0 100 100");
+  const [previewShowText, setPreviewShowText] = useState(true);
+  const previewSvgRef = useRef(null);
+  const previewDragRef = useRef(null);
 
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0, width: 224 });
@@ -843,7 +932,9 @@ export default function OperatorDashboard() {
         transformResponse: [(data) => data],
       });
 
-      setPreviewData(parseDxfPreview(res.data || ""));
+      const parsed = parseDxfPreview(res.data || "");
+      setPreviewData(parsed);
+      setPreviewViewBox(parsed.viewBox);
     } catch (e) {
       console.error(e);
       alert("Erro ao visualizar DXF: " + getErrMsg(e));
@@ -852,6 +943,46 @@ export default function OperatorDashboard() {
     } finally {
       setPreviewLoading(false);
     }
+  }
+
+  function resetPreviewView() {
+    if (previewData?.viewBox) setPreviewViewBox(previewData.viewBox);
+  }
+
+  function zoomPreview(factor) {
+    setPreviewViewBox((vb) => scaleViewBox(vb, factor));
+  }
+
+  function previewPointFromEvent(e) {
+    const svg = previewSvgRef.current;
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    const [x, y, w, h] = String(previewViewBox || "0 0 100 100").split(/\s+/).map(Number);
+    return {
+      x: x + ((e.clientX - rect.left) / Math.max(1, rect.width)) * w,
+      y: y + ((e.clientY - rect.top) / Math.max(1, rect.height)) * h,
+    };
+  }
+
+  function startPreviewPan(e) {
+    if (!previewData?.items?.length) return;
+    previewDragRef.current = {
+      start: previewPointFromEvent(e),
+      viewBox: previewViewBox,
+    };
+  }
+
+  function movePreviewPan(e) {
+    const drag = previewDragRef.current;
+    if (!drag?.start) return;
+    const p = previewPointFromEvent(e);
+    if (!p) return;
+    const [x, y, w, h] = String(drag.viewBox).split(/\s+/).map(Number);
+    setPreviewViewBox(`${x + drag.start.x - p.x} ${y + drag.start.y - p.y} ${w} ${h}`);
+  }
+
+  function stopPreviewPan() {
+    previewDragRef.current = null;
   }
 
   async function solicitarMaterial(item) {
@@ -1633,19 +1764,58 @@ export default function OperatorDashboard() {
                 </div>
               </div>
 
-              <button
-                className="h-9 px-3 rounded-xl bg-white border border-[rgba(47,55,125,.12)] hover:bg-[rgba(47,55,125,.05)] text-sm text-[#2f377d]"
-                onClick={() => {
-                  if (!previewLoading) {
-                    setPreviewItem(null);
-                    setPreviewData(null);
-                  }
-                }}
-                disabled={previewLoading}
-                title="Fechar"
-              >
-                <X size={16} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  className="h-9 px-3 rounded-xl bg-white border border-[rgba(47,55,125,.12)] hover:bg-[rgba(47,55,125,.05)] text-xs font-semibold text-[#2f377d]"
+                  onClick={() => zoomPreview(0.75)}
+                  disabled={previewLoading}
+                  title="Aproximar"
+                >
+                  +
+                </button>
+                <button
+                  className="h-9 px-3 rounded-xl bg-white border border-[rgba(47,55,125,.12)] hover:bg-[rgba(47,55,125,.05)] text-xs font-semibold text-[#2f377d]"
+                  onClick={() => zoomPreview(1.25)}
+                  disabled={previewLoading}
+                  title="Afastar"
+                >
+                  -
+                </button>
+                <button
+                  className="h-9 px-3 rounded-xl bg-white border border-[rgba(47,55,125,.12)] hover:bg-[rgba(47,55,125,.05)] text-xs font-semibold text-[#2f377d]"
+                  onClick={resetPreviewView}
+                  disabled={previewLoading}
+                  title="Enquadrar"
+                >
+                  Ajustar
+                </button>
+                <button
+                  className={cn(
+                    "h-9 px-3 rounded-xl border text-xs font-semibold",
+                    previewShowText
+                      ? "bg-[#2f377d] border-[#2f377d] text-white"
+                      : "bg-white border-[rgba(47,55,125,.12)] text-[#2f377d] hover:bg-[rgba(47,55,125,.05)]"
+                  )}
+                  onClick={() => setPreviewShowText((x) => !x)}
+                  disabled={previewLoading}
+                  title="Mostrar/ocultar textos"
+                >
+                  Texto
+                </button>
+                <button
+                  className="h-9 px-3 rounded-xl bg-white border border-[rgba(47,55,125,.12)] hover:bg-[rgba(47,55,125,.05)] text-sm text-[#2f377d]"
+                  onClick={() => {
+                    if (!previewLoading) {
+                      setPreviewItem(null);
+                      setPreviewData(null);
+                    }
+                  }}
+                  disabled={previewLoading}
+                  title="Fechar"
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 bg-slate-950 relative">
@@ -1659,9 +1829,18 @@ export default function OperatorDashboard() {
                 </div>
               ) : (
                 <svg
-                  viewBox={previewData.viewBox}
-                  className="w-full h-full"
+                  ref={previewSvgRef}
+                  viewBox={previewViewBox}
+                  className="w-full h-full cursor-grab active:cursor-grabbing select-none"
                   preserveAspectRatio="xMidYMid meet"
+                  onMouseDown={startPreviewPan}
+                  onMouseMove={movePreviewPan}
+                  onMouseUp={stopPreviewPan}
+                  onMouseLeave={stopPreviewPan}
+                  onWheel={(e) => {
+                    e.preventDefault();
+                    zoomPreview(e.deltaY < 0 ? 0.85 : 1.15);
+                  }}
                 >
                   <rect x="-100000000" y="-100000000" width="200000000" height="200000000" fill="#020617" />
                   <g stroke="#e5e7eb" strokeWidth="1.5" fill="none" vectorEffect="non-scaling-stroke">
@@ -1679,9 +1858,9 @@ export default function OperatorDashboard() {
                       }
                       if (item.type === "polyline") {
                         return (
-                          <polyline
+                          <path
                             key={idx}
-                            points={item.points.map((pt) => `${pt.x},${pt.y}`).join(" ")}
+                            d={polylinePath(item.points, item.closed)}
                             fill={item.closed ? "rgba(34,197,94,.08)" : "none"}
                             stroke="#dbeafe"
                           />
@@ -1692,6 +1871,22 @@ export default function OperatorDashboard() {
                       }
                       if (item.type === "arc") {
                         return <path key={idx} d={arcPath(item)} stroke="#fde68a" />;
+                      }
+                      if (item.type === "text" && previewShowText) {
+                        return (
+                          <text
+                            key={idx}
+                            x={item.x}
+                            y={item.y}
+                            fontSize={item.size}
+                            fill="#f8fafc"
+                            stroke="none"
+                            transform={`rotate(${item.rot || 0} ${item.x} ${item.y})`}
+                            style={{ userSelect: "none" }}
+                          >
+                            {item.text}
+                          </text>
+                        );
                       }
                       return null;
                     })}
