@@ -2071,7 +2071,7 @@ def fila_item_to_pool(item_id: int):
 
     row = _fila_item_log_snapshot(conn, item_id)
 
-    if not row or row["maquina_id"] != maquina_id:
+    if not row:
         conn.close()
         raise HTTPException(status_code=404, detail="Item não encontrado")
 
