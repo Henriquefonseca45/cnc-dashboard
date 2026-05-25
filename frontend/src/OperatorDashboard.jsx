@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import rvbLogo from "./assets/rvb-logo.png";
 import {
   RefreshCw,
+  Eye,
   FileText,
   MoreVertical,
   Download,
@@ -143,6 +144,129 @@ function fmtHHMMSS(sec) {
   const m = Math.floor((s % 3600) / 60);
   const ss = s % 60;
   return `${pad2(h)}:${pad2(m)}:${pad2(ss)}`;
+}
+
+function dxfNum(v, fallback = 0) {
+  const n = Number(String(v || "").replace(",", "."));
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function parseDxfPreview(text) {
+  const raw = String(text || "").split(/\r?\n/);
+  const pairs = [];
+  for (let i = 0; i < raw.length - 1; i += 2) {
+    pairs.push({ code: raw[i].trim(), value: raw[i + 1].trim() });
+  }
+
+  const items = [];
+  const addLine = (x1, y1, x2, y2) => {
+    if ([x1, y1, x2, y2].every(Number.isFinite)) {
+      items.push({ type: "line", x1, y1: -y1, x2, y2: -y2 });
+    }
+  };
+
+  for (let i = 0; i < pairs.length; i += 1) {
+    const p = pairs[i];
+    if (p.code !== "0") continue;
+    const entity = p.value.toUpperCase();
+
+    if (entity === "LINE") {
+      const line = {};
+      for (i += 1; i < pairs.length && pairs[i].code !== "0"; i += 1) {
+        const { code, value } = pairs[i];
+        if (code === "10") line.x1 = dxfNum(value);
+        if (code === "20") line.y1 = dxfNum(value);
+        if (code === "11") line.x2 = dxfNum(value);
+        if (code === "21") line.y2 = dxfNum(value);
+      }
+      i -= 1;
+      addLine(line.x1, line.y1, line.x2, line.y2);
+      continue;
+    }
+
+    if (entity === "CIRCLE" || entity === "ARC") {
+      const arc = { start: 0, end: 360 };
+      for (i += 1; i < pairs.length && pairs[i].code !== "0"; i += 1) {
+        const { code, value } = pairs[i];
+        if (code === "10") arc.cx = dxfNum(value);
+        if (code === "20") arc.cy = dxfNum(value);
+        if (code === "40") arc.r = Math.abs(dxfNum(value));
+        if (code === "50") arc.start = dxfNum(value);
+        if (code === "51") arc.end = dxfNum(value);
+      }
+      i -= 1;
+      if ([arc.cx, arc.cy, arc.r].every(Number.isFinite) && arc.r > 0) {
+        items.push({ type: entity.toLowerCase(), cx: arc.cx, cy: -arc.cy, r: arc.r, start: arc.start, end: arc.end });
+      }
+      continue;
+    }
+
+    if (entity === "LWPOLYLINE") {
+      const points = [];
+      let pendingX = null;
+      let closed = false;
+      for (i += 1; i < pairs.length && pairs[i].code !== "0"; i += 1) {
+        const { code, value } = pairs[i];
+        if (code === "70") closed = (Math.trunc(dxfNum(value)) & 1) === 1;
+        if (code === "10") pendingX = dxfNum(value);
+        if (code === "20" && pendingX != null) {
+          points.push({ x: pendingX, y: -dxfNum(value) });
+          pendingX = null;
+        }
+      }
+      i -= 1;
+      if (points.length > 1) items.push({ type: "polyline", points, closed });
+    }
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  const addPoint = (x, y) => {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  };
+
+  for (const item of items) {
+    if (item.type === "line") {
+      addPoint(item.x1, item.y1);
+      addPoint(item.x2, item.y2);
+    } else if (item.type === "polyline") {
+      item.points.forEach((pt) => addPoint(pt.x, pt.y));
+    } else if (item.type === "circle" || item.type === "arc") {
+      addPoint(item.cx - item.r, item.cy - item.r);
+      addPoint(item.cx + item.r, item.cy + item.r);
+    }
+  }
+
+  if (!items.length || !Number.isFinite(minX)) {
+    return { items: [], viewBox: "0 0 100 100", width: 100, height: 100 };
+  }
+
+  const width = Math.max(1, maxX - minX);
+  const height = Math.max(1, maxY - minY);
+  const pad = Math.max(width, height) * 0.05 || 10;
+  return {
+    items,
+    viewBox: `${minX - pad} ${minY - pad} ${width + pad * 2} ${height + pad * 2}`,
+    width,
+    height,
+  };
+}
+
+function arcPath(item) {
+  const start = (item.start * Math.PI) / 180;
+  const end = (item.end * Math.PI) / 180;
+  const x1 = item.cx + item.r * Math.cos(start);
+  const y1 = item.cy - item.r * Math.sin(start);
+  const x2 = item.cx + item.r * Math.cos(end);
+  const y2 = item.cy - item.r * Math.sin(end);
+  const delta = ((item.end - item.start) % 360 + 360) % 360;
+  const largeArc = delta > 180 ? 1 : 0;
+  return `M ${x1} ${y1} A ${item.r} ${item.r} 0 ${largeArc} 0 ${x2} ${y2}`;
 }
 
 function calcRemainingSecondsFrozen(item, machineStatus, nowMs, freezeNowMs) {
@@ -350,6 +474,9 @@ export default function OperatorDashboard() {
   const [executando, setExecutando] = useState(null);
   const [loading, setLoading] = useState(false);
   const [baixandoId, setBaixandoId] = useState(null);
+  const [previewItem, setPreviewItem] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewData, setPreviewData] = useState(null);
 
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0, width: 224 });
@@ -700,6 +827,30 @@ export default function OperatorDashboard() {
       alert("Erro ao baixar: " + msg);
     } finally {
       setBaixandoId(null);
+    }
+  }
+
+  async function visualizarDxf(item) {
+    if (!item?.id || previewLoading) return;
+
+    try {
+      setPreviewItem(item);
+      setPreviewData(null);
+      setPreviewLoading(true);
+
+      const res = await http.get(`/agente/${cnc}/preview/fila/${item.id}`, {
+        responseType: "text",
+        transformResponse: [(data) => data],
+      });
+
+      setPreviewData(parseDxfPreview(res.data || ""));
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao visualizar DXF: " + getErrMsg(e));
+      setPreviewItem(null);
+      setPreviewData(null);
+    } finally {
+      setPreviewLoading(false);
     }
   }
 
@@ -1325,6 +1476,20 @@ export default function OperatorDashboard() {
                           <StatusPill label={label} />
 
                           <button
+                            onClick={() => visualizarDxf(item)}
+                            disabled={previewLoading}
+                            className={cn(
+                              "h-10 w-10 rounded-xl bg-white border border-[rgba(47,55,125,.12)] flex items-center justify-center",
+                              previewLoading
+                                ? "opacity-45 cursor-wait"
+                                : "hover:bg-[rgba(47,55,125,.05)]"
+                            )}
+                            title="Visualizar DXF"
+                          >
+                            <Eye size={16} className="text-[#2f377d]/85" />
+                          </button>
+
+                          <button
                             onClick={() => baixarArquivo(item)}
                             disabled={Boolean(baixandoId)}
                             aria-disabled={Boolean(downloadBloqueio) || Boolean(baixandoId)}
@@ -1439,6 +1604,108 @@ export default function OperatorDashboard() {
               <X size={16} className="text-red-500" />
               Cancelar
             </button>
+          </div>
+        </>
+      )}
+
+      {previewItem && (
+        <>
+          <div
+            className="fixed inset-0 z-[95] bg-black/70"
+            onClick={() => {
+              if (!previewLoading) {
+                setPreviewItem(null);
+                setPreviewData(null);
+              }
+            }}
+          />
+          <div
+            className="fixed z-[100] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[94vw] h-[88vh] rounded-2xl bg-white border border-[rgba(47,55,125,.12)] shadow-[0_25px_70px_-40px_rgba(32,37,61,.30)] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="h-14 px-4 border-b border-[rgba(47,55,125,.10)] flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[10px] tracking-[0.22em] text-slate-500">
+                  VISUALIZADOR DXF
+                </div>
+                <div className="text-sm font-semibold text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis">
+                  {previewItem?.arquivo_nome || previewItem?.nome || `Arquivo #${previewItem?.id}`}
+                </div>
+              </div>
+
+              <button
+                className="h-9 px-3 rounded-xl bg-white border border-[rgba(47,55,125,.12)] hover:bg-[rgba(47,55,125,.05)] text-sm text-[#2f377d]"
+                onClick={() => {
+                  if (!previewLoading) {
+                    setPreviewItem(null);
+                    setPreviewData(null);
+                  }
+                }}
+                disabled={previewLoading}
+                title="Fechar"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex-1 bg-slate-950 relative">
+              {previewLoading ? (
+                <div className="absolute inset-0 flex items-center justify-center text-sm text-white/70">
+                  Carregando visualizacao...
+                </div>
+              ) : !previewData?.items?.length ? (
+                <div className="absolute inset-0 flex items-center justify-center text-sm text-white/70 px-6 text-center">
+                  Nao foi possivel montar a visualizacao deste DXF.
+                </div>
+              ) : (
+                <svg
+                  viewBox={previewData.viewBox}
+                  className="w-full h-full"
+                  preserveAspectRatio="xMidYMid meet"
+                >
+                  <rect x="-100000000" y="-100000000" width="200000000" height="200000000" fill="#020617" />
+                  <g stroke="#e5e7eb" strokeWidth="1.5" fill="none" vectorEffect="non-scaling-stroke">
+                    {previewData.items.map((item, idx) => {
+                      if (item.type === "line") {
+                        return (
+                          <line
+                            key={idx}
+                            x1={item.x1}
+                            y1={item.y1}
+                            x2={item.x2}
+                            y2={item.y2}
+                          />
+                        );
+                      }
+                      if (item.type === "polyline") {
+                        return (
+                          <polyline
+                            key={idx}
+                            points={item.points.map((pt) => `${pt.x},${pt.y}`).join(" ")}
+                            fill={item.closed ? "rgba(34,197,94,.08)" : "none"}
+                            stroke="#dbeafe"
+                          />
+                        );
+                      }
+                      if (item.type === "circle") {
+                        return <circle key={idx} cx={item.cx} cy={item.cy} r={item.r} stroke="#bbf7d0" />;
+                      }
+                      if (item.type === "arc") {
+                        return <path key={idx} d={arcPath(item)} stroke="#fde68a" />;
+                      }
+                      return null;
+                    })}
+                  </g>
+                </svg>
+              )}
+            </div>
+
+            <div className="h-10 px-4 border-t border-[rgba(47,55,125,.10)] bg-white flex items-center justify-between text-xs text-slate-500">
+              <span>{previewData?.items?.length || 0} entidades renderizadas</span>
+              <span>
+                {previewData?.width ? `${Math.round(previewData.width)} x ${Math.round(previewData.height)}` : ""}
+              </span>
+            </div>
           </div>
         </>
       )}

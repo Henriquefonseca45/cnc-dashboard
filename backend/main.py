@@ -2854,6 +2854,38 @@ def agente_download_fila(maquina_id: str, fila_item_id: int):
     )
 
 
+@app.get("/agente/{maquina_id}/preview/fila/{fila_item_id}")
+def agente_preview_fila(maquina_id: str, fila_item_id: int):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    row = cur.execute(
+        """
+        SELECT fi.id as fila_item_id, fi.maquina_id, fi.arquivo_id, fi.status,
+               a.nome as arquivo_nome, a.path as arquivo_path
+        FROM fila_itens fi
+        JOIN arquivos_dxf a ON a.id = fi.arquivo_id
+        WHERE fi.id = ? AND fi.maquina_id = ?
+        """,
+        (fila_item_id, maquina_id),
+    ).fetchone()
+
+    conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Item de fila nÃ£o encontrado")
+
+    arquivo_path = row["arquivo_path"]
+    if not arquivo_path or not os.path.exists(arquivo_path):
+        raise HTTPException(status_code=404, detail="Arquivo fÃ­sico nÃ£o encontrado no servidor")
+
+    return FileResponse(
+        path=arquivo_path,
+        filename=row["arquivo_nome"],
+        media_type="text/plain; charset=utf-8",
+    )
+
+
 @app.post("/agente/{maquina_id}/fila/{fila_item_id}/executar")
 def agente_executar(maquina_id: str, fila_item_id: int):
     conn = get_conn()
