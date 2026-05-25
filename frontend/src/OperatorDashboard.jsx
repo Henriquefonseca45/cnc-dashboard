@@ -868,7 +868,11 @@ export default function OperatorDashboard() {
   }, [fila]);
 
   const baixadoPendente = useMemo(() => {
-    return filaVisivel.find((it) => String(it.status || "").toUpperCase() === "BAIXADO") || null;
+    return (
+      filaVisivel.find((it) =>
+        ["PROGRAMANDO", "BAIXADO"].includes(String(it.status || "").toUpperCase())
+      ) || null
+    );
   }, [filaVisivel]);
 
   function getMaterialRequestAberta(item) {
@@ -899,7 +903,7 @@ export default function OperatorDashboard() {
 
     if (baixadoPendente && Number(baixadoPendente.id) !== Number(item.id)) {
       const nome = baixadoPendente.arquivo_nome || baixadoPendente.nome || `Arquivo #${baixadoPendente.id}`;
-      return `Ja existe um arquivo baixado aguardando USINANDO:\n\n${nome}\n\nColoque esse arquivo em USINANDO antes de baixar outro.`;
+      return `Ja existe um arquivo programado/baixado aguardando USINANDO:\n\n${nome}\n\nColoque esse arquivo em USINANDO antes de baixar outro.`;
     }
 
     return "";

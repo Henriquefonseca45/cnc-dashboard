@@ -2679,6 +2679,36 @@ def agente_next(maquina_id: str):
     conn = get_conn()
     cur = conn.cursor()
 
+    pendente = cur.execute(
+        """
+        SELECT fi.id as fila_item_id, fi.maquina_id, fi.arquivo_id, fi.posicao, fi.status,
+               a.nome as arquivo_nome
+        FROM fila_itens fi
+        JOIN arquivos_dxf a ON a.id = fi.arquivo_id
+        WHERE fi.maquina_id = ?
+          AND fi.status IN ('PROGRAMANDO','BAIXADO')
+        ORDER BY fi.posicao ASC, fi.id ASC
+        LIMIT 1
+        """,
+        (maquina_id,),
+    ).fetchone()
+
+    if pendente:
+        conn.close()
+        return {
+            "maquina_id": maquina_id,
+            "pendente": True,
+            "modo": "FILA",
+            "fila_item_id": pendente["fila_item_id"],
+            "arquivo_id": pendente["arquivo_id"],
+            "arquivo_nome": pendente["arquivo_nome"],
+            "posicao": pendente["posicao"],
+            "status": pendente["status"],
+            "download_url": f"/agente/{maquina_id}/download/fila/{pendente['fila_item_id']}",
+            "bloqueou_novo": True,
+            "detail": "Ja existe arquivo programado/baixado aguardando USINANDO.",
+        }
+
     m = cur.execute("SELECT id FROM maquinas WHERE id = ?", (maquina_id,)).fetchone()
     if not m:
         conn.close()
@@ -2764,13 +2794,13 @@ def agente_download_fila(maquina_id: str, fila_item_id: int):
         conn.close()
         raise HTTPException(status_code=400, detail=f"Item não pode ser baixado (status={row['status']})")
 
-    baixado_pendente = cur.execute(
+    item_pendente = cur.execute(
         """
-        SELECT fi.id as fila_item_id, a.nome as arquivo_nome
+        SELECT fi.id as fila_item_id, fi.status, a.nome as arquivo_nome
         FROM fila_itens fi
         JOIN arquivos_dxf a ON a.id = fi.arquivo_id
         WHERE fi.maquina_id = ?
-          AND fi.status = 'BAIXADO'
+          AND fi.status IN ('PROGRAMANDO','BAIXADO')
           AND fi.id <> ?
         ORDER BY fi.posicao ASC, fi.id ASC
         LIMIT 1
@@ -2778,14 +2808,14 @@ def agente_download_fila(maquina_id: str, fila_item_id: int):
         (maquina_id, fila_item_id),
     ).fetchone()
 
-    if baixado_pendente:
+    if item_pendente:
         conn.rollback()
         conn.close()
         raise HTTPException(
             status_code=409,
             detail=(
-                "Ja existe um arquivo baixado aguardando USINANDO nesta maquina: "
-                f"{baixado_pendente['arquivo_nome']}. Coloque esse arquivo em USINANDO antes de baixar outro."
+                "Ja existe um arquivo programado/baixado aguardando USINANDO nesta maquina: "
+                f"{item_pendente['arquivo_nome']}. Coloque esse arquivo em USINANDO antes de baixar outro."
             ),
         )
 
