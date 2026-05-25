@@ -184,13 +184,13 @@ function parseDxfPreview(text) {
     }
 
     if (entity === "TEXT" || entity === "MTEXT") {
-      const t = { text: "", x: 0, y: 0, size: 120, rot: 0 };
+      const t = { text: "", x: 0, y: 0, size: 70, rot: 0 };
       for (i += 1; i < pairs.length && pairs[i].code !== "0"; i += 1) {
         const { code, value } = pairs[i];
         if (code === "1" || code === "3") t.text += cleanDxfText(value);
         if (code === "10") t.x = dxfNum(value);
         if (code === "20") t.y = -dxfNum(value);
-        if (code === "40") t.size = Math.max(40, Math.abs(dxfNum(value, 120)));
+        if (code === "40") t.size = Math.max(24, Math.abs(dxfNum(value, 70)) * 0.55);
         if (code === "50") t.rot = -dxfNum(value);
       }
       i -= 1;
