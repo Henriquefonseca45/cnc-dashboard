@@ -54,6 +54,210 @@ function fmtHHMMSS(totalSec) {
   return `${hh}:${mm}:${ss}`;
 }
 
+function dxfNum(v, fallback = 0) {
+  const n = Number(String(v || "").replace(",", "."));
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function cleanDxfText(value = "") {
+  return String(value)
+    .replace(/\\P/g, " ")
+    .replace(/\\~|\\[A-Za-z][^;]*;/g, " ")
+    .replace(/[{}]/g, "")
+    .trim();
+}
+
+function bulgePathSegment(p1, p2) {
+  const bulge = Number(p1?.bulge || 0);
+  if (!bulge) return `L ${p2.x} ${p2.y}`;
+
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const chord = Math.hypot(dx, dy);
+  if (!chord) return "";
+
+  const radius = (chord * (1 + bulge * bulge)) / (4 * Math.abs(bulge));
+  const largeArc = Math.abs(4 * Math.atan(bulge)) > Math.PI ? 1 : 0;
+  const sweep = bulge > 0 ? 0 : 1;
+  return `A ${radius} ${radius} 0 ${largeArc} ${sweep} ${p2.x} ${p2.y}`;
+}
+
+function polylinePath(points = [], closed = false) {
+  if (!points.length) return "";
+  const pts = closed ? [...points, points[0]] : points;
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 1; i < pts.length; i += 1) {
+    d += ` ${bulgePathSegment(pts[i - 1], pts[i])}`;
+  }
+  return d;
+}
+
+function parseDxfPreview(text) {
+  const raw = String(text || "").split(/\r?\n/);
+  const pairs = [];
+  for (let i = 0; i < raw.length - 1; i += 2) {
+    pairs.push({ code: raw[i].trim(), value: raw[i + 1].trim() });
+  }
+
+  const items = [];
+  const addLine = (x1, y1, x2, y2) => {
+    if ([x1, y1, x2, y2].every(Number.isFinite)) {
+      items.push({ type: "line", x1, y1: -y1, x2, y2: -y2 });
+    }
+  };
+
+  for (let i = 0; i < pairs.length; i += 1) {
+    const p = pairs[i];
+    if (p.code !== "0") continue;
+    const entity = p.value.toUpperCase();
+
+    if (entity === "LINE") {
+      const line = {};
+      for (i += 1; i < pairs.length && pairs[i].code !== "0"; i += 1) {
+        const { code, value } = pairs[i];
+        if (code === "10") line.x1 = dxfNum(value);
+        if (code === "20") line.y1 = dxfNum(value);
+        if (code === "11") line.x2 = dxfNum(value);
+        if (code === "21") line.y2 = dxfNum(value);
+      }
+      i -= 1;
+      addLine(line.x1, line.y1, line.x2, line.y2);
+      continue;
+    }
+
+    if (entity === "CIRCLE" || entity === "ARC") {
+      const arc = { start: 0, end: 360 };
+      for (i += 1; i < pairs.length && pairs[i].code !== "0"; i += 1) {
+        const { code, value } = pairs[i];
+        if (code === "10") arc.cx = dxfNum(value);
+        if (code === "20") arc.cy = dxfNum(value);
+        if (code === "40") arc.r = Math.abs(dxfNum(value));
+        if (code === "50") arc.start = dxfNum(value);
+        if (code === "51") arc.end = dxfNum(value);
+      }
+      i -= 1;
+      if ([arc.cx, arc.cy, arc.r].every(Number.isFinite) && arc.r > 0) {
+        items.push({ type: entity.toLowerCase(), cx: arc.cx, cy: -arc.cy, r: arc.r, start: arc.start, end: arc.end });
+      }
+      continue;
+    }
+
+    if (entity === "LWPOLYLINE") {
+      const points = [];
+      let current = null;
+      let closed = false;
+      for (i += 1; i < pairs.length && pairs[i].code !== "0"; i += 1) {
+        const { code, value } = pairs[i];
+        if (code === "70") closed = (Math.trunc(dxfNum(value)) & 1) === 1;
+        if (code === "10") {
+          current = { x: dxfNum(value), y: 0, bulge: 0 };
+          points.push(current);
+        }
+        if (code === "20" && current) current.y = -dxfNum(value);
+        if (code === "42" && current) current.bulge = dxfNum(value);
+      }
+      i -= 1;
+      if (points.length > 1) items.push({ type: "polyline", points, closed });
+      continue;
+    }
+
+    if (entity === "POLYLINE") {
+      const points = [];
+      let closed = false;
+      for (i += 1; i < pairs.length; i += 1) {
+        if (pairs[i].code === "70") closed = (Math.trunc(dxfNum(pairs[i].value)) & 1) === 1;
+        if (pairs[i].code === "0" && pairs[i].value.toUpperCase() === "VERTEX") {
+          const pt = { x: 0, y: 0, bulge: 0 };
+          for (i += 1; i < pairs.length && pairs[i].code !== "0"; i += 1) {
+            const { code, value } = pairs[i];
+            if (code === "10") pt.x = dxfNum(value);
+            if (code === "20") pt.y = -dxfNum(value);
+            if (code === "42") pt.bulge = dxfNum(value);
+          }
+          points.push(pt);
+          i -= 1;
+        }
+        if (pairs[i].code === "0" && pairs[i].value.toUpperCase() === "SEQEND") break;
+      }
+      if (points.length > 1) items.push({ type: "polyline", points, closed });
+      continue;
+    }
+
+    if (entity === "TEXT" || entity === "MTEXT") {
+      const t = { text: "", x: 0, y: 0, size: 120, rot: 0 };
+      for (i += 1; i < pairs.length && pairs[i].code !== "0"; i += 1) {
+        const { code, value } = pairs[i];
+        if (code === "1" || code === "3") t.text += cleanDxfText(value);
+        if (code === "10") t.x = dxfNum(value);
+        if (code === "20") t.y = -dxfNum(value);
+        if (code === "40") t.size = Math.max(40, Math.abs(dxfNum(value, 120)));
+        if (code === "50") t.rot = -dxfNum(value);
+      }
+      i -= 1;
+      if (t.text) items.push({ type: "text", ...t });
+    }
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  const addPoint = (x, y) => {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  };
+
+  for (const item of items) {
+    if (item.type === "line") {
+      addPoint(item.x1, item.y1);
+      addPoint(item.x2, item.y2);
+    } else if (item.type === "polyline") {
+      item.points.forEach((pt) => addPoint(pt.x, pt.y));
+    } else if (item.type === "circle" || item.type === "arc") {
+      addPoint(item.cx - item.r, item.cy - item.r);
+      addPoint(item.cx + item.r, item.cy + item.r);
+    } else if (item.type === "text") {
+      addPoint(item.x, item.y);
+      addPoint(item.x + item.text.length * item.size * 0.65, item.y - item.size);
+    }
+  }
+
+  if (!items.length || !Number.isFinite(minX)) {
+    return { items: [], viewBox: "0 0 100 100", width: 100, height: 100 };
+  }
+
+  const width = Math.max(1, maxX - minX);
+  const height = Math.max(1, maxY - minY);
+  const pad = Math.max(width, height) * 0.05 || 10;
+  return {
+    items,
+    viewBox: `${minX - pad} ${minY - pad} ${width + pad * 2} ${height + pad * 2}`,
+    width,
+    height,
+  };
+}
+
+function arcPath(item) {
+  const start = (item.start * Math.PI) / 180;
+  const end = (item.end * Math.PI) / 180;
+  const x1 = item.cx + item.r * Math.cos(start);
+  const y1 = item.cy - item.r * Math.sin(start);
+  const x2 = item.cx + item.r * Math.cos(end);
+  const y2 = item.cy - item.r * Math.sin(end);
+  const delta = ((item.end - item.start) % 360 + 360) % 360;
+  const largeArc = delta > 180 ? 1 : 0;
+  return `M ${x1} ${y1} A ${item.r} ${item.r} 0 ${largeArc} 0 ${x2} ${y2}`;
+}
+
+function scaleViewBox(viewBox, factor) {
+  const [x, y, w, h] = String(viewBox || "0 0 100 100").split(/\s+/).map(Number);
+  const nextW = Math.max(1, w * factor);
+  const nextH = Math.max(1, h * factor);
+  return `${x + (w - nextW) / 2} ${y + (h - nextH) / 2} ${nextW} ${nextH}`;
+}
+
 function getNowDateSafe(ms) {
   try {
     return new Date(ms || Date.now());
@@ -701,6 +905,12 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const [selectedFilaItemIds, setSelectedFilaItemIds] = useState(() => new Set());
 
   const [reorderBusy, setReorderBusy] = useState(false);
+  const [previewItem, setPreviewItem] = useState(null);
+  const [previewMachineId, setPreviewMachineId] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewData, setPreviewData] = useState(null);
+  const [previewViewBox, setPreviewViewBox] = useState("0 0 100 100");
+  const [previewShowText, setPreviewShowText] = useState(true);
 
   const [chatMsgs, setChatMsgs] = useState([]);
   const [chatText, setChatText] = useState("");
@@ -720,6 +930,8 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const chatNotifyBootstrappedRef = useRef(false);
   const chatSeenByMachineRef = useRef({});
   const chatLastNotifiedByMachineRef = useRef({});
+  const previewSvgRef = useRef(null);
+  const previewDragRef = useRef(null);
   const viewRef = useRef("dashboard");
   const selectedIdRef = useRef(selectedId);
   const includeDoneRef = useRef(includeDone);
@@ -1136,6 +1348,81 @@ async function exportarPDF() {
     alert(`Erro ao baixar arquivo do histórico: ${getErrMsg(e)}`);
   }
 }
+
+  async function visualizarDxfFila(item, maquinaId = selectedId) {
+    if (!item?.id || !maquinaId || previewLoading) return;
+
+    try {
+      setPreviewItem(item);
+      setPreviewMachineId(maquinaId);
+      setPreviewData(null);
+      setPreviewLoading(true);
+
+      const res = await api.get(`/agente/${maquinaId}/preview/fila/${item.id}`, {
+        responseType: "text",
+        transformResponse: [(data) => data],
+      });
+
+      const parsed = parseDxfPreview(res.data || "");
+      setPreviewData(parsed);
+      setPreviewViewBox(parsed.viewBox);
+    } catch (e) {
+      setErr(getErrMsg(e));
+      alert(`Erro ao visualizar DXF: ${getErrMsg(e)}`);
+      setPreviewItem(null);
+      setPreviewMachineId("");
+      setPreviewData(null);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  function fecharPreviewDxf() {
+    if (previewLoading) return;
+    setPreviewItem(null);
+    setPreviewMachineId("");
+    setPreviewData(null);
+  }
+
+  function resetPreviewView() {
+    if (previewData?.viewBox) setPreviewViewBox(previewData.viewBox);
+  }
+
+  function zoomPreview(factor) {
+    setPreviewViewBox((vb) => scaleViewBox(vb, factor));
+  }
+
+  function previewPointFromEvent(e) {
+    const svg = previewSvgRef.current;
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    const [x, y, w, h] = String(previewViewBox || "0 0 100 100").split(/\s+/).map(Number);
+    return {
+      x: x + ((e.clientX - rect.left) / Math.max(1, rect.width)) * w,
+      y: y + ((e.clientY - rect.top) / Math.max(1, rect.height)) * h,
+    };
+  }
+
+  function startPreviewPan(e) {
+    if (!previewData?.items?.length) return;
+    previewDragRef.current = {
+      start: previewPointFromEvent(e),
+      viewBox: previewViewBox,
+    };
+  }
+
+  function movePreviewPan(e) {
+    const drag = previewDragRef.current;
+    if (!drag?.start) return;
+    const p = previewPointFromEvent(e);
+    if (!p) return;
+    const [x, y, w, h] = String(drag.viewBox).split(/\s+/).map(Number);
+    setPreviewViewBox(`${x + drag.start.x - p.x} ${y + drag.start.y - p.y} ${w} ${h}`);
+  }
+
+  function stopPreviewPan() {
+    previewDragRef.current = null;
+  }
 
   async function fetchPool() {
     const r = await api.get("/arquivos/disponiveis");
@@ -2972,6 +3259,21 @@ const limparLista = (lista) =>
                             </div>
 
                             <div className="pgQueueRight">
+                              {readOnly && (
+                                <button
+                                  type="button"
+                                  className="pgBtn pgBtnGhost"
+                                  style={{ height: 30, padding: "0 10px", fontSize: 11 }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    visualizarDxfFila(it, selectedId);
+                                  }}
+                                  disabled={previewLoading}
+                                  title="Visualizar DXF"
+                                >
+                                  Visualizar
+                                </button>
+                              )}
                               <span className={operPillClass(it.status)}>{normOperStatus(it.status)}</span>
                             </div>
                           </li>
@@ -4432,6 +4734,106 @@ const limparLista = (lista) =>
             </div> {/* pgChatComposer */}
           </div>   {/* pgChatPanel */}
         </section>
+      )}
+
+      {previewItem && (
+        <>
+          <div className="fixed inset-0 z-[95] bg-black/70" onClick={fecharPreviewDxf} />
+          <div
+            className="fixed z-[100] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[94vw] h-[88vh] rounded-2xl bg-white border border-[rgba(47,55,125,.12)] shadow-[0_25px_70px_-40px_rgba(32,37,61,.30)] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="h-14 px-4 border-b border-[rgba(47,55,125,.10)] flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[10px] tracking-[0.22em] text-slate-500">
+                  VISUALIZADOR DXF - {previewMachineId || selectedId}
+                </div>
+                <div className="text-sm font-semibold text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis">
+                  {previewItem?.arquivo_nome || previewItem?.nome || `Arquivo #${previewItem?.id}`}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button className="pgBtn pgBtnGhost" style={{ height: 34, padding: "0 12px" }} onClick={() => zoomPreview(0.75)} disabled={previewLoading}>+</button>
+                <button className="pgBtn pgBtnGhost" style={{ height: 34, padding: "0 12px" }} onClick={() => zoomPreview(1.25)} disabled={previewLoading}>-</button>
+                <button className="pgBtn pgBtnGhost" style={{ height: 34, padding: "0 12px" }} onClick={resetPreviewView} disabled={previewLoading}>Ajustar</button>
+                <button
+                  className={`pgBtn ${previewShowText ? "pgBtnPrimary" : "pgBtnGhost"}`}
+                  style={{ height: 34, padding: "0 12px" }}
+                  onClick={() => setPreviewShowText((x) => !x)}
+                  disabled={previewLoading}
+                >
+                  Texto
+                </button>
+                <button className="pgBtn pgBtnGhost" style={{ height: 34, padding: "0 12px" }} onClick={fecharPreviewDxf} disabled={previewLoading}>Fechar</button>
+              </div>
+            </div>
+
+            <div className="flex-1 bg-slate-950 relative">
+              {previewLoading ? (
+                <div className="absolute inset-0 flex items-center justify-center text-sm text-white/70">Carregando visualizacao...</div>
+              ) : !previewData?.items?.length ? (
+                <div className="absolute inset-0 flex items-center justify-center text-sm text-white/70 px-6 text-center">Nao foi possivel montar a visualizacao deste DXF.</div>
+              ) : (
+                <svg
+                  ref={previewSvgRef}
+                  viewBox={previewViewBox}
+                  className="w-full h-full cursor-grab active:cursor-grabbing select-none"
+                  preserveAspectRatio="xMidYMid meet"
+                  onMouseDown={startPreviewPan}
+                  onMouseMove={movePreviewPan}
+                  onMouseUp={stopPreviewPan}
+                  onMouseLeave={stopPreviewPan}
+                  onWheel={(e) => {
+                    e.preventDefault();
+                    zoomPreview(e.deltaY < 0 ? 0.85 : 1.15);
+                  }}
+                >
+                  <rect x="-100000000" y="-100000000" width="200000000" height="200000000" fill="#020617" />
+                  <g stroke="#e5e7eb" strokeWidth="1.5" fill="none" vectorEffect="non-scaling-stroke">
+                    {previewData.items.map((item, idx) => {
+                      if (item.type === "line") return <line key={idx} x1={item.x1} y1={item.y1} x2={item.x2} y2={item.y2} />;
+                      if (item.type === "polyline") {
+                        return (
+                          <path
+                            key={idx}
+                            d={polylinePath(item.points, item.closed)}
+                            fill={item.closed ? "rgba(34,197,94,.08)" : "none"}
+                            stroke="#dbeafe"
+                          />
+                        );
+                      }
+                      if (item.type === "circle") return <circle key={idx} cx={item.cx} cy={item.cy} r={item.r} stroke="#bbf7d0" />;
+                      if (item.type === "arc") return <path key={idx} d={arcPath(item)} stroke="#fde68a" />;
+                      if (item.type === "text" && previewShowText) {
+                        return (
+                          <text
+                            key={idx}
+                            x={item.x}
+                            y={item.y}
+                            fontSize={item.size}
+                            fill="#f8fafc"
+                            stroke="none"
+                            transform={`rotate(${item.rot || 0} ${item.x} ${item.y})`}
+                            style={{ userSelect: "none" }}
+                          >
+                            {item.text}
+                          </text>
+                        );
+                      }
+                      return null;
+                    })}
+                  </g>
+                </svg>
+              )}
+            </div>
+
+            <div className="h-10 px-4 border-t border-[rgba(47,55,125,.10)] bg-white flex items-center justify-between text-xs text-slate-500">
+              <span>{previewData?.items?.length || 0} entidades renderizadas</span>
+              <span>{previewData?.width ? `${Math.round(previewData.width)} x ${Math.round(previewData.height)}` : ""}</span>
+            </div>
+          </div>
+        </>
       )}
 
       </main>
