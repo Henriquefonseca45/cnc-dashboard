@@ -103,6 +103,50 @@ function polylinePath(points = [], closed = false) {
   return d;
 }
 
+function smoothPath(points = []) {
+  if (points.length < 2) return "";
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const p0 = points[i - 1] || points[i];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] || p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${c1x} ${c1y} ${c2x} ${c2y} ${p2.x} ${p2.y}`;
+  }
+  return d;
+}
+
+function ellipsePoints(item, segments = 96) {
+  const major = Math.hypot(item.mx, item.my);
+  if (!major) return [];
+
+  const ratio = Math.max(0.001, Math.abs(Number(item.ratio || 1)));
+  const minor = major * ratio;
+  const ux = item.mx / major;
+  const uy = item.my / major;
+  const vx = -uy;
+  const vy = ux;
+  const start = Number.isFinite(item.start) ? item.start : 0;
+  const end = Number.isFinite(item.end) ? item.end : Math.PI * 2;
+  let sweep = end - start;
+  if (sweep <= 0) sweep += Math.PI * 2;
+
+  const count = Math.max(24, Math.ceil((segments * Math.min(Math.abs(sweep), Math.PI * 2)) / (Math.PI * 2)));
+  const pts = [];
+  for (let i = 0; i <= count; i += 1) {
+    const t = start + (sweep * i) / count;
+    pts.push({
+      x: item.cx + ux * major * Math.cos(t) + vx * minor * Math.sin(t),
+      y: item.cy + uy * major * Math.cos(t) + vy * minor * Math.sin(t),
+    });
+  }
+  return pts;
+}
+
 function parseDxfPreview(text) {
   const raw = String(text || "").split(/\r?\n/);
   const pairs = [];
@@ -153,6 +197,24 @@ function parseDxfPreview(text) {
       continue;
     }
 
+    if (entity === "ELLIPSE") {
+      const ellipse = { cx: 0, cy: 0, mx: 0, my: 0, ratio: 1, start: 0, end: Math.PI * 2 };
+      for (i += 1; i < pairs.length && pairs[i].code !== "0"; i += 1) {
+        const { code, value } = pairs[i];
+        if (code === "10") ellipse.cx = dxfNum(value);
+        if (code === "20") ellipse.cy = -dxfNum(value);
+        if (code === "11") ellipse.mx = dxfNum(value);
+        if (code === "21") ellipse.my = -dxfNum(value);
+        if (code === "40") ellipse.ratio = dxfNum(value, 1);
+        if (code === "41") ellipse.start = dxfNum(value, 0);
+        if (code === "42") ellipse.end = dxfNum(value, Math.PI * 2);
+      }
+      i -= 1;
+      const points = ellipsePoints(ellipse);
+      if (points.length > 1) items.push({ type: "curve", points, closed: Math.abs((ellipse.end - ellipse.start) || 0) >= Math.PI * 2 - 0.01 });
+      continue;
+    }
+
     if (entity === "LWPOLYLINE") {
       const points = [];
       let current = null;
@@ -194,6 +256,32 @@ function parseDxfPreview(text) {
       continue;
     }
 
+    if (entity === "SPLINE") {
+      const fitPoints = [];
+      const controlPoints = [];
+      let currentFit = null;
+      let currentControl = null;
+
+      for (i += 1; i < pairs.length && pairs[i].code !== "0"; i += 1) {
+        const { code, value } = pairs[i];
+        if (code === "10") {
+          currentControl = { x: dxfNum(value), y: 0 };
+          controlPoints.push(currentControl);
+        }
+        if (code === "20" && currentControl) currentControl.y = -dxfNum(value);
+        if (code === "11") {
+          currentFit = { x: dxfNum(value), y: 0 };
+          fitPoints.push(currentFit);
+        }
+        if (code === "21" && currentFit) currentFit.y = -dxfNum(value);
+      }
+      i -= 1;
+
+      const points = fitPoints.length > 1 ? fitPoints : controlPoints;
+      if (points.length > 1) items.push({ type: "spline", points });
+      continue;
+    }
+
     if (entity === "TEXT" || entity === "MTEXT") {
       const t = { text: "", x: 0, y: 0, size: 18, rot: 0 };
       for (i += 1; i < pairs.length && pairs[i].code !== "0"; i += 1) {
@@ -224,7 +312,7 @@ function parseDxfPreview(text) {
     if (item.type === "line") {
       addPoint(item.x1, item.y1);
       addPoint(item.x2, item.y2);
-    } else if (item.type === "polyline") {
+    } else if (item.type === "polyline" || item.type === "curve" || item.type === "spline") {
       item.points.forEach((pt) => addPoint(pt.x, pt.y));
     } else if (item.type === "circle" || item.type === "arc") {
       addPoint(item.cx - item.r, item.cy - item.r);
@@ -4963,7 +5051,15 @@ const limparLista = (lista) =>
                   }}
                 >
                   <rect x="-100000000" y="-100000000" width="200000000" height="200000000" fill="#020617" />
-                  <g stroke="#e5e7eb" strokeWidth="1.5" fill="none" vectorEffect="non-scaling-stroke">
+                  <g
+                    stroke="#e5e7eb"
+                    strokeWidth="1"
+                    fill="none"
+                    vectorEffect="non-scaling-stroke"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    shapeRendering="geometricPrecision"
+                  >
                     {previewData.items.map((item, idx) => {
                       if (item.type === "line") return <line key={idx} x1={item.x1} y1={item.y1} x2={item.x2} y2={item.y2} />;
                       if (item.type === "polyline") {
@@ -4975,6 +5071,18 @@ const limparLista = (lista) =>
                             stroke="#dbeafe"
                           />
                         );
+                      }
+                      if (item.type === "curve") {
+                        return (
+                          <path
+                            key={idx}
+                            d={polylinePath(item.points, item.closed)}
+                            stroke="#bfdbfe"
+                          />
+                        );
+                      }
+                      if (item.type === "spline") {
+                        return <path key={idx} d={smoothPath(item.points)} stroke="#a7f3d0" />;
                       }
                       if (item.type === "circle") return <circle key={idx} cx={item.cx} cy={item.cy} r={item.r} stroke="#bbf7d0" />;
                       if (item.type === "arc") return <path key={idx} d={arcPath(item)} stroke="#fde68a" />;
@@ -4988,7 +5096,7 @@ const limparLista = (lista) =>
                             fill="#f8fafc"
                             stroke="none"
                             transform={`rotate(${item.rot || 0} ${item.x} ${item.y})`}
-                            style={{ userSelect: "none" }}
+                            style={{ userSelect: "none", textRendering: "geometricPrecision" }}
                           >
                             {item.text}
                           </text>
