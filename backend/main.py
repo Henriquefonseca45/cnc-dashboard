@@ -954,6 +954,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
             "maquina": m["id"],
             "operador_nome": m["operador_nome"] or "",
             "status_atual": m["status"] or "",
+            "qtd_setups": 0,
             **{k: 0 for k in bucket_keys},
         }
         for m in maquinas
@@ -1010,6 +1011,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
 
         if bucket == "setup":
             qtd_setups += 1
+            per_machine[maquina_id]["qtd_setups"] += 1
 
     tempo_usinando_seg = totals["usinando"]
     tempo_setup_seg = totals["setup"]
@@ -1063,6 +1065,8 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
     for machine_id, item in per_machine.items():
         usinando_min = round(item["usinando"] / 60, 2)
         setup_min = round(item["setup"] / 60, 2)
+        setup_count = int(item.get("qtd_setups") or 0)
+        setup_medio_machine_min = round((item["setup"] / setup_count) / 60, 2) if setup_count > 0 else 0.0
         programacao_min = round(item["programacao"] / 60, 2)
 
         tempo_disponivel_machine_min = round((item["usinando"] + item["setup"] + item["programacao"]) / 60, 2)
@@ -1094,6 +1098,8 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
                 "status_atual": item["status_atual"],
                 "usinando_min": usinando_min,
                 "setup_min": setup_min,
+                "setup_medio_min": setup_medio_machine_min,
+                "total_setups": setup_count,
                 "programacao_min": programacao_min,
                 "manutencao_min": round(item["manutencao"] / 60, 2),
                 "falta_material_min": round(item["falta_material"] / 60, 2),

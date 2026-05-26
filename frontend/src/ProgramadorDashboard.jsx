@@ -759,6 +759,8 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
       maquina: item.maquina,
       usinandoMin: Number(item.usinando_min || 0),
       setupMin: Number(item.setup_min || 0),
+      setupMedioMin: Number(item.setup_medio_min || 0),
+      totalSetups: Number(item.total_setups || 0),
       perdidoMin: Number(item.tempo_parado_min || 0),
       usoPct: Number(item.uso_pct || 0),
       performancePct: Number(item.performance_pct || 0),
@@ -2714,9 +2716,13 @@ const limparLista = (lista) =>
 
     const machineRows = DASHBOARD_MACHINE_IDS.map((machineId) => {
       const item = byMachine.get(machineId);
+      const setupMedioMin =
+        Number(item?.setupMedioMin || 0) ||
+        (Number(item?.totalSetups || 0) > 0 ? Number(item?.setupMin || 0) / Number(item?.totalSetups || 1) : 0);
+
       return {
         label: machineId,
-        min: Number(item?.setupMin || 0),
+        min: setupMedioMin,
         isTotal: false,
       };
     });
@@ -2726,11 +2732,11 @@ const limparLista = (lista) =>
         ? Number(dashboardData?.tempoSetupMin || 0) / Number(dashboardData?.totalSetups || 1)
         : 0;
     const averageMin = Number(dashboardData?.setupMedioAtualMin || fallbackAverageMin || 0);
-    const machineMaxMin = Math.max(1, ...machineRows.map((item) => item.min));
+    const maxMin = Math.max(1, averageMin, ...machineRows.map((item) => item.min));
 
     return {
       averageMin,
-      machineMaxMin,
+      maxMin,
       rows: [
         {
           label: "Geral",
@@ -4091,14 +4097,12 @@ const limparLista = (lista) =>
       <section className="pgDashChartsRow pgDashChartsRowBottom pgDashChartsRow56">
         <div className="pgDashChartCard pgDashChartCard5">
           <div className="pgDashChartTitle">
-            Gráfico 5 — Horas de Setup por Máquina ({dashboardData.periodoLabel})
+            Gráfico 5 — Tempo Médio de Setup por Máquina ({dashboardData.periodoLabel})
           </div>
 
           <div className="pgDashReasonList pgDashSetupList">
             {grafico5Data.rows.map((item) => {
-              const width = item.isTotal
-                ? 100
-                : Math.max(2, Math.min(100, (Number(item.min || 0) / grafico5Data.machineMaxMin) * 100));
+              const width = Math.max(2, Math.min(100, (Number(item.min || 0) / grafico5Data.maxMin) * 100));
 
               return (
                 <div
