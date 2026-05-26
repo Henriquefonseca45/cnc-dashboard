@@ -955,12 +955,14 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
             "operador_nome": m["operador_nome"] or "",
             "status_atual": m["status"] or "",
             "qtd_setups": 0,
+            "qtd_falta_material": 0,
             **{k: 0 for k in bucket_keys},
         }
         for m in maquinas
     }
 
     qtd_setups = 0
+    qtd_falta_material = 0
 
     def overlap_seconds(seg_ini: datetime, seg_fim: datetime) -> int:
         ini = max(seg_ini, dt_ini_base)
@@ -1012,9 +1014,13 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
         if bucket == "setup":
             qtd_setups += 1
             per_machine[maquina_id]["qtd_setups"] += 1
+        elif bucket == "falta_material":
+            qtd_falta_material += 1
+            per_machine[maquina_id]["qtd_falta_material"] += 1
 
     tempo_usinando_seg = totals["usinando"]
     tempo_setup_seg = totals["setup"]
+    tempo_falta_material_seg = totals["falta_material"]
     tempo_programacao_seg = totals["programacao"]
 
     tempo_disponivel_seg = tempo_usinando_seg + tempo_setup_seg + tempo_programacao_seg
@@ -1033,6 +1039,9 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
     disponibilidade_pct = round((tempo_disponivel_seg / tempo_total_seg) * 100, 2) if tempo_total_seg > 0 else 0.0
     ief_pct = round((tempo_usinando_seg / tempo_total_seg) * 100, 2) if tempo_total_seg > 0 else 0.0
     setup_medio_min = round((tempo_setup_seg / qtd_setups) / 60, 2) if qtd_setups > 0 else 0.0
+    falta_material_medio_min = (
+        round((tempo_falta_material_seg / qtd_falta_material) / 60, 2) if qtd_falta_material > 0 else 0.0
+    )
 
     parada_por_motivo_lista = [
         {
@@ -1067,6 +1076,12 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
         setup_min = round(item["setup"] / 60, 2)
         setup_count = int(item.get("qtd_setups") or 0)
         setup_medio_machine_min = round((item["setup"] / setup_count) / 60, 2) if setup_count > 0 else 0.0
+        falta_material_count = int(item.get("qtd_falta_material") or 0)
+        falta_material_medio_machine_min = (
+            round((item["falta_material"] / falta_material_count) / 60, 2)
+            if falta_material_count > 0
+            else 0.0
+        )
         programacao_min = round(item["programacao"] / 60, 2)
 
         tempo_disponivel_machine_min = round((item["usinando"] + item["setup"] + item["programacao"]) / 60, 2)
@@ -1103,6 +1118,8 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
                 "programacao_min": programacao_min,
                 "manutencao_min": round(item["manutencao"] / 60, 2),
                 "falta_material_min": round(item["falta_material"] / 60, 2),
+                "falta_material_medio_min": falta_material_medio_machine_min,
+                "total_falta_material": falta_material_count,
                 "reuniao_min": round(item["reuniao"] / 60, 2),
                 "refeicao_min": round(item["refeicao"] / 60, 2),
                 "desligada_min": round(item["desligada"] / 60, 2),
@@ -1167,6 +1184,12 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
             "tempo_total_setup_seg": tempo_setup_seg,
             "tempo_total_setup_min": round(tempo_setup_seg / 60, 2),
             "tempo_medio_setup_min": setup_medio_min,
+        },
+        "falta_material_medio": {
+            "quantidade_ocorrencias": qtd_falta_material,
+            "tempo_total_falta_material_seg": tempo_falta_material_seg,
+            "tempo_total_falta_material_min": round(tempo_falta_material_seg / 60, 2),
+            "tempo_medio_falta_material_min": falta_material_medio_min,
         },
         "parada_por_motivo": parada_por_motivo_lista,
         "per_machine": per_machine_lista,

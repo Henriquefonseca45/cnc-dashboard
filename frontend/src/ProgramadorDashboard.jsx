@@ -831,6 +831,7 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
   const iefObj = raw?.ief || {};
   const disponibilidadeObj = raw?.disponibilidade || {};
   const setupObj = raw?.setup_medio || {};
+  const faltaMaterialObj = raw?.falta_material_medio || {};
   const totalsObj = raw?.totals || {};
   const specialTotalsObj = raw?.special_totals || {};
   const paradas = Array.isArray(raw?.parada_por_motivo) ? raw.parada_por_motivo : [];
@@ -849,6 +850,9 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
       setupMin: Number(item.setup_min || 0),
       setupMedioMin: Number(item.setup_medio_min || 0),
       totalSetups: Number(item.total_setups || 0),
+      faltaMaterialMin: Number(item.falta_material_min || 0),
+      faltaMaterialMedioMin: Number(item.falta_material_medio_min || 0),
+      totalFaltaMaterial: Number(item.total_falta_material || 0),
       perdidoMin: Number(item.tempo_parado_min || 0),
       usoPct: Number(item.uso_pct || 0),
       performancePct: Number(item.performance_pct || 0),
@@ -907,10 +911,13 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
     disponibilidade: Number(disponibilidadeObj.percentual || 0),
     totalSetups: Number(setupObj.quantidade_setups || 0),
     setupMedioAtualMin: Number(setupObj.tempo_medio_setup_min || 0),
+    totalFaltaMaterial: Number(faltaMaterialObj.quantidade_ocorrencias || 0),
+    faltaMaterialMedioAtualMin: Number(faltaMaterialObj.tempo_medio_falta_material_min || 0),
     capacidadePlanejadaPorMaquinaMin: Number(parametros.capacidade_por_maquina_min || MINUTOS_DIA_MAQUINA),
     capacidadePlanejadaTotalMin: Number(parametros.capacidade_total_min || 0),
     tempoUsinandoMin: Number(iefObj.tempo_usinando_min || 0),
     tempoSetupMin: Number(setupObj.tempo_total_setup_min || 0),
+    tempoFaltaMaterialMin: Number(faltaMaterialObj.tempo_total_falta_material_min || totals.falta_material || 0),
 
     tempoParadoMin:
       Number(totals.manutencao || 0) +
@@ -1011,6 +1018,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardErr, setDashboardErr] = useState("");
   const [grafico3Maquina, setGrafico3Maquina] = useState("TODAS");
+  const [grafico5Tipo, setGrafico5Tipo] = useState("setup");
 
   const [selectedPoolIds, setSelectedPoolIds] = useState(() => new Set());
   const [selectedFilaItemIds, setSelectedFilaItemIds] = useState(() => new Set());
@@ -2798,6 +2806,7 @@ const limparLista = (lista) =>
   }, [dashboardData]);
 
   const grafico5Data = useMemo(() => {
+    const isSetup = grafico5Tipo === "setup";
     const byMachine = new Map(
       (dashboardData?.rankingMaquinas || []).map((item) => [String(item.maquina || "").toUpperCase(), item])
     );
@@ -2807,10 +2816,15 @@ const limparLista = (lista) =>
       const setupMedioMin =
         Number(item?.setupMedioMin || 0) ||
         (Number(item?.totalSetups || 0) > 0 ? Number(item?.setupMin || 0) / Number(item?.totalSetups || 1) : 0);
+      const faltaMaterialMedioMin =
+        Number(item?.faltaMaterialMedioMin || 0) ||
+        (Number(item?.totalFaltaMaterial || 0) > 0
+          ? Number(item?.faltaMaterialMin || 0) / Number(item?.totalFaltaMaterial || 1)
+          : 0);
 
       return {
         label: machineId,
-        min: setupMedioMin,
+        min: isSetup ? setupMedioMin : faltaMaterialMedioMin,
         isTotal: false,
       };
     });
@@ -2819,12 +2833,22 @@ const limparLista = (lista) =>
       Number(dashboardData?.totalSetups || 0) > 0
         ? Number(dashboardData?.tempoSetupMin || 0) / Number(dashboardData?.totalSetups || 1)
         : 0;
-    const averageMin = Number(dashboardData?.setupMedioAtualMin || fallbackAverageMin || 0);
+    const fallbackFaltaMaterialAverageMin =
+      Number(dashboardData?.totalFaltaMaterial || 0) > 0
+        ? Number(dashboardData?.tempoFaltaMaterialMin || 0) / Number(dashboardData?.totalFaltaMaterial || 1)
+        : 0;
+    const averageMin = isSetup
+      ? Number(dashboardData?.setupMedioAtualMin || fallbackAverageMin || 0)
+      : Number(dashboardData?.faltaMaterialMedioAtualMin || fallbackFaltaMaterialAverageMin || 0);
     const maxMin = Math.max(1, averageMin, ...machineRows.map((item) => item.min));
 
     return {
       averageMin,
       maxMin,
+      type: grafico5Tipo,
+      label: isSetup ? "Setup" : "Aguardando Empilhadeira",
+      tooltip: isSetup ? "de setup" : "aguardando empilhadeira",
+      fillClass: isSetup ? "pgDashSetupFill" : "pgDashMaterialFill",
       rows: [
         {
           label: "Geral",
@@ -2834,7 +2858,7 @@ const limparLista = (lista) =>
         ...machineRows,
       ],
     };
-  }, [dashboardData]);
+  }, [dashboardData, grafico5Tipo]);
 
   const grafico6Data = useMemo(() => {
     const order = [
@@ -4184,9 +4208,30 @@ const limparLista = (lista) =>
 
       <section className="pgDashChartsRow pgDashChartsRowBottom pgDashChartsRow56">
         <div className="pgDashChartCard pgDashChartCard5">
-          <div className="pgDashChartTitle">
-            Gráfico 5 — Tempo Médio de Setup por Máquina ({dashboardData.periodoLabel})
+          <div className="pgDashChartHeader">
+            <div className="pgDashChartTitle">
+              Gráfico 5 — Tempo Médio ({dashboardData.periodoLabel})
+            </div>
+
+            <div className="pgDashMetricTabs" aria-label="Tipo de tempo medio">
+              <button
+                type="button"
+                className={`pgDashMetricTab ${grafico5Tipo === "setup" ? "active" : ""}`}
+                onClick={() => setGrafico5Tipo("setup")}
+              >
+                Setup
+              </button>
+              <button
+                type="button"
+                className={`pgDashMetricTab ${grafico5Tipo === "falta_material" ? "active" : ""}`}
+                onClick={() => setGrafico5Tipo("falta_material")}
+              >
+                Empilhadeira
+              </button>
+            </div>
           </div>
+
+          <div className="pgDashChartSubTitle">{grafico5Data.label}</div>
 
           <div className="pgDashReasonList pgDashSetupList">
             {grafico5Data.rows.map((item) => {
@@ -4201,9 +4246,9 @@ const limparLista = (lista) =>
 
                   <div className="pgDashReasonTrack">
                     <div
-                      className="pgDashReasonFill pgDashSetupFill"
+                      className={`pgDashReasonFill ${grafico5Data.fillClass}`}
                       style={{ width: `${width}%` }}
-                      title={`${item.label}: ${fmtSetupDuration(item.min)} de setup`}
+                      title={`${item.label}: ${fmtSetupDuration(item.min)} ${grafico5Data.tooltip}`}
                     />
                   </div>
 

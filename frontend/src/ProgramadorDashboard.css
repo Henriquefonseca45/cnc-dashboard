@@ -1606,6 +1606,53 @@ body::after{
   margin-bottom:16px;
 }
 
+.pgDashChartHeader{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+  margin-bottom:8px;
+}
+
+.pgDashChartHeader .pgDashChartTitle{
+  margin-bottom:0;
+}
+
+.pgDashChartSubTitle{
+  color:var(--muted);
+  font-size:12px;
+  font-weight:800;
+  margin-bottom:12px;
+}
+
+.pgDashMetricTabs{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:3px;
+  border:1px solid var(--stroke);
+  border-radius:12px;
+  background:rgba(47,55,125,.05);
+}
+
+.pgDashMetricTab{
+  height:30px;
+  border:0;
+  border-radius:9px;
+  padding:0 10px;
+  cursor:pointer;
+  background:transparent;
+  color:var(--muted);
+  font-size:12px;
+  font-weight:900;
+}
+
+.pgDashMetricTab.active{
+  background:var(--brand);
+  color:#fff;
+}
+
 .pgDashIefCard{
   display:flex;
   flex-direction:column;
@@ -1835,6 +1882,10 @@ body::after{
   background:linear-gradient(90deg, #f59e0b 0%, #f97316 100%);
 }
 
+.pgDashMaterialFill{
+  background:linear-gradient(90deg, #ef4444 0%, #f59e0b 100%);
+}
+
 .pgDashSetupRow.isTotal{
   padding-bottom:10px;
   margin-bottom:2px;
@@ -1851,7 +1902,8 @@ body::after{
   height:18px;
 }
 
-.pgDashSetupRow.isTotal .pgDashSetupFill{
+.pgDashSetupRow.isTotal .pgDashSetupFill,
+.pgDashSetupRow.isTotal .pgDashMaterialFill{
   background:linear-gradient(90deg, var(--brand) 0%, #4a6fff 100%);
 }
 
