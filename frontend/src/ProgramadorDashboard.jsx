@@ -511,7 +511,7 @@ function bucketLabel(bucket) {
     case "manutencao":
       return "Manutenção";
     case "falta_material":
-      return "Falta material";
+      return "Aguardando material";
     case "programacao":
       return "Programação";
     case "reuniao":
@@ -2846,8 +2846,8 @@ const limparLista = (lista) =>
       averageMin,
       maxMin,
       type: grafico5Tipo,
-      label: isSetup ? "Setup" : "Aguardando Empilhadeira",
-      tooltip: isSetup ? "de setup" : "aguardando empilhadeira",
+      label: isSetup ? "Setup" : "Aguardando material",
+      tooltip: isSetup ? "de setup" : "aguardando material",
       fillClass: isSetup ? "pgDashSetupFill" : "pgDashMaterialFill",
       rows: [
         {
@@ -4226,7 +4226,7 @@ const limparLista = (lista) =>
                 className={`pgDashMetricTab ${grafico5Tipo === "falta_material" ? "active" : ""}`}
                 onClick={() => setGrafico5Tipo("falta_material")}
               >
-                Empilhadeira
+                Material
               </button>
             </div>
           </div>
