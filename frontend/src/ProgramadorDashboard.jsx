@@ -307,6 +307,15 @@ function fmtHoursHuman(min) {
   return `${h.toFixed(1)}h`;
 }
 
+function fmtSetupDuration(min) {
+  const m = Math.max(0, Math.floor(Number(min) || 0));
+  if (m === 0) return "0 min";
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  if (h > 0) return r ? `${h}h ${r}min` : `${h}h`;
+  return `${m}min`;
+}
+
 function pct(n, d) {
   if (!d) return 0;
   return Number(((n / d) * 100).toFixed(1));
@@ -2712,17 +2721,20 @@ const limparLista = (lista) =>
       };
     });
 
-    const fallbackTotalMin = machineRows.reduce((acc, item) => acc + item.min, 0);
-    const totalMin = Number(dashboardData?.tempoSetupMin || fallbackTotalMin || 0);
+    const fallbackAverageMin =
+      Number(dashboardData?.totalSetups || 0) > 0
+        ? Number(dashboardData?.tempoSetupMin || 0) / Number(dashboardData?.totalSetups || 1)
+        : 0;
+    const averageMin = Number(dashboardData?.setupMedioAtualMin || fallbackAverageMin || 0);
     const machineMaxMin = Math.max(1, ...machineRows.map((item) => item.min));
 
     return {
-      totalMin,
+      averageMin,
       machineMaxMin,
       rows: [
         {
           label: "Geral",
-          min: totalMin,
+          min: averageMin,
           isTotal: true,
         },
         ...machineRows,
@@ -4099,11 +4111,11 @@ const limparLista = (lista) =>
                     <div
                       className="pgDashReasonFill pgDashSetupFill"
                       style={{ width: `${width}%` }}
-                      title={`${item.label}: ${fmtHoursHuman(item.min)} de setup`}
+                      title={`${item.label}: ${fmtSetupDuration(item.min)} de setup`}
                     />
                   </div>
 
-                  <div className="pgDashReasonValue">{fmtHoursHuman(item.min)}</div>
+                  <div className="pgDashReasonValue">{fmtSetupDuration(item.min)}</div>
                 </div>
               );
             })}
