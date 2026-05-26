@@ -378,6 +378,7 @@ function describeArc(cx, cy, rOuter, rInner, startAngle, endAngle) {
 const MINUTOS_DIA_MAQUINA = 17 * 60;
 const THEME_STORAGE_KEY = "programador_dashboard_theme";
 const TEST_MACHINE_IDS = new Set(["CNC_TESTE"]);
+const DASHBOARD_MACHINE_IDS = ["CNC01", "CNC02", "CNC03", "CNC04", "CNC05", "CNC06", "CNC07"];
 
 function isTestMachineId(id) {
   return TEST_MACHINE_IDS.has(String(id || "").toUpperCase());
@@ -2697,6 +2698,38 @@ const limparLista = (lista) =>
       .sort((a, b) => b.eficienciaPct - a.eficienciaPct);
   }, [dashboardData]);
 
+  const grafico5Data = useMemo(() => {
+    const byMachine = new Map(
+      (dashboardData?.rankingMaquinas || []).map((item) => [String(item.maquina || "").toUpperCase(), item])
+    );
+
+    const machineRows = DASHBOARD_MACHINE_IDS.map((machineId) => {
+      const item = byMachine.get(machineId);
+      return {
+        label: machineId,
+        min: Number(item?.setupMin || 0),
+        isTotal: false,
+      };
+    });
+
+    const fallbackTotalMin = machineRows.reduce((acc, item) => acc + item.min, 0);
+    const totalMin = Number(dashboardData?.tempoSetupMin || fallbackTotalMin || 0);
+    const machineMaxMin = Math.max(1, ...machineRows.map((item) => item.min));
+
+    return {
+      totalMin,
+      machineMaxMin,
+      rows: [
+        {
+          label: "Geral",
+          min: totalMin,
+          isTotal: true,
+        },
+        ...machineRows,
+      ],
+    };
+  }, [dashboardData]);
+
   const grafico6Data = useMemo(() => {
     const order = [
       "usinando",
@@ -4046,28 +4079,34 @@ const limparLista = (lista) =>
       <section className="pgDashChartsRow pgDashChartsRowBottom pgDashChartsRow56">
         <div className="pgDashChartCard pgDashChartCard5">
           <div className="pgDashChartTitle">
-            Gráfico 5 — Tempo Médio de Setup ({dashboardData.periodoLabel})
+            Gráfico 5 — Horas de Setup por Máquina ({dashboardData.periodoLabel})
           </div>
 
-          <div className="pgDashIefTop">
-            <div className="pgDashIefBig">{Number(dashboardData.setupMedioAtualMin).toFixed(1)} min</div>
-          </div>
+          <div className="pgDashReasonList pgDashSetupList">
+            {grafico5Data.rows.map((item) => {
+              const width = item.isTotal
+                ? 100
+                : Math.max(2, Math.min(100, (Number(item.min || 0) / grafico5Data.machineMaxMin) * 100));
 
-          <div className="pgDashIefStats">
-            <div className="pgDashIefStat">
-              <div className="pgDashIefStatLabel">Tempo total setup</div>
-              <div className="pgDashIefStatValue">{dashboardData.tempoSetupMin} min</div>
-            </div>
+              return (
+                <div
+                  key={item.label}
+                  className={`pgDashReasonRow pgDashSetupRow ${item.isTotal ? "isTotal" : ""}`}
+                >
+                  <div className="pgDashReasonName">{item.label}</div>
 
-            <div className="pgDashIefStat">
-              <div className="pgDashIefStatLabel">Qtd. setups</div>
-              <div className="pgDashIefStatValue">{dashboardData.totalSetups}</div>
-            </div>
+                  <div className="pgDashReasonTrack">
+                    <div
+                      className="pgDashReasonFill pgDashSetupFill"
+                      style={{ width: `${width}%` }}
+                      title={`${item.label}: ${fmtHoursHuman(item.min)} de setup`}
+                    />
+                  </div>
 
-            <div className="pgDashIefStat">
-              <div className="pgDashIefStatLabel">Média</div>
-              <div className="pgDashIefStatValue">{Number(dashboardData.setupMedioAtualMin).toFixed(1)} min</div>
-            </div>
+                  <div className="pgDashReasonValue">{fmtHoursHuman(item.min)}</div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

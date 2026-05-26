@@ -1823,6 +1823,38 @@ body::after{
   white-space:nowrap;
 }
 
+.pgDashSetupList{
+  gap:10px;
+}
+
+.pgDashSetupRow{
+  grid-template-columns:70px 1fr 58px;
+}
+
+.pgDashSetupFill{
+  background:linear-gradient(90deg, #f59e0b 0%, #f97316 100%);
+}
+
+.pgDashSetupRow.isTotal{
+  padding-bottom:10px;
+  margin-bottom:2px;
+  border-bottom:1px solid var(--stroke);
+}
+
+.pgDashSetupRow.isTotal .pgDashReasonName,
+.pgDashSetupRow.isTotal .pgDashReasonValue{
+  color:var(--brand);
+  font-size:14px;
+}
+
+.pgDashSetupRow.isTotal .pgDashReasonTrack{
+  height:18px;
+}
+
+.pgDashSetupRow.isTotal .pgDashSetupFill{
+  background:linear-gradient(90deg, var(--brand) 0%, #4a6fff 100%);
+}
+
 .pgDashBottomInfo{
   display:grid;
   grid-template-columns:repeat(3, minmax(220px, 1fr));
