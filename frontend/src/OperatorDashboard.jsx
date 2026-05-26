@@ -291,13 +291,13 @@ function parseDxfPreview(text) {
     }
 
     if (entity === "TEXT" || entity === "MTEXT") {
-      const t = { text: "", x: 0, y: 0, size: 70, rot: 0 };
+      const t = { text: "", x: 0, y: 0, size: 18, rot: 0 };
       for (i += 1; i < pairs.length && pairs[i].code !== "0"; i += 1) {
         const { code, value } = pairs[i];
         if (code === "1" || code === "3") t.text += cleanDxfText(value);
         if (code === "10") t.x = dxfNum(value);
         if (code === "20") t.y = -dxfNum(value);
-        if (code === "40") t.size = Math.max(24, Math.abs(dxfNum(value, 70)) * 0.55);
+        if (code === "40") t.size = Math.max(8, Math.abs(dxfNum(value, 70)) * 0.25);
         if (code === "50") t.rot = -dxfNum(value);
       }
       i -= 1;
@@ -809,8 +809,8 @@ export default function OperatorDashboard() {
     }
   }
 
-  async function carregarTudo() {
-    setLoading(true);
+  async function carregarTudo(silent = false) {
+    if (!silent) setLoading(true);
     try {
       const [mRes, fRes, hRes, matRes] = await Promise.all([
         http.get("/maquinas"),
@@ -839,7 +839,7 @@ export default function OperatorDashboard() {
       console.error("carregarTudo erro:", e);
       setMaterialRequests([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -851,8 +851,9 @@ export default function OperatorDashboard() {
 
   useEffect(() => {
     const t = setInterval(() => {
+      carregarTudo(true);
       fetchChat(true);
-    }, 5000);
+    }, 15000);
 
     return () => clearInterval(t);
   }, [cnc]);
