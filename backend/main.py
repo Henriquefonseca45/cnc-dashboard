@@ -10,7 +10,7 @@ import json
 import re
 import unicodedata
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Request
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -93,6 +93,10 @@ app.add_middleware(
 # =========================
 DXF_DIR = BASE_DIR.parent / "storage" / "dxf"
 DXF_DIR.mkdir(parents=True, exist_ok=True)
+CHAT_DIR = BASE_DIR.parent / "storage" / "chat"
+CHAT_DIR.mkdir(parents=True, exist_ok=True)
+CHAT_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
+MAX_CHAT_IMAGE_BYTES = 8 * 1024 * 1024
 
 # =========================
 # MÉTRICAS
@@ -148,6 +152,9 @@ class ChatMensagemOut(BaseModel):
     autor: str
     mensagem: str
     criado_em: str
+    imagem_url: str | None = None
+    imagem_nome: str | None = None
+    imagem_tipo: str | None = None
 
 
 class MaterialSolicitacaoIn(BaseModel):
@@ -353,6 +360,34 @@ def _ensure_test_maquina(conn):
         """,
         (TEST_MACHINE_ID, "CNC TESTE", now),
     )
+
+
+def _ensure_chat_mensagens_table(conn):
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS chat_mensagens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            maquina_id TEXT NOT NULL,
+            autor TEXT NOT NULL,
+            mensagem TEXT NOT NULL,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            imagem_path TEXT,
+            imagem_nome TEXT,
+            imagem_tipo TEXT
+        )
+        """
+    )
+    for col, ddl in (
+        ("imagem_path", "ALTER TABLE chat_mensagens ADD COLUMN imagem_path TEXT"),
+        ("imagem_nome", "ALTER TABLE chat_mensagens ADD COLUMN imagem_nome TEXT"),
+        ("imagem_tipo", "ALTER TABLE chat_mensagens ADD COLUMN imagem_tipo TEXT"),
+    ):
+        try:
+            cur.execute(ddl)
+        except Exception:
+            pass
+    conn.commit()
 
 
 def _ensure_material_solicitacoes_table(conn):
@@ -3116,14 +3151,44 @@ def finalizar_fs(maquina_id: str):
 # =========================
 # CHAT CNC
 # =========================
+def _safe_chat_image_name(filename: str | None, content_type: str | None) -> str:
+    raw = Path(filename or "imagem").name.strip() or "imagem"
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", raw).strip("._") or "imagem"
+    ext = Path(safe).suffix.lower()
+    if ext not in CHAT_IMAGE_EXTS:
+        guessed = {
+            "image/jpeg": ".jpg",
+            "image/png": ".png",
+            "image/gif": ".gif",
+            "image/webp": ".webp",
+            "image/bmp": ".bmp",
+        }.get((content_type or "").lower(), ".jpg")
+        safe = f"{Path(safe).stem or 'imagem'}{guessed}"
+    return safe
+
+
+def _chat_row_to_dict(row):
+    return {
+        "id": row[0],
+        "maquina_id": row[1],
+        "autor": row[2],
+        "mensagem": row[3] or "",
+        "criado_em": row[4],
+        "imagem_url": f"/chat/imagem/{row[0]}" if row[5] else None,
+        "imagem_nome": row[6],
+        "imagem_tipo": row[7],
+    }
+
+
 @app.get("/chat/{maquina_id}")
 def listar_chat(maquina_id: str, limit: int = 100):
     conn = get_conn()
+    _ensure_chat_mensagens_table(conn)
     cur = conn.cursor()
 
     cur.execute(
         """
-        SELECT id, maquina_id, autor, mensagem, criado_em
+        SELECT id, maquina_id, autor, mensagem, criado_em, imagem_path, imagem_nome, imagem_tipo
         FROM chat_mensagens
         WHERE maquina_id = ?
         ORDER BY id DESC
@@ -3135,21 +3200,13 @@ def listar_chat(maquina_id: str, limit: int = 100):
     rows = cur.fetchall()
     conn.close()
 
-    return [
-        {
-            "id": r[0],
-            "maquina_id": r[1],
-            "autor": r[2],
-            "mensagem": r[3],
-            "criado_em": r[4],
-        }
-        for r in rows
-    ]
+    return [_chat_row_to_dict(r) for r in rows]
 
 
 @app.post("/chat")
 def enviar_chat(msg: ChatMensagemIn):
     conn = get_conn()
+    _ensure_chat_mensagens_table(conn)
     cur = conn.cursor()
 
     cur.execute(
@@ -3168,6 +3225,101 @@ def enviar_chat(msg: ChatMensagemIn):
     conn.close()
 
     return {"ok": True}
+
+
+@app.post("/chat/imagem")
+async def enviar_chat_imagem(
+    maquina_id: str = Form(...),
+    autor: str = Form(...),
+    mensagem: str = Form(""),
+    file: UploadFile = File(...),
+):
+    safe_name = _safe_chat_image_name(file.filename, file.content_type)
+    ext = Path(safe_name).suffix.lower()
+    content_type = (file.content_type or "").lower()
+
+    if ext not in CHAT_IMAGE_EXTS or (
+        content_type and not content_type.startswith("image/") and content_type != "application/octet-stream"
+    ):
+        raise HTTPException(status_code=400, detail="Envie apenas imagens JPG, PNG, GIF, WEBP ou BMP.")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Imagem vazia.")
+    if len(content) > MAX_CHAT_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Imagem muito grande. Limite de 8 MB.")
+
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    stored_name = f"{stamp}_{maquina_id.upper().strip()}_{safe_name}"
+    image_path = CHAT_DIR / stored_name
+    image_path.write_bytes(content)
+
+    conn = get_conn()
+    _ensure_chat_mensagens_table(conn)
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT INTO chat_mensagens (maquina_id, autor, mensagem, criado_em, imagem_path, imagem_nome, imagem_tipo)
+        VALUES (?, ?, ?, datetime('now','localtime'), ?, ?, ?)
+        """,
+        (
+            maquina_id.upper().strip(),
+            autor,
+            (mensagem or "").strip(),
+            str(image_path),
+            safe_name,
+            file.content_type or "image/jpeg",
+        ),
+    )
+    msg_id = cur.lastrowid
+    conn.commit()
+
+    row = cur.execute(
+        """
+        SELECT id, maquina_id, autor, mensagem, criado_em, imagem_path, imagem_nome, imagem_tipo
+        FROM chat_mensagens
+        WHERE id = ?
+        """,
+        (msg_id,),
+    ).fetchone()
+    conn.close()
+
+    return _chat_row_to_dict(row)
+
+
+@app.get("/chat/imagem/{mensagem_id}")
+def baixar_chat_imagem(mensagem_id: int):
+    conn = get_conn()
+    _ensure_chat_mensagens_table(conn)
+    cur = conn.cursor()
+    row = cur.execute(
+        """
+        SELECT imagem_path, imagem_nome, imagem_tipo
+        FROM chat_mensagens
+        WHERE id = ?
+        """,
+        (mensagem_id,),
+    ).fetchone()
+    conn.close()
+
+    if not row or not row[0]:
+        raise HTTPException(status_code=404, detail="Imagem nao encontrada.")
+
+    path = Path(row[0])
+    try:
+        path.relative_to(CHAT_DIR)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Imagem invalida.")
+
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Arquivo da imagem nao encontrado.")
+
+    return FileResponse(
+        path,
+        media_type=row[2] or "application/octet-stream",
+        filename=row[1] or path.name,
+    )
 
 
 # =========================

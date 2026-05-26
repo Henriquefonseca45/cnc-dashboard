@@ -118,7 +118,10 @@ CREATE TABLE IF NOT EXISTS chat_mensagens (
     maquina_id TEXT NOT NULL,
     autor TEXT NOT NULL,
     mensagem TEXT NOT NULL,
-    criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    imagem_path TEXT,
+    imagem_nome TEXT,
+    imagem_tipo TEXT
 )
 """)
     cur.execute("""

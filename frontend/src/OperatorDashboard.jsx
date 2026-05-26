@@ -17,10 +17,21 @@ import {
   X,
   MessageSquare,
   Send,
+  ImagePlus,
   PackagePlus,
 } from "lucide-react";
 
 console.log("API_URL", http?.defaults?.baseURL);
+
+const CHAT_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+
+function apiAssetUrl(path) {
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path)) return path;
+  const base = String(http?.defaults?.baseURL || "").replace(/\/$/, "");
+  const cleanPath = String(path).startsWith("/") ? String(path) : `/${path}`;
+  return `${base}${cleanPath}`;
+}
 
 const CNC_IDS = ["CNC01", "CNC02", "CNC03", "CNC04", "CNC05", "CNC06", "CNC07", "CNC_TESTE"];
 const DEFAULT_CNC = (import.meta.env.VITE_CNC_ID || "CNC01").toUpperCase();
@@ -595,10 +606,13 @@ export default function OperatorDashboard() {
 
   const [chatMsgs, setChatMsgs] = useState([]);
   const [chatText, setChatText] = useState("");
+  const [chatImageFile, setChatImageFile] = useState(null);
+  const [chatImagePreview, setChatImagePreview] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatSending, setChatSending] = useState(false);
   const chatListRef = useRef(null);
   const chatInputRef = useRef(null);
+  const chatImageInputRef = useRef(null);
   const chatShouldScrollRef = useRef(true);
   const chatForceScrollRef = useRef(true);
   const [materialRequestingId, setMaterialRequestingId] = useState(null);
@@ -723,22 +737,67 @@ export default function OperatorDashboard() {
     }
   }
 
+  function clearChatImage() {
+    setChatImageFile(null);
+    setChatImagePreview("");
+    if (chatImageInputRef.current) chatImageInputRef.current.value = "";
+    window.setTimeout(() => chatInputRef.current?.focus(), 0);
+  }
+
+  function onChatImageChange(e) {
+    const file = e.target.files?.[0] || null;
+    if (!file) return;
+
+    if (!String(file.type || "").startsWith("image/")) {
+      alert("Selecione apenas imagens.");
+      clearChatImage();
+      return;
+    }
+
+    if (file.size > CHAT_IMAGE_MAX_BYTES) {
+      alert("Imagem muito grande. O limite e 8 MB.");
+      clearChatImage();
+      return;
+    }
+
+    setChatImageFile(file);
+    setChatImagePreview(URL.createObjectURL(file));
+    window.setTimeout(() => chatInputRef.current?.focus(), 0);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (chatImagePreview) URL.revokeObjectURL(chatImagePreview);
+    };
+  }, [chatImagePreview]);
+
   async function sendChat() {
     const texto = String(chatText || "").trim();
-    if (!texto || chatSending) {
+    const hasImage = Boolean(chatImageFile);
+    if ((!texto && !hasImage) || chatSending) {
       window.setTimeout(() => chatInputRef.current?.focus(), 0);
       return;
     }
 
     try {
       setChatSending(true);
-      await http.post("/chat", {
-        maquina_id: cnc,
-        autor: "OPERADOR",
-        mensagem: texto,
-      });
+      if (hasImage) {
+        const fd = new FormData();
+        fd.append("maquina_id", cnc);
+        fd.append("autor", "OPERADOR");
+        fd.append("mensagem", texto);
+        fd.append("file", chatImageFile);
+        await http.post("/chat/imagem", fd);
+      } else {
+        await http.post("/chat", {
+          maquina_id: cnc,
+          autor: "OPERADOR",
+          mensagem: texto,
+        });
+      }
 
       setChatText("");
+      clearChatImage();
       chatForceScrollRef.current = true;
       await fetchChat(true);
     } catch (e) {
@@ -1419,9 +1478,27 @@ export default function OperatorDashboard() {
                             <span className="text-right leading-tight">{fmtDate(m.criado_em)}</span>
                           </div>
 
-                          <div className="text-sm text-slate-800 whitespace-pre-wrap break-words">
-                            {m.mensagem || ""}
-                          </div>
+                          {m.mensagem ? (
+                            <div className="text-sm text-slate-800 whitespace-pre-wrap break-words">
+                              {m.mensagem}
+                            </div>
+                          ) : null}
+
+                          {m.imagem_url ? (
+                            <a
+                              href={apiAssetUrl(m.imagem_url)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block mt-2"
+                              title={m.imagem_nome || "Abrir imagem"}
+                            >
+                              <img
+                                src={apiAssetUrl(m.imagem_url)}
+                                alt={m.imagem_nome || "Imagem enviada no chat"}
+                                className="block max-w-full max-h-72 rounded-xl border border-[rgba(47,55,125,.12)] bg-white object-contain"
+                              />
+                            </a>
+                          ) : null}
                         </div>
                       </div>
                     );
@@ -1430,7 +1507,53 @@ export default function OperatorDashboard() {
               </div>
 
               <div className="mt-3 w-full min-w-0 overflow-hidden">
+                {chatImageFile ? (
+                  <div className="mb-2 flex items-center gap-3 rounded-xl border border-[rgba(47,55,125,.12)] bg-white p-2">
+                    {chatImagePreview ? (
+                      <img
+                        src={chatImagePreview}
+                        alt="Imagem selecionada"
+                        className="h-14 w-14 rounded-lg border border-slate-200 object-cover"
+                      />
+                    ) : null}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-xs font-semibold text-slate-700">
+                        {chatImageFile.name}
+                      </div>
+                      <div className="text-[11px] text-slate-400">
+                        A imagem sera enviada junto da mensagem.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearChatImage}
+                      disabled={chatSending}
+                      className="h-8 shrink-0 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                    >
+                      Remover
+                    </button>
+                  </div>
+                ) : null}
+
                 <div className="flex w-full min-w-0 items-center gap-2">
+                  <input
+                    ref={chatImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={onChatImageChange}
+                    disabled={chatSending}
+                  />
+                  <button
+                    type="button"
+                    title="Anexar imagem"
+                    aria-label="Anexar imagem"
+                    onClick={() => chatImageInputRef.current?.click()}
+                    disabled={chatSending}
+                    className="h-11 w-11 shrink-0 rounded-xl bg-white border border-[rgba(47,55,125,.12)] hover:bg-[rgba(47,55,125,.05)] disabled:opacity-40 inline-flex items-center justify-center text-[#2f377d] transition"
+                  >
+                    <ImagePlus size={18} />
+                  </button>
                   <input
                     ref={chatInputRef}
                     className="flex-1 min-w-0 h-11 rounded-xl bg-white border border-[rgba(47,55,125,.12)] px-3 text-sm text-slate-800 outline-none"
@@ -1449,7 +1572,7 @@ export default function OperatorDashboard() {
                   <button
                     className="h-11 shrink-0 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-sm font-semibold text-white transition inline-flex items-center justify-center gap-2 whitespace-nowrap"
                     onClick={sendChat}
-                    disabled={chatSending || !String(chatText || "").trim()}
+                    disabled={chatSending || (!String(chatText || "").trim() && !chatImageFile)}
                   >
                     <Send size={15} className="shrink-0" />
                     <span>{chatSending ? "Enviando..." : "Enviar"}</span>

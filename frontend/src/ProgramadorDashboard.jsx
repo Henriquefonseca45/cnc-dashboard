@@ -4,6 +4,17 @@ import "./ProgramadorDashboard.css";
 import rvbLogo from "./assets/rvb-logo.png";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { ImagePlus } from "lucide-react";
+
+const CHAT_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+
+function apiAssetUrl(path) {
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path)) return path;
+  const base = String(API_URL || "").replace(/\/$/, "");
+  const cleanPath = String(path).startsWith("/") ? String(path) : `/${path}`;
+  return `${base}${cleanPath}`;
+}
 // Remove acentos + upper => "REUNIÃO" vira "REUNIAO"
 function normUpper(s) {
   return String(s || "")
@@ -914,6 +925,8 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
 
   const [chatMsgs, setChatMsgs] = useState([]);
   const [chatText, setChatText] = useState("");
+  const [chatImageFile, setChatImageFile] = useState(null);
+  const [chatImagePreview, setChatImagePreview] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatSending, setChatSending] = useState(false);
 
@@ -924,6 +937,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const freezeMsByMachineRef = useRef({});
   const chatListRef = useRef(null);
   const chatInputRef = useRef(null);
+  const chatImageInputRef = useRef(null);
   const chatShouldScrollRef = useRef(true);
   const chatForceScrollRef = useRef(true);
   const audioCtxRef = useRef(null);
@@ -1588,7 +1602,8 @@ async function exportarPDF() {
 
           if (newestOperId > lastNotifiedId) {
             if (newestOperMsg) {
-              showBrowserChatNotification(machineId, newestOperMsg.mensagem);
+              const previewText = newestOperMsg.mensagem || (newestOperMsg.imagem_url ? "Imagem enviada pelo operador." : "");
+              showBrowserChatNotification(machineId, previewText);
               shouldPlaySound = true;
             }
             chatLastNotifiedByMachineRef.current[machineId] = newestOperId;
@@ -1640,9 +1655,45 @@ async function exportarPDF() {
     }
   }
 
+  function clearChatImage() {
+    setChatImageFile(null);
+    setChatImagePreview("");
+    if (chatImageInputRef.current) chatImageInputRef.current.value = "";
+    window.setTimeout(() => chatInputRef.current?.focus(), 0);
+  }
+
+  function onChatImageChange(e) {
+    const file = e.target.files?.[0] || null;
+    if (!file) return;
+
+    if (!String(file.type || "").startsWith("image/")) {
+      setErr("Selecione apenas imagens.");
+      clearChatImage();
+      return;
+    }
+
+    if (file.size > CHAT_IMAGE_MAX_BYTES) {
+      setErr("Imagem muito grande. O limite e 8 MB.");
+      clearChatImage();
+      return;
+    }
+
+    setErr("");
+    setChatImageFile(file);
+    setChatImagePreview(URL.createObjectURL(file));
+    window.setTimeout(() => chatInputRef.current?.focus(), 0);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (chatImagePreview) URL.revokeObjectURL(chatImagePreview);
+    };
+  }, [chatImagePreview]);
+
   async function sendChat() {
     const texto = String(chatText || "").trim();
-    if (!texto || chatSending) {
+    const hasImage = Boolean(chatImageFile);
+    if ((!texto && !hasImage) || chatSending) {
       window.setTimeout(() => chatInputRef.current?.focus(), 0);
       return;
     }
@@ -1652,13 +1703,23 @@ async function exportarPDF() {
     setMsg("");
 
     try {
-      await api.post("/chat", {
-        maquina_id: selectedId,
-        autor: "PROGRAMADOR",
-        mensagem: texto,
-      });
+      if (hasImage) {
+        const fd = new FormData();
+        fd.append("maquina_id", selectedId);
+        fd.append("autor", "PROGRAMADOR");
+        fd.append("mensagem", texto);
+        fd.append("file", chatImageFile);
+        await api.post("/chat/imagem", fd);
+      } else {
+        await api.post("/chat", {
+          maquina_id: selectedId,
+          autor: "PROGRAMADOR",
+          mensagem: texto,
+        });
+      }
 
       setChatText("");
+      clearChatImage();
       setMsg(`Mensagem enviada para ${selectedId}.`);
       chatForceScrollRef.current = true;
       const data = await fetchChat(selectedId, true);
@@ -4699,7 +4760,22 @@ const limparLista = (lista) =>
                             <strong>{m.autor || "-"}</strong>
                             <span className="pgMono">{fmtDate(m.criado_em)}</span>
                           </div>
-                          <div className="pgChatText">{m.mensagem || ""}</div>
+                          {m.mensagem ? <div className="pgChatText">{m.mensagem}</div> : null}
+                          {m.imagem_url ? (
+                            <a
+                              className="pgChatImageLink"
+                              href={apiAssetUrl(m.imagem_url)}
+                              target="_blank"
+                              rel="noreferrer"
+                              title={m.imagem_nome || "Abrir imagem"}
+                            >
+                              <img
+                                className="pgChatImage"
+                                src={apiAssetUrl(m.imagem_url)}
+                                alt={m.imagem_nome || "Imagem enviada no chat"}
+                              />
+                            </a>
+                          ) : null}
                         </div>
                       </div>
                     );
@@ -4707,31 +4783,73 @@ const limparLista = (lista) =>
                 )}
               </div>
 
-<div className="pgChatComposer">
-  <input
-    ref={chatInputRef}
-    className="pgChatInput"
-    type="text"
-    placeholder={`Mensagem para o operador da ${selectedId}...`}
-    value={chatText}
-    onChange={(e) => setChatText(e.target.value)}
-    onKeyDown={(e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        sendChat();
-      }
-    }}
-    disabled={chatSending}
-  />
+              <div className="pgChatComposerWrap">
+                {chatImageFile ? (
+                  <div className="pgChatAttachmentPreview">
+                    {chatImagePreview ? (
+                      <img src={chatImagePreview} alt="Imagem selecionada" />
+                    ) : null}
+                    <div className="pgChatAttachmentName">
+                      <strong>{chatImageFile.name}</strong>
+                      <span>A imagem sera enviada junto da mensagem.</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="pgChatRemoveAttachmentBtn"
+                      onClick={clearChatImage}
+                      disabled={chatSending}
+                    >
+                      Remover
+                    </button>
+                  </div>
+                ) : null}
 
-  <button
-    className="pgChatSendBtn"
-    onClick={sendChat}
-    disabled={chatSending || !String(chatText || "").trim()}
-  >
-    {chatSending ? "Enviando..." : "Enviar"}
-  </button>
-            </div> {/* pgChatComposer */}
+                <div className="pgChatComposer">
+                  <input
+                    ref={chatImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="pgChatFileInput"
+                    onChange={onChatImageChange}
+                    disabled={chatSending}
+                  />
+
+                  <button
+                    type="button"
+                    className="pgChatAttachBtn"
+                    title="Anexar imagem"
+                    aria-label="Anexar imagem"
+                    onClick={() => chatImageInputRef.current?.click()}
+                    disabled={chatSending}
+                  >
+                    <ImagePlus size={18} />
+                  </button>
+
+                  <input
+                    ref={chatInputRef}
+                    className="pgChatInput"
+                    type="text"
+                    placeholder={`Mensagem para o operador da ${selectedId}...`}
+                    value={chatText}
+                    onChange={(e) => setChatText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        sendChat();
+                      }
+                    }}
+                    disabled={chatSending}
+                  />
+
+                  <button
+                    className="pgChatSendBtn"
+                    onClick={sendChat}
+                    disabled={chatSending || (!String(chatText || "").trim() && !chatImageFile)}
+                  >
+                    {chatSending ? "Enviando..." : "Enviar"}
+                  </button>
+                </div>
+              </div> {/* pgChatComposer */}
           </div>   {/* pgChatPanel */}
         </section>
       )}
