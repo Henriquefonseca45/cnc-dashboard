@@ -1005,6 +1005,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const [rastreamentoFilas, setRastreamentoFilas] = useState([]);
   const [rastreamentoLoading, setRastreamentoLoading] = useState(false);
   const [rastreamentoSearch, setRastreamentoSearch] = useState("");
+  const [rastreamentoSomenteOperadores, setRastreamentoSomenteOperadores] = useState(false);
   const [histEspessuraFiltro, setHistEspessuraFiltro] = useState("");
 
   const [histFrom, setHistFrom] = useState("");
@@ -1605,12 +1606,15 @@ async function exportarPDF() {
     }
   }
 
-  async function fetchRastreamentoFilas() {
+  async function fetchRastreamentoFilas({ somenteOperadores = rastreamentoSomenteOperadores } = {}) {
     setRastreamentoLoading(true);
     setErr("");
 
     try {
-      const r = await api.get("/rastreamento/filas?limit=500");
+      const params = new URLSearchParams();
+      params.set("limit", "500");
+      if (somenteOperadores) params.set("somente_operadores", "true");
+      const r = await api.get(`/rastreamento/filas?${params.toString()}`);
       const data = Array.isArray(r.data) ? r.data : [];
       setRastreamentoFilas(data);
     } catch (e) {
@@ -2695,6 +2699,7 @@ async function exportarPDF() {
         [
           mov.criado_em,
           mov.acao,
+          mov.operador_nome,
           mov.arquivo_nome,
           mov.arquivo_id,
           mov.fila_item_id,
@@ -4565,9 +4570,31 @@ const limparLista = (lista) =>
                   value={rastreamentoSearch}
                   onChange={(e) => setRastreamentoSearch(e.target.value)}
                   className="pgInput"
-                  placeholder="Buscar arquivo, CNC, acao, status..."
+                  placeholder="Buscar operador, arquivo, CNC, acao, status..."
                   style={{ minWidth: 260 }}
                 />
+
+                <button
+                  className={`pgBtn ${!rastreamentoSomenteOperadores ? "pgBtnPrimary" : "pgBtnGhost"}`}
+                  onClick={async () => {
+                    setRastreamentoSomenteOperadores(false);
+                    await fetchRastreamentoFilas({ somenteOperadores: false });
+                  }}
+                  disabled={rastreamentoLoading}
+                >
+                  Todos
+                </button>
+
+                <button
+                  className={`pgBtn ${rastreamentoSomenteOperadores ? "pgBtnPrimary" : "pgBtnGhost"}`}
+                  onClick={async () => {
+                    setRastreamentoSomenteOperadores(true);
+                    await fetchRastreamentoFilas({ somenteOperadores: true });
+                  }}
+                  disabled={rastreamentoLoading}
+                >
+                  So operadores
+                </button>
 
                 <button
                   className="pgBtn pgBtnGhost"
@@ -4600,6 +4627,7 @@ const limparLista = (lista) =>
                   <thead>
                     <tr className="pgTiny" style={{ opacity: 0.85 }}>
                       <th style={{ textAlign: "left", padding: "6px 10px" }}>Data</th>
+                      <th style={{ textAlign: "left", padding: "6px 10px" }}>Operador</th>
                       <th style={{ textAlign: "left", padding: "6px 10px" }}>Acao</th>
                       <th style={{ textAlign: "left", padding: "6px 10px" }}>Arquivo</th>
                       <th style={{ textAlign: "left", padding: "6px 10px" }}>Origem</th>
@@ -4612,6 +4640,7 @@ const limparLista = (lista) =>
                     {rastreamentoFiltrado.slice(0, 500).map((mov) => (
                       <tr key={mov.id} className="pgRow">
                         <td style={{ padding: "10px" }} className="pgMono">{fmtDate(mov.criado_em)}</td>
+                        <td style={{ padding: "10px", fontWeight: 800 }}>{mov.operador_nome || "-"}</td>
                         <td style={{ padding: "10px", fontWeight: 900 }}>{mov.acao || "-"}</td>
                         <td style={{ padding: "10px" }}>
                           <div style={{ fontWeight: 800 }}>{mov.arquivo_nome || "-"}</div>

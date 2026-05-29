@@ -144,6 +144,7 @@ CREATE TABLE IF NOT EXISTS chat_mensagens (
         arquivo_id INTEGER,
         arquivo_nome TEXT,
         acao TEXT NOT NULL,
+        operador_nome TEXT,
         maquina_origem TEXT,
         maquina_destino TEXT,
         posicao_origem INTEGER,

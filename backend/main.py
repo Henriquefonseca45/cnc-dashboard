@@ -571,6 +571,7 @@ def _ensure_chapa_movimentacao_log_table(conn):
             arquivo_id INTEGER,
             arquivo_nome TEXT,
             acao TEXT NOT NULL,
+            operador_nome TEXT,
             maquina_origem TEXT,
             maquina_destino TEXT,
             posicao_origem INTEGER,
@@ -582,6 +583,23 @@ def _ensure_chapa_movimentacao_log_table(conn):
         )
         """
     )
+    try:
+        cur.execute("ALTER TABLE chapa_movimentacao_log ADD COLUMN operador_nome TEXT")
+    except Exception:
+        pass
+
+
+def _get_operador_nome_for_machine(conn, maquina_id: str | None) -> str | None:
+    _ensure_maquinas_cols(conn)
+    mid = (maquina_id or "").upper().strip()
+    if not mid:
+        return None
+    row = conn.execute(
+        "SELECT operador_nome FROM maquinas WHERE id = ?",
+        (mid,),
+    ).fetchone()
+    nome = ((row["operador_nome"] if row else "") or "").strip()
+    return nome or "Operador nao informado"
 
 
 def _fila_item_log_snapshot(conn, item_id: int):
@@ -617,6 +635,7 @@ def _log_chapa_movimentacao(
     posicao_destino=None,
     status_origem=None,
     status_destino=None,
+    operador_nome=None,
     detalhe=None,
 ):
     _ensure_chapa_movimentacao_log_table(conn)
@@ -627,6 +646,7 @@ def _log_chapa_movimentacao(
             arquivo_id,
             arquivo_nome,
             acao,
+            operador_nome,
             maquina_origem,
             maquina_destino,
             posicao_origem,
@@ -636,13 +656,14 @@ def _log_chapa_movimentacao(
             detalhe,
             criado_em
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             fila_item_id,
             arquivo_id,
             arquivo_nome,
             acao,
+            operador_nome,
             maquina_origem,
             maquina_destino,
             posicao_origem,
@@ -2327,6 +2348,7 @@ def listar_rastreamento_filas(
     arquivo_id: int | None = Query(None),
     item_id: int | None = Query(None),
     acao: str | None = Query(None),
+    somente_operadores: bool = Query(False),
     limit: int = Query(300),
 ):
     conn = get_conn()
@@ -2354,6 +2376,9 @@ def listar_rastreamento_filas(
         filtros.append("acao = ?")
         params.append(act)
 
+    if somente_operadores:
+        filtros.append("COALESCE(TRIM(operador_nome), '') <> ''")
+
     where_sql = "WHERE " + " AND ".join(filtros) if filtros else ""
     lim = max(1, min(int(limit or 300), 1000))
 
@@ -2365,6 +2390,7 @@ def listar_rastreamento_filas(
             arquivo_id,
             arquivo_nome,
             acao,
+            operador_nome,
             maquina_origem,
             maquina_destino,
             posicao_origem,
@@ -2584,6 +2610,10 @@ def set_tempo_estimado(item_id: int, body: TempoEstimadoIn):
         _ensure_fila_itens_cols(conn)
         cur = conn.cursor()
 
+        row = _fila_item_log_snapshot(conn, item_id)
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Item {item_id} nao encontrado")
+
         cur.execute(
             """
             UPDATE fila_itens
@@ -2592,6 +2622,21 @@ def set_tempo_estimado(item_id: int, body: TempoEstimadoIn):
             WHERE id = ?
             """,
             (tempo_seg, item_id),
+        )
+        _log_chapa_movimentacao(
+            conn,
+            "TEMPO_ESTIMADO_DEFINIDO",
+            fila_item_id=item_id,
+            arquivo_id=row["arquivo_id"],
+            arquivo_nome=row["arquivo_nome"],
+            maquina_origem=row["maquina_id"],
+            maquina_destino=row["maquina_id"],
+            posicao_origem=row["posicao"],
+            posicao_destino=row["posicao"],
+            status_origem=row["status"],
+            status_destino=row["status"],
+            operador_nome=_get_operador_nome_for_machine(conn, row["maquina_id"]),
+            detalhe=f"Tempo estimado definido para {minutos} min.",
         )
         conn.commit()
 
@@ -2711,6 +2756,7 @@ def set_status_fila_item(maquina_id: str, req: FilaStatusRequest):
         posicao_destino=row["posicao"],
         status_origem=atual,
         status_destino=target,
+        operador_nome=_get_operador_nome_for_machine(conn, maquina_id),
         detalhe=f"Status alterado via tela: {action}.",
     )
 
@@ -2812,6 +2858,7 @@ def agente_next(maquina_id: str):
         posicao_destino=row["posicao"],
         status_origem=row["status"],
         status_destino="PROGRAMANDO",
+        operador_nome=_get_operador_nome_for_machine(conn, maquina_id),
         detalhe="Agente reservou o proximo arquivo da fila.",
     )
 
@@ -2905,6 +2952,7 @@ def agente_download_fila(maquina_id: str, fila_item_id: int):
         posicao_destino=row["posicao"],
         status_origem=row["status"],
         status_destino="BAIXADO",
+        operador_nome=_get_operador_nome_for_machine(conn, maquina_id),
         detalhe="Operador baixou o arquivo da fila.",
     )
 
@@ -2995,6 +3043,7 @@ def agente_executar(maquina_id: str, fila_item_id: int):
             posicao_destino=row["posicao"],
             status_origem=st,
             status_destino="EM_EXECUCAO",
+            operador_nome=_get_operador_nome_for_machine(conn, maquina_id),
             detalhe="Operador/agente colocou o arquivo em usinagem.",
         )
         conn.commit()
@@ -3047,6 +3096,7 @@ def agente_cortado(maquina_id: str, fila_item_id: int, req: CortadoRequest):
         posicao_destino=row["posicao"],
         status_origem=row["status"],
         status_destino="CORTADO",
+        operador_nome=_get_operador_nome_for_machine(conn, maquina_id),
         detalhe="Operador marcou o arquivo como cortado.",
     )
 
