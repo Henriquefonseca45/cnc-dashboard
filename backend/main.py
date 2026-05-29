@@ -176,6 +176,7 @@ class CortadoRequest(BaseModel):
 class FilaStatusRequest(BaseModel):
     id: int
     status: str  # PROGRAMADO | USINANDO | CONCLUIDO | CANCELADO
+    motivo: str | None = None
 
 
 class MoveFilaItemRequest(BaseModel):
@@ -2672,6 +2673,9 @@ def set_status_fila_item(maquina_id: str, req: FilaStatusRequest):
         raise HTTPException(status_code=400, detail="Status inválido. Use PROGRAMADO/USINANDO/CONCLUIDO/CANCELADO")
 
     target = mapa[action]
+    motivo_cancelamento = (req.motivo or "").strip()
+    if target == "CANCELADO" and not motivo_cancelamento:
+        raise HTTPException(status_code=400, detail="Informe o motivo do cancelamento.")
 
     conn = get_conn()
     _ensure_fila_itens_cols(conn)
@@ -2757,7 +2761,11 @@ def set_status_fila_item(maquina_id: str, req: FilaStatusRequest):
         status_origem=atual,
         status_destino=target,
         operador_nome=_get_operador_nome_for_machine(conn, maquina_id),
-        detalhe=f"Status alterado via tela: {action}.",
+        detalhe=(
+            f"Status alterado via tela: {action}. Motivo: {motivo_cancelamento}"
+            if target == "CANCELADO"
+            else f"Status alterado via tela: {action}."
+        ),
     )
 
     _reindex_fila(conn, maquina_id)
