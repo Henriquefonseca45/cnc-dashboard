@@ -691,6 +691,11 @@ export default function OperatorDashboard() {
   const [tempoModalMin, setTempoModalMin] = useState("45");
   const [tempoModalTipo, setTempoModalTipo] = useState("USINANDO");
   const [tempoModalSaving, setTempoModalSaving] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelModalItem, setCancelModalItem] = useState(null);
+  const [cancelMotivo, setCancelMotivo] = useState("");
+  const [cancelError, setCancelError] = useState("");
+  const [cancelSaving, setCancelSaving] = useState(false);
 
   const [chatMsgs, setChatMsgs] = useState([]);
   const [chatText, setChatText] = useState("");
@@ -1193,20 +1198,65 @@ export default function OperatorDashboard() {
     }
   }
 
-  async function setItemStatus(item, novoStatus) {
-    if (!item) return;
+  async function setItemStatus(item, novoStatus, extraPayload = {}) {
+    if (!item) return false;
     try {
       await http.post(`/fila/${cnc}/status`, {
         id: item.id,
         status: novoStatus,
+        ...extraPayload,
       });
       await carregarTudo();
+      return true;
     } catch (e) {
       console.error(e);
       alert("Erro: " + getErrMsg(e));
       await carregarTudo();
+      return false;
     } finally {
       setMenuOpenId(null);
+    }
+  }
+
+  function abrirPopupCancelamento(item) {
+    if (!item?.id) return;
+    setMenuOpenId(null);
+    setCancelModalItem(item);
+    setCancelMotivo("");
+    setCancelError("");
+    setCancelModalOpen(true);
+  }
+
+  async function confirmarCancelamento() {
+    if (!cancelModalItem?.id || cancelSaving) return;
+
+    const motivo = String(cancelMotivo || "").trim();
+    if (!motivo) {
+      setCancelError("Informe o motivo do cancelamento.");
+      return;
+    }
+
+    try {
+      setCancelSaving(true);
+      setCancelError("");
+
+      await http.post(`/fila/${cnc}/status`, {
+        id: cancelModalItem.id,
+        status: "CANCELADO",
+        motivo,
+      });
+
+      setCancelModalOpen(false);
+      setCancelModalItem(null);
+      setCancelMotivo("");
+      setMenuOpenId(null);
+      await carregarTudo();
+    } catch (e) {
+      console.error(e);
+      setCancelError(getErrMsg(e));
+      await carregarTudo();
+    } finally {
+      setCancelSaving(false);
     }
   }
 
@@ -1941,12 +1991,111 @@ export default function OperatorDashboard() {
             <div className="h-px bg-[rgba(47,55,125,.10)] my-2" />
 
             <button
-              onClick={() => setItemStatus(menuItem, "CANCELADO")}
+              onClick={() => abrirPopupCancelamento(menuItem)}
               className="w-full px-3 py-2 rounded-xl hover:bg-red-50 flex items-center gap-3 text-sm text-red-600"
             >
               <X size={16} className="text-red-500" />
               Cancelar
             </button>
+          </div>
+        </>
+      )}
+
+      {cancelModalOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-[95] bg-black/60"
+            onClick={() => {
+              if (!cancelSaving) {
+                setCancelModalOpen(false);
+                setCancelModalItem(null);
+                setCancelMotivo("");
+                setCancelError("");
+              }
+            }}
+          />
+          <div
+            className="fixed z-[100] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(92vw,448px)] rounded-2xl bg-white border border-[rgba(47,55,125,.12)] shadow-[0_25px_70px_-40px_rgba(32,37,61,.30)] p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[10px] tracking-[0.34em] text-slate-500 font-black">
+                  CANCELAR ARQUIVO
+                </div>
+                <div className="mt-2 text-lg font-black text-slate-800 leading-tight break-words">
+                  {cancelModalItem?.arquivo_nome || cancelModalItem?.nome || `Arquivo #${cancelModalItem?.id || ""}`}
+                </div>
+                <div className="mt-2 text-xs font-semibold text-slate-400 leading-snug">
+                  Ao confirmar, o item sai da fila e o motivo fica registrado no rastreamento.
+                </div>
+              </div>
+
+              <button
+                className="h-10 w-10 shrink-0 rounded-xl bg-white border border-[rgba(47,55,125,.12)] hover:bg-[rgba(47,55,125,.05)] text-sm text-[#2f377d] inline-flex items-center justify-center"
+                onClick={() => {
+                  if (!cancelSaving) {
+                    setCancelModalOpen(false);
+                    setCancelModalItem(null);
+                    setCancelMotivo("");
+                    setCancelError("");
+                  }
+                }}
+                disabled={cancelSaving}
+                title="Fechar"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <label className="text-[10px] tracking-[0.34em] text-slate-500 font-black">
+                MOTIVO DO CANCELAMENTO
+              </label>
+              <textarea
+                value={cancelMotivo}
+                onChange={(e) => {
+                  setCancelMotivo(e.target.value);
+                  if (cancelError) setCancelError("");
+                }}
+                autoFocus
+                rows={4}
+                maxLength={300}
+                className="mt-2 w-full rounded-xl bg-white border border-[rgba(47,55,125,.12)] px-3 py-3 text-sm font-semibold text-slate-800 outline-none resize-none focus:border-red-300 focus:ring-4 focus:ring-red-100"
+                placeholder="Ex.: arquivo errado, material incorreto, desenho revisado..."
+                disabled={cancelSaving}
+              />
+              <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+                <span className={cancelError ? "font-semibold text-red-600" : "text-slate-400"}>
+                  {cancelError || "Esse motivo sera salvo junto com a movimentacao."}
+                </span>
+                <span className="shrink-0 text-slate-400">{String(cancelMotivo || "").length}/300</span>
+              </div>
+            </div>
+
+            <div className="mt-4 flex gap-2">
+              <button
+                className="flex-1 h-11 rounded-xl bg-white border border-[rgba(47,55,125,.12)] hover:bg-[rgba(47,55,125,.05)] text-sm font-bold text-[#2f377d]"
+                onClick={() => {
+                  if (!cancelSaving) {
+                    setCancelModalOpen(false);
+                    setCancelModalItem(null);
+                    setCancelMotivo("");
+                    setCancelError("");
+                  }
+                }}
+                disabled={cancelSaving}
+              >
+                Voltar
+              </button>
+              <button
+                className="flex-1 h-11 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 text-sm font-black text-white transition"
+                onClick={confirmarCancelamento}
+                disabled={cancelSaving || !String(cancelMotivo || "").trim()}
+              >
+                {cancelSaving ? "Cancelando..." : "Confirmar cancelamento"}
+              </button>
+            </div>
           </div>
         </>
       )}
