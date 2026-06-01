@@ -5286,8 +5286,51 @@ const limparLista = (lista) =>
                       if (item.type === "spline") {
                         return <path key={idx} {...clickProps} d={smoothPath(item.points)} stroke={selected ? "#f97316" : "#a7f3d0"} strokeWidth={selected ? 3 : undefined} />;
                       }
-                      if (item.type === "circle") return <circle key={idx} {...clickProps} cx={item.cx} cy={item.cy} r={item.r} stroke={selected ? "#f97316" : "#bbf7d0"} strokeWidth={selected ? 3 : undefined} />;
-                      if (item.type === "arc") return <path key={idx} {...clickProps} d={arcPath(item)} stroke={selected ? "#f97316" : "#fde68a"} strokeWidth={selected ? 3 : undefined} />;
+                      if (item.type === "circle") {
+                        return (
+                          <g key={idx}>
+                            <circle
+                              cx={item.cx}
+                              cy={item.cy}
+                              r={item.r}
+                              stroke={selected ? "#f97316" : "#bbf7d0"}
+                              strokeWidth={selected ? 3 : undefined}
+                              pointerEvents="none"
+                            />
+                            <circle
+                              {...clickProps}
+                              cx={item.cx}
+                              cy={item.cy}
+                              r={item.r}
+                              fill="transparent"
+                              stroke="transparent"
+                              strokeWidth="18"
+                              pointerEvents="all"
+                            />
+                          </g>
+                        );
+                      }
+                      if (item.type === "arc") {
+                        const d = arcPath(item);
+                        return (
+                          <g key={idx}>
+                            <path
+                              d={d}
+                              stroke={selected ? "#f97316" : "#fde68a"}
+                              strokeWidth={selected ? 3 : undefined}
+                              pointerEvents="none"
+                            />
+                            <path
+                              {...clickProps}
+                              d={d}
+                              stroke="transparent"
+                              strokeWidth="18"
+                              fill="none"
+                              pointerEvents="stroke"
+                            />
+                          </g>
+                        );
+                      }
                       if (item.type === "text" && previewShowText) {
                         return (
                           <text
