@@ -412,6 +412,7 @@ function previewEntityBounds(item) {
     height,
     centerX: minX + width / 2,
     centerY: minY + height / 2,
+    radius: item.type === "circle" || item.type === "arc" ? Number(item.r || 0) : null,
   };
 }
 
@@ -5336,6 +5337,12 @@ const limparLista = (lista) =>
                       <div className="text-[10px] font-bold uppercase text-slate-400">Altura</div>
                       <div className="font-black">{fmtPreviewMeasure(previewSelected.bounds.height)}</div>
                     </div>
+                    {Number(previewSelected.bounds.radius) > 0 && (
+                      <div>
+                        <div className="text-[10px] font-bold uppercase text-slate-400">Raio</div>
+                        <div className="font-black">{fmtPreviewMeasure(previewSelected.bounds.radius)}</div>
+                      </div>
+                    )}
                     <div>
                       <div className="text-[10px] font-bold uppercase text-slate-400">Centro X</div>
                       <div className="font-black">{fmtPreviewMeasure(previewSelected.bounds.centerX)}</div>
