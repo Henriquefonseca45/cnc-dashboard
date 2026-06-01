@@ -509,8 +509,8 @@ function inferMaterialFromFileName(name = "") {
 
   if (parts.length >= 5) return parts.slice(4).join(" - ");
 
-  const codeMatch = /(\d+(?:[,.]\d+)?\s*(?:TX|KP|AD)\b.*)$/i.exec(clean);
-  if (codeMatch) return codeMatch[1].replace(/\s+(?=TX|KP|AD\b)/i, "").trim();
+  const codeMatch = /(\d+(?:[,.]\d+)?\s*(?:TX|KP|AD|EX|MDF)\b.*)$/i.exec(clean);
+  if (codeMatch) return codeMatch[1].replace(/\s+(?=TX|KP|AD|EX|MDF\b)/i, "").trim();
 
   const match = /(\d+(?:[,.]\d+)?\s*mm\b.*)$/i.exec(clean);
   return match?.[1]?.trim() || "";

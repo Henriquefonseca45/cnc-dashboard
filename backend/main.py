@@ -419,9 +419,9 @@ def _infer_material_from_arquivo_nome(nome: str | None) -> str:
     if len(parts) >= 5:
         return " - ".join(parts[4:]).strip()
 
-    code_match = re.search(r"(\d+(?:[,.]\d+)?\s*(?:TX|KP|AD)\b.*)$", clean, flags=re.IGNORECASE)
+    code_match = re.search(r"(\d+(?:[,.]\d+)?\s*(?:TX|KP|AD|EX|MDF)\b.*)$", clean, flags=re.IGNORECASE)
     if code_match:
-        return re.sub(r"\s+(?=(?:TX|KP|AD)\b)", "", code_match.group(1), count=1, flags=re.IGNORECASE).strip()
+        return re.sub(r"\s+(?=(?:TX|KP|AD|EX|MDF)\b)", "", code_match.group(1), count=1, flags=re.IGNORECASE).strip()
 
     up = clean.upper()
     idx = up.find("MM")
