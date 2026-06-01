@@ -940,6 +940,7 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
       faltaMaterialMin: Number(item.falta_material_min || 0),
       faltaMaterialMedioMin: Number(item.falta_material_medio_min || 0),
       totalFaltaMaterial: Number(item.total_falta_material || 0),
+      manutencaoMin: Number(item.manutencao_min || 0),
       perdidoMin: Number(item.tempo_parado_min || 0),
       usoPct: Number(item.uso_pct || 0),
       performancePct: Number(item.performance_pct || 0),
@@ -2101,12 +2102,12 @@ async function exportarPDF() {
   }, [chatUnreadByMachine]);
 
   useEffect(() => {
-    if (!isVisual || visualTab !== "dashboard") return;
+    if (!isVisual || !["dashboard", "dashmanut"].includes(visualTab)) return;
     fetchDashboardAnalytics();
   }, [isVisual, visualTab, dashFilter, histFrom, histTo]);
 
   useEffect(() => {
-    if (!isVisual || visualTab !== "dashboard") return;
+    if (!isVisual || !["dashboard", "dashmanut"].includes(visualTab)) return;
     const t = setInterval(() => {
       fetchDashboardAnalytics({ silent: true });
     }, 10000);
@@ -3051,6 +3052,69 @@ const limparLista = (lista) =>
     return { totalMin, items };
   }, [dashboardData]);
 
+  const dashManutData = useMemo(() => {
+    const machineOrder = (id) => {
+      const idx = DASHBOARD_MACHINE_IDS.indexOf(String(id || "").toUpperCase());
+      return idx >= 0 ? idx : 999;
+    };
+
+    const productionMachines = (Array.isArray(maquinas) ? maquinas : [])
+      .filter(isProductionMachine)
+      .slice()
+      .sort((a, b) => {
+        const aId = String(a?.id || "").toUpperCase();
+        const bId = String(b?.id || "").toUpperCase();
+        return machineOrder(aId) - machineOrder(bId) || aId.localeCompare(bId);
+      });
+
+    const rankingByMachine = new Map(
+      (dashboardData?.rankingMaquinas || []).map((item) => [String(item.maquina || "").toUpperCase(), item])
+    );
+
+    const rows = productionMachines.map((machine) => {
+      const id = String(machine?.id || "").toUpperCase();
+      const rank = rankingByMachine.get(id) || {};
+      const status = machine?.status || "-";
+      const statusDesdeMs = Date.parse(machine?.status_desde || "");
+      const emManutencao = isManutencao(status);
+      const duracaoAtualMin =
+        emManutencao && Number.isFinite(statusDesdeMs)
+          ? Math.max(0, Math.floor((Number(nowTick || Date.now()) - statusDesdeMs) / 60000))
+          : 0;
+      const filaList = Array.isArray(filasById?.[id])
+        ? filasById[id]
+        : Array.isArray(filasById?.[machine?.id])
+        ? filasById[machine.id]
+        : [];
+
+      return {
+        id,
+        nome: machine?.nome || id,
+        status,
+        statusDesde: machine?.status_desde || "",
+        operador: machine?.operador_nome || "-",
+        emManutencao,
+        manutencaoMin: Number(rank.manutencaoMin || 0),
+        duracaoAtualMin,
+        filaCount: filaList.filter((item) => isFilaVivaStatus(item.status) || isFilaExecutandoStatus(item.status)).length,
+      };
+    });
+
+    const totalManutMin = Number(dashboardData?.totals?.manutencao || 0);
+    const maquinasComManut = rows.filter((item) => Number(item.manutencaoMin || 0) > 0).length;
+    const manutAgora = rows.filter((item) => item.emManutencao);
+
+    return {
+      rows,
+      manutAgora,
+      totalManutMin,
+      maquinasComManut,
+      mediaManutMin: maquinasComManut > 0 ? totalManutMin / maquinasComManut : 0,
+      maxManutMin: Math.max(1, ...rows.map((item) => Number(item.manutencaoMin || 0))),
+      periodoLabel: dashboardData?.periodoLabel || dashboardRequestInfo.label,
+    };
+  }, [dashboardData, dashboardRequestInfo.label, filasById, maquinas, nowTick]);
+
   return (
     <div
       className={`pgShell ${readOnly ? "pgReadOnly" : ""} ${isVisual ? "pgVisual" : ""} ${
@@ -3279,6 +3343,16 @@ const limparLista = (lista) =>
           }}
         >
           Dashboard
+        </button>
+
+        <button
+          className={`pgVisualTabBtn ${visualTab === "dashmanut" ? "active" : ""}`}
+          onClick={async () => {
+            setVisualTab("dashmanut");
+            await fetchDashboardAnalytics();
+          }}
+        >
+          DashManut
         </button>
       </div>
     )}
@@ -4516,6 +4590,252 @@ const limparLista = (lista) =>
                 </div>
               ))
           )}
+        </div>
+      </section>
+    </section>
+  </div>
+)}
+
+       {isVisual && visualTab === "dashmanut" && (
+  <div ref={dashboardRef}>
+    <section className="pgDashBoardLike pgDashManutPage">
+      <section className="pgDashTopBarLike">
+        <div>
+          <div className="pgDashTopTitle">DashManut</div>
+          <div className="pgTiny">Controle do status de manutencao por CNC</div>
+        </div>
+
+        <div className="pgDashTopFilters">
+          <button
+            className={`pgDashFilter ${dashFilter === "today" ? "active" : ""}`}
+            onClick={() => setDashFilter("today")}
+          >
+            Hoje
+          </button>
+
+          <button
+            className={`pgDashFilter ${dashFilter === "week" ? "active" : ""}`}
+            onClick={() => setDashFilter("week")}
+          >
+            Semana
+          </button>
+
+          <button
+            className={`pgDashFilter ${dashFilter === "month" ? "active" : ""}`}
+            onClick={() => setDashFilter("month")}
+          >
+            Mes
+          </button>
+
+          <button
+            className={`pgDashFilter ${dashFilter === "custom" ? "active" : ""}`}
+            onClick={() => setDashFilter("custom")}
+          >
+            Personalizado
+          </button>
+
+          <button
+            className="pgBtn pgBtnGhost"
+            onClick={() => fetchDashboardAnalytics()}
+            style={{ marginLeft: 8 }}
+          >
+            {dashboardLoading ? "Atualizando..." : "Atualizar"}
+          </button>
+
+          <button
+            className="pgBtn pgBtnPrimary"
+            onClick={exportarPDF}
+            disabled={exportandoPdf}
+            style={{ marginLeft: 8 }}
+          >
+            {exportandoPdf ? "Exportando..." : "Exportar PDF"}
+          </button>
+        </div>
+      </section>
+
+      {dashFilter === "custom" && (
+        <section className="pgPanel" style={{ marginTop: 0 }}>
+          <div className="pgPanelHeader">
+            <div>
+              <div className="pgPanelTitle">Periodo personalizado</div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div className="pgTiny">De</div>
+                <input
+                  type="date"
+                  value={histFrom}
+                  onChange={(e) => setHistFrom(e.target.value)}
+                  className="pgInput"
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div className="pgTiny">Ate</div>
+                <input
+                  type="date"
+                  value={histTo}
+                  onChange={(e) => setHistTo(e.target.value)}
+                  className="pgInput"
+                />
+              </div>
+
+              <button
+                className="pgBtn pgBtnGhost"
+                onClick={async () => {
+                  const today = isoDay(new Date());
+
+                  setHistFrom("");
+                  setHistTo("");
+                  setDashFilter("today");
+
+                  setDashboardLoading(true);
+                  setDashboardErr("");
+
+                  try {
+                    const search = new URLSearchParams();
+                    search.set("data", today);
+                    search.set("usar_snapshot", "false");
+
+                    const r = await api.get(`/dashboard/indicadores?${search.toString()}`);
+                    setDashboardApiRaw(r.data || null);
+                  } catch (e) {
+                    setDashboardErr(getErrMsg(e));
+                    setDashboardApiRaw(null);
+                  } finally {
+                    setDashboardLoading(false);
+                  }
+                }}
+              >
+                Limpar
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {dashboardErr && (
+        <div className="pgAlert pgAlertErr">
+          Erro ao atualizar DashManut: {dashboardErr}
+        </div>
+      )}
+
+      <section className="pgDashManutStats">
+        <div className="pgDashManutStat">
+          <div className="pgDashStatLabel">Em manutencao agora</div>
+          <div className="pgDashStatValue">{dashManutData.manutAgora.length}</div>
+        </div>
+
+        <div className="pgDashManutStat">
+          <div className="pgDashStatLabel">Tempo no periodo</div>
+          <div className="pgDashStatValue">{fmtHoursHuman(dashManutData.totalManutMin)}</div>
+        </div>
+
+        <div className="pgDashManutStat">
+          <div className="pgDashStatLabel">Media por CNC</div>
+          <div className="pgDashStatValue">{fmtSetupDuration(dashManutData.mediaManutMin)}</div>
+        </div>
+
+        <div className="pgDashManutStat">
+          <div className="pgDashStatLabel">CNCs com manutencao</div>
+          <div className="pgDashStatValue">{dashManutData.maquinasComManut}</div>
+        </div>
+      </section>
+
+      <section className="pgDashManutGrid">
+        <div className="pgDashChartCard">
+          <div className="pgDashChartHeader">
+            <div>
+              <div className="pgDashChartTitle">Controle de manutencao por CNC</div>
+              <div className="pgDashChartSubTitle">{dashManutData.periodoLabel}</div>
+            </div>
+          </div>
+
+          <div className="pgDashManutRows">
+            {dashManutData.rows.length === 0 ? (
+              <div className="pgEmpty">Nenhuma CNC encontrada.</div>
+            ) : (
+              dashManutData.rows.map((row) => {
+                const width = Math.max(2, Math.min(100, (Number(row.manutencaoMin || 0) / dashManutData.maxManutMin) * 100));
+
+                return (
+                  <div
+                    key={row.id}
+                    className={`pgDashManutRow ${row.emManutencao ? "active" : ""}`}
+                  >
+                    <div className="pgDashManutRowTop">
+                      <div>
+                        <div className="pgDashManutMachine">{row.id}</div>
+                        <div className="pgTiny">{row.nome}</div>
+                      </div>
+
+                      <span className={`pgTone ${badgeTone(row.status)}`}>{row.status}</span>
+                    </div>
+
+                    <div className="pgDashManutBar">
+                      <span style={{ width: `${width}%` }} />
+                    </div>
+
+                    <div className="pgDashManutMeta">
+                      <div>
+                        <strong>No periodo</strong>
+                        <span>{fmtHoursHuman(row.manutencaoMin)}</span>
+                      </div>
+
+                      <div>
+                        <strong>Agora</strong>
+                        <span>{row.emManutencao ? fmtSetupDuration(row.duracaoAtualMin) : "-"}</span>
+                      </div>
+
+                      <div>
+                        <strong>Desde</strong>
+                        <span>{row.emManutencao ? fmtDate(row.statusDesde) : "-"}</span>
+                      </div>
+
+                      <div>
+                        <strong>Operador</strong>
+                        <span>{row.operador || "-"}</span>
+                      </div>
+
+                      <div>
+                        <strong>Fila</strong>
+                        <span>{row.filaCount}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        <div className="pgDashChartCard pgDashManutNowCard">
+          <div className="pgDashChartTitle">CNCs em manutencao agora</div>
+
+          {dashManutData.manutAgora.length === 0 ? (
+            <div className="pgEmpty">Nenhuma CNC em manutencao neste momento.</div>
+          ) : (
+            <div className="pgDashManutNowList">
+              {dashManutData.manutAgora.map((row) => (
+                <div key={`now-${row.id}`} className="pgDashManutNowItem">
+                  <div>
+                    <strong>{row.id}</strong>
+                    <span>{row.operador || "-"}</span>
+                  </div>
+                  <div className="pgDashManutNowTime">{fmtSetupDuration(row.duracaoAtualMin)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="pgDashManutInfo">
+            <div className="pgDashInfoTitle">Como e contado</div>
+            <div className="pgDashInfoText">
+              Esta tela usa o status atual da maquina e o historico do periodo selecionado.
+              Entradas com status contendo <span className="pgMono">MANUT</span> entram no controle.
+            </div>
+          </div>
         </div>
       </section>
     </section>
