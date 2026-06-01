@@ -350,6 +350,92 @@ function arcPath(item) {
   return `M ${x1} ${y1} A ${item.r} ${item.r} 0 ${largeArc} 0 ${x2} ${y2}`;
 }
 
+function previewArcPoints(item, segments = 48) {
+  let delta = ((item.end - item.start) % 360 + 360) % 360;
+  if (!delta) delta = 360;
+  const pts = [];
+  for (let i = 0; i <= segments; i += 1) {
+    const deg = item.start + (delta * i) / segments;
+    const rad = (deg * Math.PI) / 180;
+    pts.push({
+      x: item.cx + item.r * Math.cos(rad),
+      y: item.cy - item.r * Math.sin(rad),
+    });
+  }
+  return pts;
+}
+
+function previewEntityBounds(item) {
+  if (!item) return null;
+
+  let points = [];
+  if (item.type === "line") {
+    points = [
+      { x: item.x1, y: item.y1 },
+      { x: item.x2, y: item.y2 },
+    ];
+  } else if (item.type === "polyline" || item.type === "curve" || item.type === "spline") {
+    points = item.points || [];
+  } else if (item.type === "circle") {
+    points = [
+      { x: item.cx - item.r, y: item.cy - item.r },
+      { x: item.cx + item.r, y: item.cy + item.r },
+    ];
+  } else if (item.type === "arc") {
+    points = previewArcPoints(item);
+  } else if (item.type === "text") {
+    const w = String(item.text || "").length * Number(item.size || 0) * 0.65;
+    points = [
+      { x: item.x, y: item.y },
+      { x: item.x + w, y: item.y - Number(item.size || 0) },
+    ];
+  }
+
+  const valid = points.filter((pt) => Number.isFinite(pt.x) && Number.isFinite(pt.y));
+  if (!valid.length) return null;
+
+  const xs = valid.map((pt) => pt.x);
+  const ys = valid.map((pt) => pt.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const width = Math.max(0, maxX - minX);
+  const height = Math.max(0, maxY - minY);
+
+  return {
+    minX,
+    minY,
+    maxX,
+    maxY,
+    width,
+    height,
+    centerX: minX + width / 2,
+    centerY: minY + height / 2,
+  };
+}
+
+function previewEntityLabel(type = "") {
+  const labels = {
+    line: "Linha",
+    polyline: "Peca/contorno",
+    curve: "Curva",
+    spline: "Spline",
+    circle: "Circulo",
+    arc: "Arco",
+    text: "Texto",
+  };
+  return labels[type] || "Entidade";
+}
+
+function fmtPreviewMeasure(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "-";
+  const abs = Math.abs(n);
+  const max = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
+  return `${n.toLocaleString("pt-BR", { maximumFractionDigits: max })} mm`;
+}
+
 function scaleViewBox(viewBox, factor) {
   const [x, y, w, h] = String(viewBox || "0 0 100 100").split(/\s+/).map(Number);
   const nextW = Math.max(1, w * factor);
@@ -1031,6 +1117,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const [previewData, setPreviewData] = useState(null);
   const [previewViewBox, setPreviewViewBox] = useState("0 0 100 100");
   const [previewShowText, setPreviewShowText] = useState(true);
+  const [previewSelected, setPreviewSelected] = useState(null);
 
   const [chatMsgs, setChatMsgs] = useState([]);
   const [chatText, setChatText] = useState("");
@@ -1479,6 +1566,7 @@ async function exportarPDF() {
       setPreviewItem(item);
       setPreviewMachineId(maquinaId);
       setPreviewData(null);
+      setPreviewSelected(null);
       setPreviewLoading(true);
 
       const res = await api.get(`/agente/${maquinaId}/preview/fila/${item.id}`, {
@@ -1495,6 +1583,7 @@ async function exportarPDF() {
       setPreviewItem(null);
       setPreviewMachineId("");
       setPreviewData(null);
+      setPreviewSelected(null);
     } finally {
       setPreviewLoading(false);
     }
@@ -1505,6 +1594,7 @@ async function exportarPDF() {
     setPreviewItem(null);
     setPreviewMachineId("");
     setPreviewData(null);
+    setPreviewSelected(null);
   }
 
   function resetPreviewView() {
@@ -1545,6 +1635,13 @@ async function exportarPDF() {
 
   function stopPreviewPan() {
     previewDragRef.current = null;
+  }
+
+  function selectPreviewEntity(e, item, idx) {
+    e.stopPropagation();
+    const bounds = previewEntityBounds(item);
+    if (!bounds) return;
+    setPreviewSelected({ idx, type: item.type, bounds });
   }
 
   async function fetchPool() {
@@ -5124,7 +5221,14 @@ const limparLista = (lista) =>
                     zoomPreview(e.deltaY < 0 ? 0.85 : 1.15);
                   }}
                 >
-                  <rect x="-100000000" y="-100000000" width="200000000" height="200000000" fill="#020617" />
+                  <rect
+                    x="-100000000"
+                    y="-100000000"
+                    width="200000000"
+                    height="200000000"
+                    fill="#020617"
+                    onClick={() => setPreviewSelected(null)}
+                  />
                   <g
                     stroke="#e5e7eb"
                     strokeWidth="1"
@@ -5135,14 +5239,35 @@ const limparLista = (lista) =>
                     shapeRendering="geometricPrecision"
                   >
                     {previewData.items.map((item, idx) => {
-                      if (item.type === "line") return <line key={idx} x1={item.x1} y1={item.y1} x2={item.x2} y2={item.y2} />;
+                      const selected = previewSelected?.idx === idx;
+                      const clickProps = {
+                        onClick: (e) => selectPreviewEntity(e, item, idx),
+                        style: { cursor: "pointer" },
+                      };
+
+                      if (item.type === "line") {
+                        return (
+                          <line
+                            key={idx}
+                            {...clickProps}
+                            x1={item.x1}
+                            y1={item.y1}
+                            x2={item.x2}
+                            y2={item.y2}
+                            stroke={selected ? "#f97316" : undefined}
+                            strokeWidth={selected ? 3 : undefined}
+                          />
+                        );
+                      }
                       if (item.type === "polyline") {
                         return (
                           <path
                             key={idx}
+                            {...clickProps}
                             d={polylinePath(item.points, item.closed)}
-                            fill={item.closed ? "rgba(34,197,94,.08)" : "none"}
-                            stroke="#dbeafe"
+                            fill={selected ? "rgba(249,115,22,.14)" : item.closed ? "rgba(34,197,94,.08)" : "none"}
+                            stroke={selected ? "#f97316" : "#dbeafe"}
+                            strokeWidth={selected ? 3 : undefined}
                           />
                         );
                       }
@@ -5150,27 +5275,30 @@ const limparLista = (lista) =>
                         return (
                           <path
                             key={idx}
+                            {...clickProps}
                             d={polylinePath(item.points, item.closed)}
-                            stroke="#bfdbfe"
+                            stroke={selected ? "#f97316" : "#bfdbfe"}
+                            strokeWidth={selected ? 3 : undefined}
                           />
                         );
                       }
                       if (item.type === "spline") {
-                        return <path key={idx} d={smoothPath(item.points)} stroke="#a7f3d0" />;
+                        return <path key={idx} {...clickProps} d={smoothPath(item.points)} stroke={selected ? "#f97316" : "#a7f3d0"} strokeWidth={selected ? 3 : undefined} />;
                       }
-                      if (item.type === "circle") return <circle key={idx} cx={item.cx} cy={item.cy} r={item.r} stroke="#bbf7d0" />;
-                      if (item.type === "arc") return <path key={idx} d={arcPath(item)} stroke="#fde68a" />;
+                      if (item.type === "circle") return <circle key={idx} {...clickProps} cx={item.cx} cy={item.cy} r={item.r} stroke={selected ? "#f97316" : "#bbf7d0"} strokeWidth={selected ? 3 : undefined} />;
+                      if (item.type === "arc") return <path key={idx} {...clickProps} d={arcPath(item)} stroke={selected ? "#f97316" : "#fde68a"} strokeWidth={selected ? 3 : undefined} />;
                       if (item.type === "text" && previewShowText) {
                         return (
                           <text
                             key={idx}
+                            onClick={(e) => selectPreviewEntity(e, item, idx)}
                             x={item.x}
                             y={item.y}
                             fontSize={item.size}
-                            fill="#f8fafc"
+                            fill={selected ? "#f97316" : "#f8fafc"}
                             stroke="none"
                             transform={`rotate(${item.rot || 0} ${item.x} ${item.y})`}
-                            style={{ userSelect: "none", textRendering: "geometricPrecision" }}
+                            style={{ userSelect: "none", textRendering: "geometricPrecision", cursor: "pointer" }}
                           >
                             {item.text}
                           </text>
@@ -5179,7 +5307,45 @@ const limparLista = (lista) =>
                       return null;
                     })}
                   </g>
+                  {previewSelected?.bounds && (
+                    <rect
+                      x={previewSelected.bounds.minX}
+                      y={previewSelected.bounds.minY}
+                      width={Math.max(1, previewSelected.bounds.width)}
+                      height={Math.max(1, previewSelected.bounds.height)}
+                      fill="rgba(249,115,22,.08)"
+                      stroke="#fb923c"
+                      strokeWidth="2"
+                      strokeDasharray="8 5"
+                      vectorEffect="non-scaling-stroke"
+                      pointerEvents="none"
+                    />
+                  )}
                 </svg>
+              )}
+              {previewSelected?.bounds && (
+                <div className="absolute left-4 top-4 z-10 w-[min(82vw,260px)] rounded-2xl border border-orange-200 bg-white/95 p-3 text-xs text-slate-700 shadow-[0_18px_45px_-30px_rgba(15,23,42,.8)]">
+                  <div className="text-[10px] font-black tracking-[0.22em] text-orange-600">DIMENSOES</div>
+                  <div className="mt-1 font-black text-slate-900">{previewEntityLabel(previewSelected.type)}</div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div>
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Largura</div>
+                      <div className="font-black">{fmtPreviewMeasure(previewSelected.bounds.width)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Altura</div>
+                      <div className="font-black">{fmtPreviewMeasure(previewSelected.bounds.height)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Centro X</div>
+                      <div className="font-black">{fmtPreviewMeasure(previewSelected.bounds.centerX)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Centro Y</div>
+                      <div className="font-black">{fmtPreviewMeasure(-previewSelected.bounds.centerY)}</div>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
 
