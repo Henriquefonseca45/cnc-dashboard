@@ -491,6 +491,103 @@ function fmtSetupDuration(min) {
   return `${m}min`;
 }
 
+function DashManutLineChart({ title, subtitle, days = [], series = [], emptyText = "Sem dados." }) {
+  const width = 920;
+  const height = 320;
+  const padLeft = 58;
+  const padRight = 22;
+  const padTop = 24;
+  const padBottom = 46;
+  const chartW = width - padLeft - padRight;
+  const chartH = height - padTop - padBottom;
+  const safeDays = Array.isArray(days) ? days : [];
+  const safeSeries = Array.isArray(series) ? series : [];
+  const values = safeSeries.flatMap((item) => (item.pontos || []).map((point) => Number(point.min || 0)));
+  const maxMin = Math.max(1, ...values);
+  const hasData = values.some((value) => value > 0);
+  const labelStep = Math.max(1, Math.ceil((safeDays.length || 1) / 10));
+
+  const xFor = (idx) => {
+    if (safeDays.length <= 1) return padLeft + chartW / 2;
+    return padLeft + (idx / (safeDays.length - 1)) * chartW;
+  };
+  const yFor = (min) => padTop + chartH - (Number(min || 0) / maxMin) * chartH;
+  const yTicks = [1, 0.75, 0.5, 0.25, 0];
+
+  return (
+    <div className="pgDashChartCard pgDashManutLineCard">
+      <div className="pgDashChartHeader">
+        <div>
+          <div className="pgDashChartTitle">{title}</div>
+          {subtitle && <div className="pgDashChartSubTitle">{subtitle}</div>}
+        </div>
+      </div>
+
+      {!hasData ? (
+        <div className="pgEmpty">{emptyText}</div>
+      ) : (
+        <>
+          <svg className="pgDashManutLineSvg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title}>
+            {yTicks.map((tick) => {
+              const value = maxMin * tick;
+              const y = yFor(value);
+              return (
+                <g key={`y-${tick}`}>
+                  <line x1={padLeft} y1={y} x2={width - padRight} y2={y} className="pgDashManutGridLine" />
+                  <text x={padLeft - 10} y={y + 4} textAnchor="end" className="pgDashManutAxisText">
+                    {fmtSetupDuration(value)}
+                  </text>
+                </g>
+              );
+            })}
+
+            {safeDays.map((day, idx) => {
+              if (idx % labelStep !== 0 && idx !== safeDays.length - 1) return null;
+              const x = xFor(idx);
+              return (
+                <text key={`x-${day.data || idx}`} x={x} y={height - 16} textAnchor="middle" className="pgDashManutAxisText">
+                  {day.label || day.dia || idx + 1}
+                </text>
+              );
+            })}
+
+            {safeSeries.map((item) => {
+              const pointByDate = new Map((item.pontos || []).map((point) => [point.data, Number(point.min || 0)]));
+              const lineValues = safeDays.map((day) => pointByDate.get(day.data) || 0);
+              const path = lineValues
+                .map((value, idx) => `${idx === 0 ? "M" : "L"} ${xFor(idx).toFixed(2)} ${yFor(value).toFixed(2)}`)
+                .join(" ");
+
+              return (
+                <path
+                  key={item.key || item.maquina || item.label}
+                  d={path}
+                  fill="none"
+                  stroke={item.color || "#4a6fff"}
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="pgDashManutLinePath"
+                />
+              );
+            })}
+          </svg>
+
+          <div className="pgDashManutLegend">
+            {safeSeries.map((item) => (
+              <div key={item.key || item.maquina || item.label} className="pgDashManutLegendItem">
+                <span style={{ background: item.color || "#4a6fff" }} />
+                <strong>{item.label || item.maquina}</strong>
+                <em>{fmtSetupDuration(item.total_min || 0)}</em>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function pct(n, d) {
   if (!d) return 0;
   return Number(((n / d) * 100).toFixed(1));
@@ -761,6 +858,16 @@ function isoDay(dateLike) {
     const d = new Date(dateLike);
     if (Number.isNaN(d.getTime())) return "";
     return d.toISOString().slice(0, 10);
+  } catch {
+    return "";
+  }
+}
+
+function monthValue(dateLike) {
+  try {
+    const d = new Date(dateLike);
+    if (Number.isNaN(d.getTime())) return "";
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   } catch {
     return "";
   }
@@ -1106,6 +1213,10 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const [dashboardApiRaw, setDashboardApiRaw] = useState(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardErr, setDashboardErr] = useState("");
+  const [dashManutMonth, setDashManutMonth] = useState(() => monthValue(new Date()));
+  const [dashManutApiRaw, setDashManutApiRaw] = useState(null);
+  const [dashManutLoading, setDashManutLoading] = useState(false);
+  const [dashManutErr, setDashManutErr] = useState("");
   const [grafico3Maquina, setGrafico3Maquina] = useState("TODAS");
   const [grafico5Tipo, setGrafico5Tipo] = useState("setup");
 
@@ -1749,6 +1860,26 @@ async function exportarPDF() {
     }
   }
 
+  async function fetchDashManutAnalytics({ silent = false } = {}) {
+    if (!silent) setDashManutLoading(true);
+    setDashManutErr("");
+
+    try {
+      const search = new URLSearchParams();
+      if (dashManutMonth) search.set("mes", dashManutMonth);
+
+      const r = await api.get(`/dashboard/manutencao?${search.toString()}`);
+      setDashManutApiRaw(r.data || null);
+      return r.data || null;
+    } catch (e) {
+      setDashManutErr(getErrMsg(e));
+      setDashManutApiRaw(null);
+      return null;
+    } finally {
+      if (!silent) setDashManutLoading(false);
+    }
+  }
+
   async function fetchChat(maquinaId = selectedId, silent = false) {
     if (!maquinaId) return [];
     if (!silent) setChatLoading(true);
@@ -2102,17 +2233,30 @@ async function exportarPDF() {
   }, [chatUnreadByMachine]);
 
   useEffect(() => {
-    if (!isVisual || !["dashboard", "dashmanut"].includes(visualTab)) return;
+    if (!isVisual || visualTab !== "dashboard") return;
     fetchDashboardAnalytics();
   }, [isVisual, visualTab, dashFilter, histFrom, histTo]);
 
   useEffect(() => {
-    if (!isVisual || !["dashboard", "dashmanut"].includes(visualTab)) return;
+    if (!isVisual || visualTab !== "dashboard") return;
     const t = setInterval(() => {
       fetchDashboardAnalytics({ silent: true });
     }, 10000);
     return () => clearInterval(t);
   }, [isVisual, visualTab, dashFilter, histFrom, histTo]);
+
+  useEffect(() => {
+    if (!isVisual || visualTab !== "dashmanut") return;
+    fetchDashManutAnalytics();
+  }, [isVisual, visualTab, dashManutMonth]);
+
+  useEffect(() => {
+    if (!isVisual || visualTab !== "dashmanut") return;
+    const t = setInterval(() => {
+      fetchDashManutAnalytics({ silent: true });
+    }, 30000);
+    return () => clearInterval(t);
+  }, [isVisual, visualTab, dashManutMonth]);
 
   const kpis = useMemo(() => {
     const list = Array.isArray(maquinas) ? maquinas.filter(isProductionMachine) : [];
@@ -3052,6 +3196,70 @@ const limparLista = (lista) =>
     return { totalMin, items };
   }, [dashboardData]);
 
+  const dashManutChartData = useMemo(() => {
+    const cncColors = {
+      CNC01: "#3b82f6",
+      CNC02: "#f97316",
+      CNC03: "#22c55e",
+      CNC04: "#8b5cf6",
+      CNC05: "#ef4444",
+      CNC06: "#06b6d4",
+      CNC07: "#eab308",
+    };
+    const motivoColors = {
+      ELETRICO: "#3b82f6",
+      MECANICO: "#f97316",
+      LUBRIFICACAO: "#22c55e",
+    };
+    const motivoLabels = {
+      ELETRICO: "Elétrico",
+      MECANICO: "Mecânico",
+      LUBRIFICACAO: "Lubrificação",
+    };
+    const dias = Array.isArray(dashManutApiRaw?.dias) ? dashManutApiRaw.dias : [];
+    const rawMaquinas = Array.isArray(dashManutApiRaw?.maquinas) ? dashManutApiRaw.maquinas : [];
+    const rawMotivos = Array.isArray(dashManutApiRaw?.motivos) ? dashManutApiRaw.motivos : [];
+
+    const maquinasById = new Map(rawMaquinas.map((item) => [String(item.maquina || "").toUpperCase(), item]));
+    const motivoByKey = new Map(rawMotivos.map((item) => [String(item.key || "").toUpperCase(), item]));
+
+    const maquinasSeries = DASHBOARD_MACHINE_IDS.map((machineId) => {
+      const item = maquinasById.get(machineId) || {};
+      return {
+        key: machineId,
+        maquina: machineId,
+        label: machineId,
+        color: cncColors[machineId] || "#4a6fff",
+        total_min: Number(item.total_min || 0),
+        pontos: Array.isArray(item.pontos) ? item.pontos : [],
+      };
+    });
+
+    const motivosSeries = ["ELETRICO", "MECANICO", "LUBRIFICACAO"].map((key) => {
+      const item = motivoByKey.get(key) || {};
+      return {
+        key,
+        label: item.label || motivoLabels[key] || key,
+        color: item.color || motivoColors[key] || "#4a6fff",
+        total_min: Number(item.total_min || 0),
+        pontos: Array.isArray(item.pontos) ? item.pontos : [],
+      };
+    });
+
+    const topMotivo = motivosSeries.slice().sort((a, b) => Number(b.total_min || 0) - Number(a.total_min || 0))[0] || null;
+
+    return {
+      mes: dashManutApiRaw?.mes || dashManutMonth,
+      dias,
+      maquinasSeries,
+      motivosSeries,
+      totalMin: Number(dashManutApiRaw?.totals?.total_min || 0),
+      maquinasComManut: maquinasSeries.filter((item) => Number(item.total_min || 0) > 0).length,
+      topMotivo,
+      periodoLabel: dashManutApiRaw?.mes || dashManutMonth,
+    };
+  }, [dashManutApiRaw, dashManutMonth]);
+
   const dashManutData = useMemo(() => {
     const machineOrder = (id) => {
       const idx = DASHBOARD_MACHINE_IDS.indexOf(String(id || "").toUpperCase());
@@ -3067,13 +3275,13 @@ const limparLista = (lista) =>
         return machineOrder(aId) - machineOrder(bId) || aId.localeCompare(bId);
       });
 
-    const rankingByMachine = new Map(
-      (dashboardData?.rankingMaquinas || []).map((item) => [String(item.maquina || "").toUpperCase(), item])
+    const manutByMachine = new Map(
+      (dashManutChartData.maquinasSeries || []).map((item) => [String(item.maquina || "").toUpperCase(), item])
     );
 
     const rows = productionMachines.map((machine) => {
       const id = String(machine?.id || "").toUpperCase();
-      const rank = rankingByMachine.get(id) || {};
+      const chartMachine = manutByMachine.get(id) || {};
       const status = machine?.status || "-";
       const statusDesdeMs = Date.parse(machine?.status_desde || "");
       const emManutencao = isManutencao(status);
@@ -3094,13 +3302,13 @@ const limparLista = (lista) =>
         statusDesde: machine?.status_desde || "",
         operador: machine?.operador_nome || "-",
         emManutencao,
-        manutencaoMin: Number(rank.manutencaoMin || 0),
+        manutencaoMin: Number(chartMachine.total_min || 0),
         duracaoAtualMin,
         filaCount: filaList.filter((item) => isFilaVivaStatus(item.status) || isFilaExecutandoStatus(item.status)).length,
       };
     });
 
-    const totalManutMin = Number(dashboardData?.totals?.manutencao || 0);
+    const totalManutMin = Number(dashManutChartData.totalMin || 0);
     const maquinasComManut = rows.filter((item) => Number(item.manutencaoMin || 0) > 0).length;
     const manutAgora = rows.filter((item) => item.emManutencao);
 
@@ -3111,9 +3319,9 @@ const limparLista = (lista) =>
       maquinasComManut,
       mediaManutMin: maquinasComManut > 0 ? totalManutMin / maquinasComManut : 0,
       maxManutMin: Math.max(1, ...rows.map((item) => Number(item.manutencaoMin || 0))),
-      periodoLabel: dashboardData?.periodoLabel || dashboardRequestInfo.label,
+      periodoLabel: dashManutChartData.periodoLabel,
     };
-  }, [dashboardData, dashboardRequestInfo.label, filasById, maquinas, nowTick]);
+  }, [dashManutChartData, filasById, maquinas, nowTick]);
 
   return (
     <div
@@ -3349,7 +3557,7 @@ const limparLista = (lista) =>
           className={`pgVisualTabBtn ${visualTab === "dashmanut" ? "active" : ""}`}
           onClick={async () => {
             setVisualTab("dashmanut");
-            await fetchDashboardAnalytics();
+            await fetchDashManutAnalytics();
           }}
         >
           DashManut
@@ -4606,40 +4814,21 @@ const limparLista = (lista) =>
         </div>
 
         <div className="pgDashTopFilters">
-          <button
-            className={`pgDashFilter ${dashFilter === "today" ? "active" : ""}`}
-            onClick={() => setDashFilter("today")}
-          >
-            Hoje
-          </button>
-
-          <button
-            className={`pgDashFilter ${dashFilter === "week" ? "active" : ""}`}
-            onClick={() => setDashFilter("week")}
-          >
-            Semana
-          </button>
-
-          <button
-            className={`pgDashFilter ${dashFilter === "month" ? "active" : ""}`}
-            onClick={() => setDashFilter("month")}
-          >
-            Mes
-          </button>
-
-          <button
-            className={`pgDashFilter ${dashFilter === "custom" ? "active" : ""}`}
-            onClick={() => setDashFilter("custom")}
-          >
-            Personalizado
-          </button>
+          <label className="pgDashManutMonthPicker">
+            <span>Mês</span>
+            <input
+              type="month"
+              value={dashManutMonth}
+              onChange={(e) => setDashManutMonth(e.target.value)}
+            />
+          </label>
 
           <button
             className="pgBtn pgBtnGhost"
-            onClick={() => fetchDashboardAnalytics()}
+            onClick={() => fetchDashManutAnalytics()}
             style={{ marginLeft: 8 }}
           >
-            {dashboardLoading ? "Atualizando..." : "Atualizar"}
+            {dashManutLoading ? "Atualizando..." : "Atualizar"}
           </button>
 
           <button
@@ -4653,71 +4842,9 @@ const limparLista = (lista) =>
         </div>
       </section>
 
-      {dashFilter === "custom" && (
-        <section className="pgPanel" style={{ marginTop: 0 }}>
-          <div className="pgPanelHeader">
-            <div>
-              <div className="pgPanelTitle">Periodo personalizado</div>
-            </div>
-
-            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <div className="pgTiny">De</div>
-                <input
-                  type="date"
-                  value={histFrom}
-                  onChange={(e) => setHistFrom(e.target.value)}
-                  className="pgInput"
-                />
-              </div>
-
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <div className="pgTiny">Ate</div>
-                <input
-                  type="date"
-                  value={histTo}
-                  onChange={(e) => setHistTo(e.target.value)}
-                  className="pgInput"
-                />
-              </div>
-
-              <button
-                className="pgBtn pgBtnGhost"
-                onClick={async () => {
-                  const today = isoDay(new Date());
-
-                  setHistFrom("");
-                  setHistTo("");
-                  setDashFilter("today");
-
-                  setDashboardLoading(true);
-                  setDashboardErr("");
-
-                  try {
-                    const search = new URLSearchParams();
-                    search.set("data", today);
-                    search.set("usar_snapshot", "false");
-
-                    const r = await api.get(`/dashboard/indicadores?${search.toString()}`);
-                    setDashboardApiRaw(r.data || null);
-                  } catch (e) {
-                    setDashboardErr(getErrMsg(e));
-                    setDashboardApiRaw(null);
-                  } finally {
-                    setDashboardLoading(false);
-                  }
-                }}
-              >
-                Limpar
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {dashboardErr && (
+      {dashManutErr && (
         <div className="pgAlert pgAlertErr">
-          Erro ao atualizar DashManut: {dashboardErr}
+          Erro ao atualizar DashManut: {dashManutErr}
         </div>
       )}
 
@@ -4741,6 +4868,24 @@ const limparLista = (lista) =>
           <div className="pgDashStatLabel">CNCs com manutencao</div>
           <div className="pgDashStatValue">{dashManutData.maquinasComManut}</div>
         </div>
+      </section>
+
+      <section className="pgDashManutCharts">
+        <DashManutLineChart
+          title="Manutenção por CNC"
+          subtitle={`Horas por dia - ${dashManutChartData.periodoLabel}`}
+          days={dashManutChartData.dias}
+          series={dashManutChartData.maquinasSeries}
+          emptyText={dashManutLoading ? "Carregando manutencoes..." : "Sem manutenção registrada por CNC neste mês."}
+        />
+
+        <DashManutLineChart
+          title="Manutenção por motivo"
+          subtitle="Elétrico, mecânico e lubrificação por dia"
+          days={dashManutChartData.dias}
+          series={dashManutChartData.motivosSeries}
+          emptyText={dashManutLoading ? "Carregando manutencoes..." : "Sem manutenção registrada por motivo neste mês."}
+        />
       </section>
 
       <section className="pgDashManutGrid">

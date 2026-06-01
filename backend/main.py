@@ -922,6 +922,20 @@ def _daterange(start_date, end_date):
         d = d + timedelta(days=1)
 
 
+def _normalize_manutencao_motivo(motivo: str | None) -> str:
+    text = _normalize_match_text(motivo or "")
+
+    if "ELETR" in text:
+        return "ELETRICO"
+    if "LUB" in text:
+        return "LUBRIFICACAO"
+    if "MEC" in text:
+        return "MECANICO"
+
+    # Registros antigos de manutencao nao tinham motivo detalhado.
+    return "MECANICO"
+
+
 def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: datetime):
     """
     Cálculo central do dashboard.
@@ -1663,6 +1677,183 @@ def dashboard_indicadores(
     payload = _compute_dashboard_indicadores(conn, dt_ini_base, dt_fim_base)
     conn.close()
     return payload
+
+
+@app.get("/dashboard/manutencao")
+def dashboard_manutencao(
+    mes: str | None = Query(None, description="Mes no formato YYYY-MM"),
+):
+    """
+    Retorna a manutencao diaria do mes:
+    - series por CNC
+    - series por motivo (eletrico, mecanico, lubrificacao)
+    """
+    now_dt = datetime.now()
+    mes_ref = (mes or now_dt.strftime("%Y-%m")).strip()
+
+    if not re.match(r"^\d{4}-\d{2}$", mes_ref):
+        raise HTTPException(status_code=400, detail="Mes invalido. Use YYYY-MM.")
+
+    try:
+        ano, mes_num = [int(x) for x in mes_ref.split("-")]
+        dt_ini = datetime(ano, mes_num, 1, 0, 0, 0)
+        if mes_num == 12:
+            dt_fim_exclusive = datetime(ano + 1, 1, 1, 0, 0, 0)
+        else:
+            dt_fim_exclusive = datetime(ano, mes_num + 1, 1, 0, 0, 0)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Mes invalido. Use YYYY-MM.")
+
+    dt_fim = dt_fim_exclusive - timedelta(seconds=1)
+    dias = []
+    cur_day = dt_ini.date()
+    while cur_day < dt_fim_exclusive.date():
+        dias.append(
+            {
+                "data": cur_day.isoformat(),
+                "dia": cur_day.day,
+                "label": f"{cur_day.day:02d}",
+            }
+        )
+        cur_day = cur_day + timedelta(days=1)
+
+    day_keys = [d["data"] for d in dias]
+    motivo_defs = [
+        ("ELETRICO", "Elétrico", "#3b82f6"),
+        ("MECANICO", "Mecânico", "#f97316"),
+        ("LUBRIFICACAO", "Lubrificação", "#22c55e"),
+    ]
+
+    conn = get_conn()
+    _ensure_maquina_status_log_table(conn)
+    _ensure_maquinas_cols(conn)
+    cur = conn.cursor()
+
+    maquinas_rows = cur.execute(
+        """
+        SELECT id
+        FROM maquinas
+        WHERE id NOT IN ({})
+        ORDER BY id
+        """.format(",".join(["?"] * len(TEST_MACHINE_IDS))),
+        tuple(TEST_MACHINE_IDS),
+    ).fetchall()
+
+    maquinas_ids = [r["id"] for r in maquinas_rows]
+    per_machine = {mid: {day: 0 for day in day_keys} for mid in maquinas_ids}
+    per_motivo = {key: {day: 0 for day in day_keys} for key, _, _ in motivo_defs}
+
+    logs = cur.execute(
+        """
+        SELECT maquina_id, status, motivo, inicio_em, fim_em
+        FROM maquina_status_log
+        WHERE NOT (
+            COALESCE(fim_em, ?) <= ?
+            OR inicio_em >= ?
+        )
+        ORDER BY inicio_em
+        """,
+        (
+            now_dt.isoformat(timespec="seconds"),
+            dt_ini.isoformat(timespec="seconds"),
+            dt_fim_exclusive.isoformat(timespec="seconds"),
+        ),
+    ).fetchall()
+    conn.close()
+
+    total_seg = 0
+
+    for r in logs:
+        maquina_id = r["maquina_id"]
+        if maquina_id not in per_machine:
+            continue
+        if _dashboard_bucket_from_status(r["status"], r["motivo"]) != "manutencao":
+            continue
+
+        try:
+            seg_ini = datetime.fromisoformat(r["inicio_em"])
+            seg_fim = datetime.fromisoformat(r["fim_em"] or now_dt.isoformat(timespec="seconds"))
+        except Exception:
+            continue
+
+        seg_ini = max(seg_ini, dt_ini)
+        seg_fim = min(seg_fim, dt_fim_exclusive)
+        if seg_fim <= seg_ini:
+            continue
+
+        motivo_key = _normalize_manutencao_motivo(r["motivo"])
+        cursor_dt = seg_ini
+
+        while cursor_dt < seg_fim:
+            day_start = datetime(cursor_dt.year, cursor_dt.month, cursor_dt.day)
+            day_end = min(day_start + timedelta(days=1), seg_fim)
+            day_key = cursor_dt.date().isoformat()
+            segundos = max(0, int((day_end - cursor_dt).total_seconds()))
+
+            if day_key in per_machine[maquina_id]:
+                per_machine[maquina_id][day_key] += segundos
+            if motivo_key in per_motivo and day_key in per_motivo[motivo_key]:
+                per_motivo[motivo_key][day_key] += segundos
+
+            total_seg += segundos
+            cursor_dt = day_end
+
+    maquinas_series = []
+    for machine_id in maquinas_ids:
+        total_machine = sum(per_machine[machine_id].values())
+        maquinas_series.append(
+            {
+                "maquina": machine_id,
+                "total_min": round(total_machine / 60, 2),
+                "total_horas": round(total_machine / 3600, 2),
+                "pontos": [
+                    {
+                        "data": day,
+                        "dia": int(day[-2:]),
+                        "min": round(per_machine[machine_id][day] / 60, 2),
+                        "horas": round(per_machine[machine_id][day] / 3600, 2),
+                    }
+                    for day in day_keys
+                ],
+            }
+        )
+
+    motivos_series = []
+    for key, label, color in motivo_defs:
+        total_motivo = sum(per_motivo[key].values())
+        motivos_series.append(
+            {
+                "key": key,
+                "label": label,
+                "color": color,
+                "total_min": round(total_motivo / 60, 2),
+                "total_horas": round(total_motivo / 3600, 2),
+                "pontos": [
+                    {
+                        "data": day,
+                        "dia": int(day[-2:]),
+                        "min": round(per_motivo[key][day] / 60, 2),
+                        "horas": round(per_motivo[key][day] / 3600, 2),
+                    }
+                    for day in day_keys
+                ],
+            }
+        )
+
+    return {
+        "mes": mes_ref,
+        "data_inicio": dt_ini.date().isoformat(),
+        "data_fim": dt_fim.date().isoformat(),
+        "dias": dias,
+        "maquinas": maquinas_series,
+        "motivos": motivos_series,
+        "totals": {
+            "total_min": round(total_seg / 60, 2),
+            "total_horas": round(total_seg / 3600, 2),
+            "por_maquina": {item["maquina"]: item["total_min"] for item in maquinas_series},
+            "por_motivo": {item["key"]: item["total_min"] for item in motivos_series},
+        },
+    }
 
 
 @app.get("/dashboard/snapshots")
@@ -3547,6 +3738,7 @@ def react_fallback(full_path: str, request: Request):
         "almoxarifado",
         "agente",
         "dashboard/indicadores",
+        "dashboard/manutencao",
         "dashboard/snapshots",
         "cors-test",
         "health",

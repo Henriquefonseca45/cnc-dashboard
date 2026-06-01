@@ -2003,6 +2003,102 @@ body::after{
   box-shadow:var(--shadow);
 }
 
+.pgDashManutMonthPicker{
+  height:42px;
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  padding:0 12px;
+  border:1px solid var(--stroke);
+  border-radius:12px;
+  background:rgba(255,255,255,.70);
+  color:var(--text);
+  font-weight:900;
+}
+
+.pgDashManutMonthPicker span{
+  color:var(--muted);
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+}
+
+.pgDashManutMonthPicker input{
+  border:0;
+  background:transparent;
+  color:var(--text);
+  font:inherit;
+  outline:none;
+}
+
+.pgDashManutCharts{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:16px;
+}
+
+.pgDashManutLineCard{
+  overflow:hidden;
+}
+
+.pgDashManutLineSvg{
+  display:block;
+  width:100%;
+  min-height:280px;
+}
+
+.pgDashManutGridLine{
+  stroke:rgba(47,55,125,.16);
+  stroke-width:1;
+}
+
+.pgDashManutAxisText{
+  fill:var(--muted);
+  font-size:12px;
+  font-weight:800;
+}
+
+.pgDashManutLinePath{
+  filter:drop-shadow(0 4px 7px rgba(47,55,125,.10));
+}
+
+.pgDashManutLegend{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:10px;
+}
+
+.pgDashManutLegendItem{
+  min-height:32px;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 10px;
+  border:1px solid var(--stroke);
+  border-radius:999px;
+  background:rgba(255,255,255,.68);
+  color:var(--text);
+  font-size:12px;
+}
+
+.pgDashManutLegendItem span{
+  width:10px;
+  height:10px;
+  border-radius:999px;
+  flex:0 0 auto;
+}
+
+.pgDashManutLegendItem strong{
+  font-weight:900;
+}
+
+.pgDashManutLegendItem em{
+  color:var(--muted);
+  font-style:normal;
+  font-weight:800;
+}
+
 .pgDashManutGrid{
   display:grid;
   grid-template-columns:minmax(0, 1.55fr) minmax(300px, .75fr);
