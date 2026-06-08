@@ -1996,11 +1996,38 @@ body::after{
 }
 
 .pgDashManutStat{
+  position:relative;
+  overflow:hidden;
   background:var(--card);
   border:1px solid var(--stroke);
-  border-radius:18px;
-  padding:18px;
+  border-radius:12px;
+  padding:18px 18px 16px;
   box-shadow:var(--shadow);
+}
+
+.pgDashManutStat::before{
+  content:"";
+  position:absolute;
+  inset:0 0 auto;
+  height:4px;
+  background:#2563eb;
+}
+
+.pgDashManutStat:nth-child(2)::before{background:#7c3aed}
+.pgDashManutStat:nth-child(3)::before{background:#0ea5e9}
+.pgDashManutStat:nth-child(4)::before{background:#f59e0b}
+
+.pgDashManutStat .pgDashStatLabel{
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+
+.pgDashManutStat .pgDashStatValue{
+  margin-top:10px;
+  font-size:28px;
+  letter-spacing:-.04em;
 }
 
 .pgDashManutMonthPicker{
@@ -2033,53 +2060,99 @@ body::after{
 
 .pgDashManutCharts{
   display:grid;
-  grid-template-columns:1fr;
+  grid-template-columns:minmax(0, 1.65fr) minmax(340px, .85fr);
   gap:16px;
+  align-items:stretch;
 }
 
 .pgDashManutLineCard{
   overflow:hidden;
+  min-height:440px;
 }
 
 .pgDashManutLineSvg{
   display:block;
   width:100%;
   min-height:280px;
+  border:1px solid var(--stroke);
+  border-radius:12px;
+  background:linear-gradient(180deg, rgba(255,255,255,.38), rgba(255,255,255,.08));
 }
 
 .pgDashManutGridLine{
-  stroke:rgba(47,55,125,.16);
+  stroke:rgba(100,116,139,.20);
   stroke-width:1;
+  stroke-dasharray:3 5;
+}
+
+.pgDashManutGridLineVertical{
+  opacity:.5;
 }
 
 .pgDashManutAxisText{
   fill:var(--muted);
-  font-size:12px;
-  font-weight:800;
+  font-size:11px;
+  font-weight:700;
 }
 
 .pgDashManutLinePath{
-  filter:drop-shadow(0 4px 7px rgba(47,55,125,.10));
+  filter:drop-shadow(0 2px 3px rgba(15,23,42,.18));
+}
+
+.pgDashManutLinePoint{
+  stroke:var(--card);
+  stroke-width:2.5;
+  transition:r .15s ease;
+}
+
+.pgDashManutLinePoint:hover{
+  r:7;
+}
+
+.pgDashManutVisualValue{
+  min-width:96px;
+  padding:8px 12px;
+  border-left:3px solid #2563eb;
+  background:rgba(37,99,235,.07);
+  border-radius:0 8px 8px 0;
+  text-align:right;
+}
+
+.pgDashManutVisualValue span{
+  display:block;
+  color:var(--muted);
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+.pgDashManutVisualValue strong{
+  display:block;
+  margin-top:3px;
+  color:var(--text);
+  font-size:18px;
+  line-height:1;
 }
 
 .pgDashManutLegend{
   display:flex;
   flex-wrap:wrap;
-  gap:8px;
-  margin-top:10px;
+  gap:7px;
+  margin-top:12px;
 }
 
 .pgDashManutLegendItem{
-  min-height:32px;
+  min-height:30px;
   display:inline-flex;
   align-items:center;
   gap:8px;
-  padding:6px 10px;
-  border:1px solid var(--stroke);
-  border-radius:999px;
-  background:rgba(255,255,255,.68);
+  padding:5px 9px;
+  border:0;
+  border-radius:6px;
+  background:rgba(100,116,139,.08);
   color:var(--text);
-  font-size:12px;
+  font-size:11px;
 }
 
 .pgDashManutLegendItem span{
@@ -2097,6 +2170,148 @@ body::after{
   color:var(--muted);
   font-style:normal;
   font-weight:800;
+}
+
+.pgDashManutDonutCard{
+  min-height:440px;
+}
+
+.pgDashManutDonutLayout{
+  height:calc(100% - 54px);
+  display:grid;
+  grid-template-rows:minmax(230px, 1fr) auto;
+  gap:14px;
+}
+
+.pgDashManutDonutVisual{
+  position:relative;
+  width:min(100%, 290px);
+  margin:0 auto;
+  aspect-ratio:1;
+}
+
+.pgDashManutDonutVisual svg{
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+  filter:drop-shadow(0 12px 18px rgba(15,23,42,.10));
+}
+
+.pgDashManutDonutTrack{
+  fill:none;
+  stroke:rgba(100,116,139,.10);
+  stroke-width:42;
+}
+
+.pgDashManutDonutSlice{
+  stroke:var(--card);
+  stroke-width:2;
+  transition:filter .15s ease, transform .15s ease;
+  transform-origin:150px 150px;
+}
+
+.pgDashManutDonutSlice:hover{
+  filter:brightness(1.08) drop-shadow(0 5px 5px rgba(15,23,42,.18));
+  transform:scale(1.015);
+}
+
+.pgDashManutDonutCenter{
+  position:absolute;
+  inset:50% auto auto 50%;
+  transform:translate(-50%, -50%);
+  width:120px;
+  text-align:center;
+  pointer-events:none;
+}
+
+.pgDashManutDonutCenter span,
+.pgDashManutDonutCenter em{
+  display:block;
+  color:var(--muted);
+  font-size:10px;
+  font-style:normal;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+.pgDashManutDonutCenter strong{
+  display:block;
+  margin:4px 0;
+  color:var(--text);
+  font-size:28px;
+  line-height:1;
+  letter-spacing:-.05em;
+}
+
+.pgDashManutDonutLegend{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.pgDashManutDonutLegendRow{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:5px 12px;
+  padding:9px 10px;
+  border-bottom:1px solid var(--stroke);
+}
+
+.pgDashManutDonutLegendTop{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  min-width:0;
+}
+
+.pgDashManutDonutDot{
+  width:9px;
+  height:9px;
+  border-radius:50%;
+  flex:0 0 auto;
+}
+
+.pgDashManutDonutLegendTop strong{
+  min-width:0;
+  color:var(--text);
+  font-size:12px;
+  font-weight:800;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.pgDashManutDonutLegendTop em{
+  margin-left:auto;
+  color:var(--muted);
+  font-size:11px;
+  font-style:normal;
+  font-weight:800;
+}
+
+.pgDashManutDonutBar{
+  grid-column:1;
+  height:5px;
+  border-radius:999px;
+  background:rgba(100,116,139,.12);
+  overflow:hidden;
+}
+
+.pgDashManutDonutBar span{
+  display:block;
+  height:100%;
+  border-radius:inherit;
+}
+
+.pgDashManutDonutDuration{
+  grid-column:2;
+  grid-row:1 / span 2;
+  align-self:center;
+  color:var(--text);
+  font-size:13px;
+  font-weight:900;
 }
 
 .pgDashManutGrid{
@@ -2239,6 +2454,10 @@ body::after{
     grid-template-columns:repeat(2, minmax(180px, 1fr));
   }
 
+  .pgDashManutCharts{
+    grid-template-columns:1fr;
+  }
+
   .pgDashChartsRow{
     grid-template-columns:1fr;
   }
@@ -2293,6 +2512,28 @@ body::after{
   .pgDashManutNowCard{
     position:static;
   }
+
+  .pgDashManutLineCard,
+  .pgDashManutDonutCard{
+    min-height:auto;
+  }
+
+  .pgDashManutDonutLayout{
+    grid-template-rows:auto auto;
+  }
+
+  .pgDashManutDonutVisual{
+    width:min(100%, 240px);
+  }
+}
+
+.pgThemeDark .pgDashManutLineSvg{
+  background:linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.01));
+}
+
+.pgThemeDark .pgDashManutLegendItem,
+.pgThemeDark .pgDashManutVisualValue{
+  background:rgba(255,255,255,.05);
 }
 
 .pgChatPage{

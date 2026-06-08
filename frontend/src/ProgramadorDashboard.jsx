@@ -517,9 +517,10 @@ function DashManutLineChart({ title, subtitle, days = [], series = [], emptyText
   const chartW = width - padLeft - padRight;
   const chartH = height - padTop - padBottom;
   const safeDays = Array.isArray(days) ? days : [];
-  const safeSeries = Array.isArray(series) ? series : [];
+  const safeSeries = (Array.isArray(series) ? series : []).filter((item) => Number(item.total_min || 0) > 0);
   const values = safeSeries.flatMap((item) => (item.pontos || []).map((point) => Number(point.min || 0)));
   const maxMin = Math.max(1, ...values);
+  const totalMin = safeSeries.reduce((acc, item) => acc + Number(item.total_min || 0), 0);
   const hasData = values.some((value) => value > 0);
   const labelStep = Math.max(1, Math.ceil((safeDays.length || 1) / 10));
 
@@ -536,6 +537,10 @@ function DashManutLineChart({ title, subtitle, days = [], series = [], emptyText
         <div>
           <div className="pgDashChartTitle">{title}</div>
           {subtitle && <div className="pgDashChartSubTitle">{subtitle}</div>}
+        </div>
+        <div className="pgDashManutVisualValue">
+          <span>Total</span>
+          <strong>{fmtHoursHuman(totalMin)}</strong>
         </div>
       </div>
 
@@ -561,9 +566,12 @@ function DashManutLineChart({ title, subtitle, days = [], series = [], emptyText
               if (idx % labelStep !== 0 && idx !== safeDays.length - 1) return null;
               const x = xFor(idx);
               return (
-                <text key={`x-${day.data || idx}`} x={x} y={height - 16} textAnchor="middle" className="pgDashManutAxisText">
-                  {day.label || day.dia || idx + 1}
-                </text>
+                <g key={`x-${day.data || idx}`}>
+                  <line x1={x} y1={padTop} x2={x} y2={height - padBottom} className="pgDashManutGridLine pgDashManutGridLineVertical" />
+                  <text x={x} y={height - 16} textAnchor="middle" className="pgDashManutAxisText">
+                    {day.label || day.dia || idx + 1}
+                  </text>
+                </g>
               );
             })}
 
@@ -575,16 +583,31 @@ function DashManutLineChart({ title, subtitle, days = [], series = [], emptyText
                 .join(" ");
 
               return (
-                <path
-                  key={item.key || item.maquina || item.label}
-                  d={path}
-                  fill="none"
-                  stroke={item.color || "#4a6fff"}
-                  strokeWidth="4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="pgDashManutLinePath"
-                />
+                <g key={item.key || item.maquina || item.label}>
+                  <path
+                    d={path}
+                    fill="none"
+                    stroke={item.color || "#4a6fff"}
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="pgDashManutLinePath"
+                  />
+                  {lineValues.map((value, idx) =>
+                    value > 0 ? (
+                      <circle
+                        key={`${item.key || item.maquina || item.label}-${safeDays[idx]?.data || idx}`}
+                        cx={xFor(idx)}
+                        cy={yFor(value)}
+                        r="4.5"
+                        fill={item.color || "#4a6fff"}
+                        className="pgDashManutLinePoint"
+                      >
+                        <title>{`${item.label || item.maquina}: ${fmtSetupDuration(value)} - ${safeDays[idx]?.label || safeDays[idx]?.dia || idx + 1}`}</title>
+                      </circle>
+                    ) : null
+                  )}
+                </g>
               );
             })}
           </svg>
@@ -599,6 +622,81 @@ function DashManutLineChart({ title, subtitle, days = [], series = [], emptyText
             ))}
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+function DashManutDonutChart({ title, subtitle, series = [], emptyText = "Sem dados." }) {
+  const safeSeries = (Array.isArray(series) ? series : [])
+    .filter((item) => Number(item.total_min || 0) > 0)
+    .slice()
+    .sort((a, b) => Number(b.total_min || 0) - Number(a.total_min || 0));
+  const totalMin = safeSeries.reduce((acc, item) => acc + Number(item.total_min || 0), 0);
+  let currentAngle = 0;
+  const segments = safeSeries.map((item) => {
+    const span = totalMin > 0 ? (Number(item.total_min || 0) / totalMin) * 360 : 0;
+    const gap = Math.min(2.5, span * 0.12);
+    const segment = {
+      ...item,
+      startAngle: currentAngle + gap / 2,
+      endAngle: currentAngle + span - gap / 2,
+      percent: pct(Number(item.total_min || 0), totalMin),
+    };
+    currentAngle += span;
+    return segment;
+  });
+
+  return (
+    <div className="pgDashChartCard pgDashManutDonutCard">
+      <div className="pgDashChartHeader">
+        <div>
+          <div className="pgDashChartTitle">{title}</div>
+          {subtitle && <div className="pgDashChartSubTitle">{subtitle}</div>}
+        </div>
+      </div>
+
+      {segments.length === 0 ? (
+        <div className="pgEmpty">{emptyText}</div>
+      ) : (
+        <div className="pgDashManutDonutLayout">
+          <div className="pgDashManutDonutVisual">
+            <svg viewBox="0 0 300 300" role="img" aria-label={title}>
+              <circle cx="150" cy="150" r="110" className="pgDashManutDonutTrack" />
+              {segments.map((item) => (
+                <path
+                  key={item.key || item.label}
+                  d={describeArc(150, 150, 112, 70, item.startAngle, item.endAngle)}
+                  fill={item.color || "#4a6fff"}
+                  className="pgDashManutDonutSlice"
+                >
+                  <title>{`${item.label}: ${fmtHoursHuman(item.total_min)} (${item.percent}%)`}</title>
+                </path>
+              ))}
+            </svg>
+            <div className="pgDashManutDonutCenter">
+              <span>Total</span>
+              <strong>{fmtHoursHuman(totalMin)}</strong>
+              <em>no período</em>
+            </div>
+          </div>
+
+          <div className="pgDashManutDonutLegend">
+            {segments.map((item) => (
+              <div key={`legend-${item.key || item.label}`} className="pgDashManutDonutLegendRow">
+                <div className="pgDashManutDonutLegendTop">
+                  <span className="pgDashManutDonutDot" style={{ background: item.color || "#4a6fff" }} />
+                  <strong>{item.label}</strong>
+                  <em>{item.percent}%</em>
+                </div>
+                <div className="pgDashManutDonutBar">
+                  <span style={{ width: `${item.percent}%`, background: item.color || "#4a6fff" }} />
+                </div>
+                <div className="pgDashManutDonutDuration">{fmtHoursHuman(item.total_min)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -4844,8 +4942,8 @@ const limparLista = (lista) =>
     <section className="pgDashBoardLike pgDashManutPage">
       <section className="pgDashTopBarLike">
         <div>
-          <div className="pgDashTopTitle">DashManut</div>
-          <div className="pgTiny">Controle do status de manutencao por CNC</div>
+          <div className="pgDashTopTitle">Dashboard de Manutenção</div>
+          <div className="pgTiny">Visão executiva de ocorrências, duração e disponibilidade das CNCs</div>
         </div>
 
         <div className="pgDashTopFilters">
@@ -4907,17 +5005,16 @@ const limparLista = (lista) =>
 
       <section className="pgDashManutCharts">
         <DashManutLineChart
-          title="Manutenção por CNC"
-          subtitle={`Horas por dia - ${dashManutChartData.periodoLabel}`}
+          title="Tendência diária por CNC"
+          subtitle={`Tempo de manutenção por dia - ${dashManutChartData.periodoLabel}`}
           days={dashManutChartData.dias}
           series={dashManutChartData.maquinasSeries}
           emptyText={dashManutLoading ? "Carregando manutencoes..." : "Sem manutenção registrada por CNC neste mês."}
         />
 
-        <DashManutLineChart
-          title="Manutenção por motivo"
-          subtitle="Elétrico, mecânico e lubrificação por dia"
-          days={dashManutChartData.dias}
+        <DashManutDonutChart
+          title="Distribuição por motivo"
+          subtitle="Participação no tempo total de manutenção"
           series={dashManutChartData.motivosSeries}
           emptyText={dashManutLoading ? "Carregando manutencoes..." : "Sem manutenção registrada por motivo neste mês."}
         />
