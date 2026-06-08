@@ -712,6 +712,8 @@ def _infer_motivo_from_status(status: str) -> str | None:
         return "MANUTENCAO"
     if "EMPILH" in s:
         return "FALTA MATERIAL"
+    if "OPERADOR" in s:
+        return "FALTA OPERADOR"
     if "PROG" in s:
         return "PROGRAMACAO"
     if "REUNIA" in s:
@@ -846,6 +848,7 @@ def _status_is_indisponivel(status: str) -> bool:
         "REUNIA",
         "SETUP",
         "OCIOS",
+        "OPERADOR",
     ]
     return any(t in s for t in termos)
 
@@ -872,6 +875,8 @@ def _dashboard_bucket_from_status(status: str, motivo: str | None = None) -> str
         return "falta_material"
     if "EMPILH" in txt:
         return "falta_material"
+    if "OPERADOR" in txt:
+        return "falta_operador"
     if "PROG" in txt:
         return "programacao"
     if "REUNIA" in txt:
@@ -971,6 +976,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
         "setup",
         "manutencao",
         "falta_material",
+        "falta_operador",
         "programacao",
         "reuniao",
         "refeicao",
@@ -1064,6 +1070,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
     tempo_parado_seg = (
         totals["manutencao"]
         + totals["falta_material"]
+        + totals["falta_operador"]
         + totals["reuniao"]
         + totals["refeicao"]
         + totals["desligada"]
@@ -1092,6 +1099,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
                 "setup": totals["setup"],
                 "manutencao": totals["manutencao"],
                 "falta_material": totals["falta_material"],
+                "falta_operador": totals["falta_operador"],
                 "programacao": totals["programacao"],
                 "reuniao": totals["reuniao"],
                 "refeicao": totals["refeicao"],
@@ -1125,6 +1133,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
             (
                 item["manutencao"]
                 + item["falta_material"]
+                + item["falta_operador"]
                 + item["reuniao"]
                 + item["refeicao"]
                 + item["desligada"]
@@ -1154,6 +1163,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
                 "programacao_min": programacao_min,
                 "manutencao_min": round(item["manutencao"] / 60, 2),
                 "falta_material_min": round(item["falta_material"] / 60, 2),
+                "falta_operador_min": round(item["falta_operador"] / 60, 2),
                 "falta_material_medio_min": falta_material_medio_machine_min,
                 "total_falta_material": falta_material_count,
                 "reuniao_min": round(item["reuniao"] / 60, 2),

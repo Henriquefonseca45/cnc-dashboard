@@ -91,6 +91,7 @@
       const s = U(status);
       if (s.includes("USIN") || s.includes("CORT") || s.includes("EXEC")) return "pill ok";
       if (s.includes("MANUT")) return "pill mid";
+      if (s.includes("OPERADOR")) return "pill bad";
       if (s.includes("PAR")) return "pill bad";
       if (s.includes("OCIOS")) return "pill warn";
       return "pill";
@@ -118,7 +119,7 @@
       for(const m of maquinas){
         const st = U(m.status);
         if (st.includes("USIN") || st.includes("CORT") || st.includes("EXEC")) usin++;
-        else if (st.includes("PAR")) {
+        else if (st.includes("PAR") || st.includes("OPERADOR")) {
           // se você tiver uma forma de diferenciar programada/não programada, dá pra ajustar aqui
           // por enquanto: tudo que é PARADA vai para "não programada"
           pnp++;

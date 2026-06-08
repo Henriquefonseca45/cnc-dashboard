@@ -43,6 +43,7 @@ function badgeTone(status = "") {
   const s = U(status);
   if (s.includes("USIN") || s.includes("CORT")) return "tone-green";
   if (s.includes("MANUT")) return "tone-purple";
+  if (s.includes("OPERADOR")) return "tone-red";
   if (s.includes("PAR")) return "tone-red";
   if (s.includes("OCIOS")) return "tone-amber";
   return "tone-gray";
@@ -677,6 +678,7 @@ function dashboardBucket(status = "") {
   if (s.includes("MANUT")) return "manutencao";
   if ((s.includes("AGUAR") || s.includes("AGUARD")) && (s.includes("EMPILH") || s.includes("EMPILHADEIRA")))
     return "falta_material";
+  if (s.includes("OPERADOR")) return "falta_operador";
   if (s.includes("PROG")) return "programacao";
   if (s.includes("REUNIA") || s.includes("REUNIAO")) return "reuniao";
   if (s.includes("REFEI")) return "refeicao";
@@ -696,6 +698,8 @@ function bucketLabel(bucket) {
       return "Manutenção";
     case "falta_material":
       return "Aguardando material";
+    case "falta_operador":
+      return "Falta de operador";
     case "programacao":
       return "Programação";
     case "reuniao":
@@ -1000,6 +1004,7 @@ function extractMachineReasonRows(raw, machineId) {
       { bucket: "setup", min: Number(perMachine.setup_min || 0) },
       { bucket: "manutencao", min: Number(perMachine.manutencao_min || 0) },
       { bucket: "falta_material", min: Number(perMachine.falta_material_min || 0) },
+      { bucket: "falta_operador", min: Number(perMachine.falta_operador_min || 0) },
       { bucket: "programacao", min: Number(perMachine.programacao_min || 0) },
       { bucket: "reuniao", min: Number(perMachine.reuniao_min || 0) },
       { bucket: "refeicao", min: Number(perMachine.refeicao_min || 0) },
@@ -1045,6 +1050,7 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
       setupMedioMin: Number(item.setup_medio_min || 0),
       totalSetups: Number(item.total_setups || 0),
       faltaMaterialMin: Number(item.falta_material_min || 0),
+      faltaOperadorMin: Number(item.falta_operador_min || 0),
       faltaMaterialMedioMin: Number(item.falta_material_medio_min || 0),
       totalFaltaMaterial: Number(item.total_falta_material || 0),
       manutencaoMin: Number(item.manutencao_min || 0),
@@ -1061,6 +1067,7 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
     setup: Number(totalsObj.setup?.tempo_min || 0),
     manutencao: Number(totalsObj.manutencao?.tempo_min || 0),
     falta_material: Number(totalsObj.falta_material?.tempo_min || 0),
+    falta_operador: Number(totalsObj.falta_operador?.tempo_min || 0),
     programacao: Number(totalsObj.programacao?.tempo_min || 0),
     reuniao: Number(totalsObj.reuniao?.tempo_min || 0),
     refeicao: Number(totalsObj.refeicao?.tempo_min || 0),
@@ -1117,6 +1124,7 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
     tempoParadoMin:
       Number(totals.manutencao || 0) +
       Number(totals.falta_material || 0) +
+      Number(totals.falta_operador || 0) +
       Number(totals.ociosa || 0) +
       Number(totals.reuniao || 0) +
       Number(totals.refeicao || 0) +
@@ -2289,7 +2297,12 @@ async function exportarPDF() {
         continue;
       }
 
-      if (s.includes("MANUT") || (s.includes("AGUAR") && s.includes("EMPILH")) || s.includes("OCIOS")) {
+      if (
+        s.includes("MANUT") ||
+        (s.includes("AGUAR") && s.includes("EMPILH")) ||
+        s.includes("OCIOS") ||
+        s.includes("OPERADOR")
+      ) {
         paradaNaoProgramada++;
         continue;
       }
@@ -2307,7 +2320,12 @@ async function exportarPDF() {
     const list = Array.isArray(maquinas) ? maquinas.filter(isProductionMachine) : [];
     return list.filter((m) => {
       const s = U(m?.status);
-      return s.includes("MANUT") || (s.includes("AGUAR") && s.includes("EMPILH")) || s.includes("OCIOS");
+      return (
+        s.includes("MANUT") ||
+        (s.includes("AGUAR") && s.includes("EMPILH")) ||
+        s.includes("OCIOS") ||
+        s.includes("OPERADOR")
+      );
     });
   }, [maquinas]);
 
@@ -3114,6 +3132,7 @@ const limparLista = (lista) =>
       "setup",
       "manutencao",
       "falta_material",
+      "falta_operador",
       "programacao",
       "reuniao",
       "refeicao",
@@ -3127,6 +3146,7 @@ const limparLista = (lista) =>
       setup: "#f59e0b",
       manutencao: "#8b5cf6",
       falta_material: "#ef4444",
+      falta_operador: "#dc2626",
       programacao: "#3b82f6",
       reuniao: "#06b6d4",
       refeicao: "#eab308",

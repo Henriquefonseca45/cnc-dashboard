@@ -1700,6 +1700,7 @@ export default function OperatorDashboard() {
                   <option value="REFEIÇÃO">REFEIÇÃO</option>
                   <option value="MANUTENÇÃO">MANUTENÇÃO</option>
                   <option value="AGUAR.EMPILHADEIRA">AGUAR.EMPILHADEIRA</option>
+                  <option value="FALTA DE OPERADOR">FALTA DE OPERADOR</option>
                   <option value="REUNIÃO">REUNIÃO</option>
                   <option value="TROCA CHAPA SACRIFICIO">
                     TROCA CHAPA SACRIFICIO
