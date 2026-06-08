@@ -3345,7 +3345,7 @@ const limparLista = (lista) =>
 
   return (
     <div
-      className={`pgShell ${readOnly ? "pgReadOnly" : ""} ${isVisual ? "pgVisual" : ""} ${
+      className={`pgShell festaProgramador ${readOnly ? "pgReadOnly" : ""} ${isVisual ? "pgVisual" : ""} ${
         themeMode === "light" ? "pgThemeLight" : "pgThemeDark"
       }`}
     >
@@ -3533,6 +3533,7 @@ const limparLista = (lista) =>
 
       <div className="pgTitle">
         Painel de Produção
+        <span className="festaTitleBadge">Arraia CNC</span>
         {isFacilitador && (
           <span className="pgTopChatBadge">Facilitador</span>
         )}

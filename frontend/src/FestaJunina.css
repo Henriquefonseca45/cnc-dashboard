@@ -1,0 +1,257 @@
+.festaJuninaApp {
+  --festa-red: #c83b31;
+  --festa-yellow: #f4bd32;
+  --festa-blue: #2866a8;
+  --festa-green: #3d8a56;
+  --festa-orange: #df732e;
+  --festa-purple: #79558d;
+  min-height: 100vh;
+  padding-top: 42px;
+  background: #f5ead4;
+}
+
+.festaDecor {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 70;
+  height: 54px;
+  pointer-events: none;
+  filter: drop-shadow(0 5px 6px rgba(74, 42, 21, 0.18));
+}
+
+.festaCord {
+  position: absolute;
+  inset: 0 8px auto;
+  height: 44px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-around;
+  border-top: 3px solid #6f4326;
+}
+
+.festaFlag {
+  position: relative;
+  top: -1px;
+  width: clamp(24px, 3vw, 42px);
+  height: clamp(29px, 3.7vw, 48px);
+  clip-path: polygon(0 0, 100% 0, 100% 72%, 50% 100%, 0 72%);
+  transform-origin: top center;
+  animation: festaFlagSwing 2.8s ease-in-out infinite alternate;
+  animation-delay: var(--festa-delay);
+  box-shadow: inset 0 4px rgba(255, 255, 255, 0.2);
+}
+
+.festaFlag-red { background: var(--festa-red); }
+.festaFlag-yellow { background: var(--festa-yellow); }
+.festaFlag-blue { background: var(--festa-blue); }
+.festaFlag-green { background: var(--festa-green); }
+.festaFlag-orange { background: var(--festa-orange); }
+.festaFlag-purple { background: var(--festa-purple); }
+
+.festaRibbon {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-1deg);
+  padding: 5px 18px 6px;
+  border: 2px solid #8b3d28;
+  border-radius: 5px;
+  background: linear-gradient(180deg, #fff2c9, #efd79d);
+  color: #8b3d28;
+  font: 900 12px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+  box-shadow: 0 4px 0 #9d512f, 0 8px 12px rgba(76, 38, 18, 0.18);
+}
+
+.festaTitleBadge {
+  display: inline-flex;
+  margin-left: 10px;
+  padding: 4px 9px;
+  transform: rotate(-2deg);
+  border: 1px solid rgba(139, 61, 40, 0.35);
+  border-radius: 6px;
+  background: #fff0bc;
+  color: #a3422e;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-transform: uppercase;
+  vertical-align: middle;
+  box-shadow: 0 2px 0 rgba(139, 61, 40, 0.18);
+}
+
+.festaOperatorShell {
+  background-color: #f3e8d2 !important;
+  background-image:
+    linear-gradient(rgba(200, 59, 49, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(40, 102, 168, 0.035) 1px, transparent 1px),
+    radial-gradient(circle at 12% 18%, rgba(244, 189, 50, 0.18), transparent 26%),
+    radial-gradient(circle at 88% 84%, rgba(61, 138, 86, 0.13), transparent 25%) !important;
+  background-size: 24px 24px, 24px 24px, auto, auto !important;
+}
+
+.festaOperatorTopbar {
+  top: 42px !important;
+  border-bottom-color: rgba(139, 61, 40, 0.22) !important;
+  background: rgba(255, 248, 230, 0.9) !important;
+  box-shadow: 0 5px 18px rgba(99, 52, 23, 0.08);
+}
+
+.festaOperatorCard {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(139, 61, 40, 0.2) !important;
+  background: rgba(255, 251, 240, 0.88) !important;
+  box-shadow: 0 20px 45px rgba(92, 48, 21, 0.12) !important;
+}
+
+.festaOperatorCard::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 5px;
+  background: linear-gradient(90deg, var(--festa-red), var(--festa-yellow), var(--festa-blue), var(--festa-green), var(--festa-orange), var(--festa-purple));
+}
+
+.festaOperatorStat,
+.festaOperatorRow {
+  border-color: rgba(139, 61, 40, 0.13) !important;
+  background: rgba(255, 247, 225, 0.72) !important;
+}
+
+.festaProgramador.pgShell {
+  --bg0: #eee0c4;
+  --bg1: #e6d4b4;
+  --bg2: #f8eed9;
+  --brand: #9f3e2b;
+  --brand-2: #c15731;
+  --brand-soft: rgba(159, 62, 43, 0.1);
+  --brand-soft-2: rgba(159, 62, 43, 0.16);
+  --card: rgba(255, 250, 237, 0.88);
+  --card2: rgba(255, 247, 226, 0.82);
+  --stroke: rgba(118, 67, 34, 0.16);
+  --stroke2: rgba(118, 67, 34, 0.28);
+  --text: #35291f;
+  --muted: #735f4c;
+  --muted2: #907b66;
+  --shadow: 0 20px 45px rgba(91, 48, 22, 0.12);
+  --shadow-soft: 0 10px 30px rgba(91, 48, 22, 0.1);
+  background:
+    linear-gradient(rgba(200, 59, 49, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(40, 102, 168, 0.035) 1px, transparent 1px),
+    radial-gradient(800px 500px at 15% 12%, rgba(244, 189, 50, 0.17), transparent 60%),
+    radial-gradient(800px 500px at 88% 88%, rgba(61, 138, 86, 0.12), transparent 60%),
+    linear-gradient(180deg, var(--bg2), var(--bg0) 48%, var(--bg1));
+  background-size: 24px 24px, 24px 24px, auto, auto, auto;
+}
+
+.festaProgramador .pgSidebar {
+  border-right-color: rgba(139, 61, 40, 0.2);
+  background: linear-gradient(180deg, rgba(255, 250, 235, 0.94), rgba(243, 225, 190, 0.9));
+  box-shadow: 10px 0 30px rgba(91, 48, 22, 0.1);
+}
+
+.festaProgramador .pgTopbar {
+  min-height: 64px;
+  padding: 12px 14px;
+  border: 1px solid rgba(139, 61, 40, 0.15);
+  border-radius: 16px;
+  background: rgba(255, 248, 229, 0.66);
+  box-shadow: 0 10px 28px rgba(91, 48, 22, 0.08);
+}
+
+.festaProgramador .pgKpiCard,
+.festaProgramador .pgPanel,
+.festaProgramador .pgMaint,
+.festaProgramador .pgCard {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(139, 61, 40, 0.18);
+  background: linear-gradient(180deg, rgba(255, 251, 240, 0.94), rgba(250, 238, 210, 0.88));
+  box-shadow: var(--shadow);
+}
+
+.festaProgramador .pgKpiCard::after,
+.festaProgramador .pgPanel::after {
+  content: "";
+  position: absolute;
+  right: -18px;
+  top: -18px;
+  width: 42px;
+  height: 42px;
+  transform: rotate(45deg);
+  background: var(--festa-yellow);
+  opacity: 0.65;
+}
+
+.festaProgramador .pgCard::before {
+  height: 5px;
+  background: linear-gradient(90deg, var(--festa-red), var(--festa-yellow), var(--festa-blue), var(--festa-green), var(--festa-orange));
+}
+
+.festaProgramador .pgNavActive,
+.festaProgramador .pgVisualTabBtn.active,
+.festaProgramador .pgDashFilter.active {
+  border-color: #a3422e;
+  background: linear-gradient(180deg, #bd5331, #9f3e2b);
+  color: #fff;
+  box-shadow: 0 3px 0 #78301f;
+}
+
+.festaProgramador .pgBtnPrimary {
+  border-color: #963924;
+  background: linear-gradient(180deg, #c45832, #9f3e2b);
+  box-shadow: 0 3px 0 #76301f;
+}
+
+.festaProgramador .pgKpiIcon.i-blue { background: rgba(40, 102, 168, 0.16); }
+.festaProgramador .pgKpiIcon.i-green { background: rgba(61, 138, 86, 0.16); }
+.festaProgramador .pgKpiIcon.i-amber { background: rgba(244, 189, 50, 0.2); }
+.festaProgramador .pgKpiIcon.i-purple { background: rgba(121, 85, 141, 0.16); }
+
+.festaProgramador.pgThemeDark {
+  --bg0: #211b24;
+  --bg1: #17151c;
+  --bg2: #2a2026;
+  --card: rgba(48, 38, 43, 0.92);
+  --card2: rgba(54, 42, 44, 0.88);
+  --stroke: rgba(244, 189, 50, 0.18);
+  --stroke2: rgba(244, 189, 50, 0.3);
+  --text: #fff4d6;
+  --muted: #d8c39e;
+  --muted2: #bba887;
+}
+
+.festaProgramador.pgThemeDark .pgSidebar {
+  background: linear-gradient(180deg, rgba(45, 34, 41, 0.97), rgba(31, 27, 33, 0.96));
+}
+
+.festaProgramador.pgThemeDark .pgTopbar,
+.festaProgramador.pgThemeDark .pgKpiCard,
+.festaProgramador.pgThemeDark .pgPanel,
+.festaProgramador.pgThemeDark .pgMaint,
+.festaProgramador.pgThemeDark .pgCard {
+  border-color: rgba(244, 189, 50, 0.17);
+  background: linear-gradient(180deg, rgba(55, 42, 46, 0.95), rgba(39, 32, 38, 0.92));
+}
+
+@keyframes festaFlagSwing {
+  from { transform: rotate(-2deg); }
+  to { transform: rotate(2deg); }
+}
+
+@media (max-width: 760px) {
+  .festaJuninaApp { padding-top: 34px; }
+  .festaDecor { height: 42px; }
+  .festaCord { height: 34px; }
+  .festaFlag { width: 20px; height: 28px; }
+  .festaRibbon,
+  .festaTitleBadge { display: none; }
+  .festaOperatorTopbar { top: 34px !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .festaFlag { animation: none; }
+}

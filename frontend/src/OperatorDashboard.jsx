@@ -635,7 +635,7 @@ function StatusPill({ label }) {
 
 function Shell({ children }) {
   return (
-    <div className="min-h-screen text-slate-800 bg-[#f5f6f8]">
+    <div className="festaOperatorShell min-h-screen text-slate-800 bg-[#f5f6f8]">
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[900px] h-[420px] bg-indigo-500/10 blur-[110px]" />
         <div className="absolute top-28 left-10 w-[520px] h-[320px] bg-sky-500/10 blur-[110px]" />
@@ -647,7 +647,7 @@ function Shell({ children }) {
 
 function Topbar({ onRefresh }) {
   return (
-    <div className="sticky top-0 z-20 border-b border-[rgba(47,55,125,.10)] bg-white/75 backdrop-blur">
+    <div className="festaOperatorTopbar sticky top-0 z-20 border-b border-[rgba(47,55,125,.10)] bg-white/75 backdrop-blur">
       <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <img
@@ -657,7 +657,9 @@ function Topbar({ onRefresh }) {
           />
 
           <div className="leading-tight">
-            <div className="text-lg font-semibold text-[#2f377d]">Painel do Operador</div>
+            <div className="text-lg font-semibold text-[#2f377d]">
+              Painel do Operador <span className="festaTitleBadge">Arraia CNC</span>
+            </div>
             <div className="text-xs text-slate-500">Controle CNC</div>
           </div>
         </div>
@@ -680,7 +682,7 @@ function Card({ title, right, children, className = "" }) {
   return (
     <div
       className={cn(
-        "rounded-2xl bg-white/80 border border-[rgba(47,55,125,.12)] shadow-[0_20px_45px_rgba(32,37,61,.10)] backdrop-blur",
+        "festaOperatorCard rounded-2xl bg-white/80 border border-[rgba(47,55,125,.12)] shadow-[0_20px_45px_rgba(32,37,61,.10)] backdrop-blur",
         className
       )}
     >
@@ -697,7 +699,7 @@ function Card({ title, right, children, className = "" }) {
 
 function StatBox({ icon, label, value }) {
   return (
-    <div className="rounded-2xl bg-white/70 border border-[rgba(47,55,125,.10)] p-4">
+    <div className="festaOperatorStat rounded-2xl bg-white/70 border border-[rgba(47,55,125,.10)] p-4">
       <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-slate-500">
         <span className="opacity-80">{icon}</span>
         {label}
@@ -714,7 +716,7 @@ function StatBox({ icon, label, value }) {
 
 function Row({ title, subtitle, leftIcon, right }) {
   return (
-    <div className="rounded-2xl bg-white/70 border border-[rgba(47,55,125,.10)] p-4 flex items-center justify-between gap-3">
+    <div className="festaOperatorRow rounded-2xl bg-white/70 border border-[rgba(47,55,125,.10)] p-4 flex items-center justify-between gap-3">
       <div className="flex items-center gap-3 min-w-0">
         <div className="w-10 h-10 rounded-xl bg-[rgba(47,55,125,.05)] border border-[rgba(47,55,125,.10)] flex items-center justify-center">
           {leftIcon}
