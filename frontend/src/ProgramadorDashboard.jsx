@@ -34,6 +34,21 @@ function isFilaExecutandoStatus(status) {
   return U(status) === "EM_EXECUCAO";
 }
 
+function compareFilaDisplayOrder(a, b) {
+  const priority = (item) => {
+    const status = U(item?.status);
+    if (status === "EM_EXECUCAO") return 0;
+    if (status === "BAIXADO") return 1;
+    return 2;
+  };
+
+  return (
+    priority(a) - priority(b) ||
+    Number(a?.posicao ?? 999999) - Number(b?.posicao ?? 999999) ||
+    Number(a?.id ?? 999999) - Number(b?.id ?? 999999)
+  );
+}
+
 function isNearScrollBottom(el, gap = 80) {
   if (!el) return true;
   return el.scrollHeight - el.scrollTop - el.clientHeight <= gap;
@@ -2341,7 +2356,7 @@ async function exportarPDF() {
     return (fila || [])
       .filter((it) => isFilaVivaStatus(it.status))
       .slice()
-      .sort((a, b) => (a.posicao ?? 0) - (b.posicao ?? 0));
+      .sort(compareFilaDisplayOrder);
   }, [fila]);
 
   async function exportarListaFilaParaImpressao() {
@@ -2813,7 +2828,7 @@ async function exportarPDF() {
     const aguard = filaM
       .filter((it) => isFilaVivaStatus(it.status))
       .slice()
-      .sort((a, b) => (a.posicao ?? 0) - (b.posicao ?? 0));
+      .sort(compareFilaDisplayOrder);
 
     return {
       execNome: exec?.arquivo_nome || null,

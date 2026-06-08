@@ -480,9 +480,9 @@ def _material_setup_bloqueio_detail(conn, maquina_id: str, item_id: int):
     )
 
 
-def _get_fila_programador(conn, maquina_id: str):
+def _get_fila_reindexavel(conn, maquina_id: str):
     cur = conn.cursor()
-    status_list = _fila_programador_status_list()
+    status_list = ("AGUARDANDO", "PROGRAMANDO", "BAIXADO")
     rows = cur.execute(
         f"""
         SELECT fi.id, fi.maquina_id, fi.arquivo_id, fi.posicao, fi.status, fi.criado_em,
@@ -491,7 +491,10 @@ def _get_fila_programador(conn, maquina_id: str):
         JOIN arquivos_dxf a ON a.id = fi.arquivo_id
         WHERE fi.maquina_id = ?
           AND fi.status IN ({",".join(["?"] * len(status_list))})
-        ORDER BY fi.posicao ASC, fi.id ASC
+        ORDER BY
+          CASE WHEN fi.status = 'BAIXADO' THEN 0 ELSE 1 END,
+          fi.posicao ASC,
+          fi.id ASC
         """,
         (maquina_id, *status_list),
     ).fetchall()
@@ -520,7 +523,8 @@ def _reindex_fila(conn, maquina_id: str):
     if em_exec_id:
         cur.execute("UPDATE fila_itens SET posicao = 0 WHERE id = ?", (em_exec_id,))
 
-    fila_prog = _get_fila_programador(conn, maquina_id)
+    # BAIXADO deve continuar como o primeiro item aguardando execucao.
+    fila_prog = _get_fila_reindexavel(conn, maquina_id)
     for i, it in enumerate(fila_prog, start=1):
         cur.execute("UPDATE fila_itens SET posicao = ? WHERE id = ?", (i, it["id"]))
 
@@ -2166,7 +2170,14 @@ def get_fila_db(maquina_id: str, include_done: bool = Query(False)):
         JOIN arquivos_dxf a ON a.id = fi.arquivo_id
         WHERE fi.maquina_id = ?
           AND fi.status IN ({",".join(["?"] * len(status_list))})
-        ORDER BY fi.posicao ASC
+        ORDER BY
+          CASE
+            WHEN fi.status = 'EM_EXECUCAO' THEN 0
+            WHEN fi.status = 'BAIXADO' THEN 1
+            ELSE 2
+          END,
+          fi.posicao ASC,
+          fi.id ASC
         """,
         (maquina_id, *status_list),
     ).fetchall()
