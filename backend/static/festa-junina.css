@@ -8,15 +8,7 @@
 }
 
 body {
-  position: relative;
   padding-top: 62px !important;
-  background-color: #f3e8d2 !important;
-  background-image:
-    linear-gradient(rgba(200, 59, 49, .04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(40, 102, 168, .04) 1px, transparent 1px),
-    radial-gradient(circle at 15% 18%, rgba(244, 189, 50, .16), transparent 28%),
-    radial-gradient(circle at 88% 82%, rgba(61, 138, 86, .14), transparent 28%) !important;
-  background-size: 24px 24px, 24px 24px, auto, auto !important;
 }
 
 body::before {
@@ -39,7 +31,7 @@ body::before {
     linear-gradient(225deg, transparent 50%, var(--festa-green) 51%) 82% 0 / 42px 46px no-repeat,
     linear-gradient(135deg, transparent 50%, var(--festa-orange) 51%) 90% 0 / 42px 46px no-repeat,
     linear-gradient(#744322, #744322) center top / 100% 3px no-repeat;
-  filter: drop-shadow(0 5px 5px rgba(70, 38, 18, .2));
+  filter: drop-shadow(0 5px 5px rgba(0, 0, 0, .2));
 }
 
 body::after {
@@ -58,53 +50,6 @@ body::after {
   letter-spacing: .16em;
   box-shadow: 0 4px 0 #9d512f;
   pointer-events: none;
-}
-
-.topbar,
-.top,
-.card,
-.kpi,
-.barwrap {
-  border-color: rgba(139, 61, 40, .24) !important;
-  background-color: rgba(255, 249, 232, .94) !important;
-  color: #392a20 !important;
-  box-shadow: 0 10px 24px rgba(91, 48, 22, .13) !important;
-}
-
-.card,
-.kpi,
-.barwrap {
-  position: relative;
-  overflow: hidden;
-}
-
-.card::before,
-.kpi::before,
-.barwrap::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  height: 5px;
-  background: linear-gradient(90deg, var(--festa-red), var(--festa-yellow), var(--festa-blue), var(--festa-green), var(--festa-orange));
-}
-
-h1, h2, .title, .name, .cnc {
-  color: #923b29 !important;
-}
-
-.muted, .sub, .meta, .label, .subtitle, .tv {
-  color: #735f4c !important;
-  opacity: 1 !important;
-}
-
-button, select, input, .btn, .pill, code, pre {
-  border-color: rgba(139, 61, 40, .25) !important;
-  background-color: #fff9ea !important;
-  color: #493528 !important;
-}
-
-button:hover, .btn:hover {
-  background-color: #ffedb4 !important;
 }
 
 @media (max-width: 700px) {
