@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Painel Visual - CNC</title>
+  <link rel="stylesheet" href="/static/festa-junina.css" />
+  <style>
+    body { font-family: Arial, sans-serif; margin: 18px; background:#0b1220; color:#e7eefc; }
+    .top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+    h1 { margin:0; font-size:22px; }
+    .sub { margin-top:6px; color:#9fb0d0; font-size:13px; }
+    .meta { color:#9fb0d0; font-size:12px; text-align:right; }
+
+    .kpis { margin-top:14px; display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
+    .kpi { background:#0f1b33; border:1px solid #233455; border-radius:14px; padding:14px; box-shadow: 0 8px 18px rgba(0,0,0,.25); }
+    .kpi .v { font-size:28px; font-weight:800; margin-top:6px; }
+    .kpi .l { color:#9fb0d0; font-size:12px; margin-top:4px; }
+
+    .barwrap { margin-top:14px; background:#0f1b33; border:1px solid #233455; border-radius:14px; padding:14px; }
+    .barrow { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .bar { height:10px; background:#122345; border:1px solid #2b3f66; border-radius:999px; overflow:hidden; margin-top:10px; }
+    .fill { height:100%; width:0%; background:#f5c542; }
+
+    .grid { margin-top:14px; display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:12px; }
+    .card { background:#0f1b33; border:1px solid #233455; border-radius:14px; padding:14px; box-shadow: 0 8px 18px rgba(0,0,0,.25); }
+    .row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .name { font-weight:800; font-size:16px; }
+    .pill { font-size:12px; padding:4px 10px; border-radius:999px; border:1px solid #2b3f66; background:#122345; }
+
+    .ok { border-color:#1f6f52; background:#0e2b22; }
+    .warn { border-color:#a06a1a; background:#2b1d0e; }
+    .bad { border-color:#8d2b2b; background:#2b0e0e; }
+    .mid { border-color:#5a4aa0; background:#1c1636; }
+
+    .small { color:#b9c6e6; font-size:12px; margin-top:10px; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+    .section { margin-top:12px; border-top:1px solid #233455; padding-top:10px; }
+    .label { color:#9fb0d0; font-size:11px; letter-spacing:.08em; text-transform:uppercase; margin-bottom:6px; }
+    ul { margin:0; padding-left:18px; }
+    li { margin:4px 0; color:#e7eefc; font-size:13px; }
+    .muted { color:#9fb0d0; }
+  </style>
+</head>
+
+<body>
+  <div class="top">
+    <div>
+      <h1>Painel de Produção (Visual)</h1>
+      <div class="sub">Somente visual • sem ações • atualização automática</div>
+    </div>
+    <div class="meta" id="meta">Carregando…</div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi">
+      <div class="l">Total de Máquinas</div>
+      <div class="v" id="k_total">-</div>
+    </div>
+    <div class="kpi">
+      <div class="l">USINANDO</div>
+      <div class="v" id="k_usinando">-</div>
+    </div>
+    <div class="kpi">
+      <div class="l">PARADA PROGRAMADA</div>
+      <div class="v" id="k_pp">-</div>
+    </div>
+    <div class="kpi">
+      <div class="l">PARADA NÃO PROGRAMADA</div>
+      <div class="v" id="k_pnp">-</div>
+    </div>
+  </div>
+
+  <div class="barwrap">
+    <div class="barrow">
+      <div class="label" style="margin:0">Eficiência de Produção</div>
+      <div style="font-weight:800" id="eff_txt">-</div>
+    </div>
+    <div class="bar"><div class="fill" id="eff_fill"></div></div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <script>
+    const API_BASE = ""; // mesma origem (servido pelo backend)
+
+    function U(s){ return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase(); }
+    function fmtDate(iso){
+      if(!iso) return "-";
+      try { return new Date(iso).toLocaleString(); } catch { return iso; }
+    }
+    function pillClass(status){
+      const s = U(status);
+      if (s.includes("USIN") || s.includes("CORT") || s.includes("EXEC")) return "pill ok";
+      if (s.includes("MANUT")) return "pill mid";
+      if (s.includes("OPERADOR")) return "pill bad";
+      if (s.includes("PAR")) return "pill bad";
+      if (s.includes("OCIOS")) return "pill warn";
+      return "pill";
+    }
+
+    async function jget(url){
+      const r = await fetch(url, { cache:"no-store" });
+      if(!r.ok) throw new Error(`${url} -> HTTP ${r.status}`);
+      return r.json();
+    }
+
+    function pickCurrentFromFila(fila){
+      if(!Array.isArray(fila) || fila.length === 0) return null;
+      const exec = fila.find(x => U(x.status).includes("USIN") || U(x.status).includes("CORT") || U(x.status).includes("EXEC"));
+      return exec || null;
+    }
+
+    function render(maquinas, filasById){
+      const grid = document.getElementById("grid");
+      grid.innerHTML = "";
+
+      let total = maquinas.length;
+      let usin = 0, pp = 0, pnp = 0;
+
+      for(const m of maquinas){
+        const st = U(m.status);
+        if (st.includes("USIN") || st.includes("CORT") || st.includes("EXEC")) usin++;
+        else if (st.includes("PAR") || st.includes("OPERADOR")) {
+          // se você tiver uma forma de diferenciar programada/não programada, dá pra ajustar aqui
+          // por enquanto: tudo que é PARADA vai para "não programada"
+          pnp++;
+        }
+      }
+
+      document.getElementById("k_total").textContent = total;
+      document.getElementById("k_usinando").textContent = usin;
+      document.getElementById("k_pp").textContent = pp;
+      document.getElementById("k_pnp").textContent = pnp;
+
+      const eff = total ? Math.round((usin / total) * 100) : 0;
+      document.getElementById("eff_txt").textContent = eff + "%";
+      document.getElementById("eff_fill").style.width = eff + "%";
+
+      maquinas.forEach(m => {
+        const fila = filasById[m.id] || [];
+        const cur = pickCurrentFromFila(fila);
+        const filaCount = Array.isArray(fila) ? fila.length : 0;
+
+        const el = document.createElement("div");
+        el.className = "card";
+        el.innerHTML = `
+          <div class="row">
+            <div class="name">${m.id || "-"}</div>
+            <div class="${pillClass(m.status)}">${m.status || "-"}</div>
+          </div>
+
+          <div class="small">
+            <div><span class="muted">status desde:</span> <b>${fmtDate(m.status_desde)}</b></div>
+            <div><span class="muted">fila:</span> <b>${filaCount}</b></div>
+          </div>
+
+          <div class="section">
+            <div class="label">Arquivo atual</div>
+            <div style="font-weight:700; font-size:13px;">
+              ${cur ? (cur.arquivo_nome || ("Arquivo ID " + cur.arquivo_id)) : "Nenhum arquivo em execução"}
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="label">Fila (visual)</div>
+            ${
+              filaCount === 0
+                ? `<div class="muted" style="font-size:13px;">Fila vazia.</div>`
+                : `<ul>
+                    ${fila.slice(0, 8).map(x => `
+                      <li>
+                        <span class="muted">#${x.posicao ?? "-"}</span>
+                        ${x.arquivo_nome || ("Arquivo ID " + x.arquivo_id)}
+                        <span class="muted"> • ${x.status || "-"}</span>
+                      </li>
+                    `).join("")}
+                  </ul>
+                  ${filaCount > 8 ? `<div class="muted" style="margin-top:6px; font-size:12px;">+${filaCount-8} itens…</div>` : ``}
+                `
+            }
+          </div>
+        `;
+        grid.appendChild(el);
+      });
+    }
+
+    async function load(){
+      const meta = document.getElementById("meta");
+      try{
+        meta.textContent = "Atualizando…";
+
+        const maquinasRaw = await jget(`${API_BASE}/maquinas`);
+        const maquinas = (maquinasRaw || []).filter((m) => String(m.id || "").toUpperCase() !== "CNC_TESTE");
+
+        // carrega filas (read-only)
+        const filasById = {};
+        await Promise.all((maquinas || []).map(async (m) => {
+          try {
+            // Ajuste aqui se sua rota for diferente.
+            // Pelo histórico, você já usou /fila/CNC01?include_done=false
+            const fila = await jget(`${API_BASE}/fila/${encodeURIComponent(m.id)}?include_done=false`);
+            filasById[m.id] = fila || [];
+          } catch (e) {
+            filasById[m.id] = [];
+          }
+        }));
+
+        render(maquinas || [], filasById);
+
+        meta.textContent = `API: ${location.origin} • Atualizado: ${new Date().toLocaleString()}`;
+      }catch(e){
+        meta.textContent = `Erro: ${e.message}`;
+      }
+    }
+
+    load();
+    setInterval(load, 3000);
+  </script>
+</body>
+</html>

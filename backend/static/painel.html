@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Painel do Programador - CNC</title>
+  <link rel="stylesheet" href="/static/festa-junina.css" />
+  <style>
+    body { font-family: Arial, sans-serif; margin: 16px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .card { border:1px solid #ddd; border-radius:12px; padding:14px; max-width:1100px; margin-bottom:14px; }
+    h1 { margin:0 0 8px 0; }
+    h2 { margin:0 0 10px 0; }
+    .muted { color:#666; font-size:12px; }
+    button, select, input { padding:10px 12px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+    th, td { border-bottom: 1px solid #eee; padding: 10px 8px; text-align: left; font-size: 14px; vertical-align: top; }
+    th { font-size: 12px; color:#444; }
+    .pill { display:inline-block; padding:2px 10px; border:1px solid #ddd; border-radius:999px; font-size:12px; background:#fff; }
+    .ok { border-color:#7bd; }
+    .err { border-color:#f66; }
+    .btn { cursor:pointer; }
+    pre { background:#f7f7f7; padding:10px; border-radius:10px; overflow:auto; }
+  </style>
+</head>
+<body>
+  <h1>Painel do Programador</h1>
+  <div class="muted">Backend: <span id="backendUrl"></span></div>
+
+  <div class="card">
+    <h2>1) Upload DXF</h2>
+    <div class="row">
+      <input type="file" id="fileInput" accept=".dxf" />
+      <button class="btn" id="btnUpload">Enviar</button>
+      <span class="pill" id="uploadMsg">—</span>
+    </div>
+    <div class="muted">O upload usa <code>POST /arquivos/upload</code> com <code>multipart/form-data</code> e campo <code>file</code>.</div>
+  </div>
+
+  <div class="card">
+    <h2>2) Arquivos enviados</h2>
+    <div class="row">
+      <button class="btn" id="btnRefreshArq">Atualizar lista</button>
+      <span class="pill" id="arqMsg">—</span>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:90px;">ID</th>
+          <th>Nome</th>
+          <th style="width:160px;">Status</th>
+          <th style="width:220px;">Criado em</th>
+        </tr>
+      </thead>
+      <tbody id="arqBody">
+        <tr><td colspan="4" class="muted">Carregando…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>3) Adicionar arquivo na fila</h2>
+    <div class="row">
+      <label>Máquina:
+        <select id="maqSel">
+          <option value="CNC01">CNC01</option>
+          <option value="CNC02">CNC02</option>
+          <option value="CNC03">CNC03</option>
+          <option value="CNC04">CNC04</option>
+          <option value="CNC05">CNC05</option>
+          <option value="CNC06">CNC06</option>
+          <option value="CNC07">CNC07</option>
+          <option value="CNC_TESTE">CNC TESTE</option>
+        </select>
+      </label>
+
+      <label>Arquivo ID:
+        <input id="arquivoIdInput" type="number" min="1" style="width:140px;" placeholder="ex: 23" />
+      </label>
+
+      <button class="btn" id="btnAddFila">Adicionar à fila</button>
+      <span class="pill" id="filaMsg">—</span>
+
+      <button class="btn" id="btnAbrirOperador">Abrir tela do operador</button>
+    </div>
+    <div class="muted">Adiciona com <code>POST /fila/{maquina_id}/add</code>.</div>
+  </div>
+
+  <div class="card">
+    <h2>4) Fila da máquina selecionada</h2>
+    <div class="row">
+      <button class="btn" id="btnRefreshFila">Atualizar fila</button>
+      <label class="muted"><input type="checkbox" id="chkDone" checked /> incluir finalizados</label>
+      <span class="pill" id="filaMsg2">—</span>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:90px;">Pos</th>
+          <th>Arquivo</th>
+          <th style="width:150px;">Status</th>
+          <th style="width:120px;">Fila ID</th>
+          <th style="width:120px;">Arquivo ID</th>
+        </tr>
+      </thead>
+      <tbody id="filaBody">
+        <tr><td colspan="5" class="muted">Carregando…</td></tr>
+      </tbody>
+    </table>
+
+    <div class="muted">Dica: o operador acessa <code>/ui/operador/CNCxx</code>.</div>
+  </div>
+
+  <div class="card">
+    <div class="muted">Log</div>
+    <pre id="log"></pre>
+  </div>
+
+<script>
+  const BACKEND = window.location.origin;
+  document.getElementById("backendUrl").textContent = BACKEND;
+
+  function log(msg){
+    const el = document.getElementById("log");
+    el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + el.textContent;
+  }
+
+  async function apiGet(path){
+    const r = await fetch(BACKEND + path, { headers: { "accept":"application/json" }, cache:"no-store" });
+    const t = await r.text();
+    if(!r.ok) throw new Error(t);
+    return t ? JSON.parse(t) : {};
+  }
+
+  async function apiPostJson(path, body){
+    const r = await fetch(BACKEND + path, {
+      method:"POST",
+      headers: { "accept":"application/json", "content-type":"application/json" },
+      body: JSON.stringify(body || {})
+    });
+    const t = await r.text();
+    if(!r.ok) throw new Error(t);
+    return t ? JSON.parse(t) : {};
+  }
+
+  async function refreshArquivos(){
+    const body = document.getElementById("arqBody");
+    body.innerHTML = `<tr><td colspan="4" class="muted">Carregando…</td></tr>`;
+    try{
+      const itens = await apiGet("/arquivos");
+      body.innerHTML = "";
+      if(!Array.isArray(itens) || itens.length === 0){
+        body.innerHTML = `<tr><td colspan="4" class="muted">(sem arquivos)</td></tr>`;
+        document.getElementById("arqMsg").textContent = "0 arquivos";
+        return;
+      }
+      itens.slice(0, 200).forEach(it => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${it.id}</td>
+          <td>${it.nome || "-"}</td>
+          <td>${it.status || "-"}</td>
+          <td>${it.criado_em || "-"}</td>
+        `;
+        body.appendChild(tr);
+      });
+      document.getElementById("arqMsg").textContent = `${itens.length} arquivo(s)`;
+    }catch(e){
+      document.getElementById("arqMsg").textContent = "ERRO";
+      log("ERRO arquivos: " + e.message);
+      body.innerHTML = `<tr><td colspan="4"><pre>${e.message}</pre></td></tr>`;
+    }
+  }
+
+  async function refreshFila(){
+    const mid = document.getElementById("maqSel").value;
+    const includeDone = document.getElementById("chkDone").checked;
+    const body = document.getElementById("filaBody");
+    body.innerHTML = `<tr><td colspan="5" class="muted">Carregando…</td></tr>`;
+    try{
+      const itens = await apiGet(`/fila/${mid}?include_done=${includeDone ? "true" : "false"}`);
+      body.innerHTML = "";
+      if(!Array.isArray(itens) || itens.length === 0){
+        body.innerHTML = `<tr><td colspan="5" class="muted">(fila vazia)</td></tr>`;
+        document.getElementById("filaMsg2").textContent = "fila vazia";
+        return;
+      }
+      itens.forEach(it => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${it.posicao ?? "-"}</td>
+          <td>${it.arquivo_nome ?? "-"}</td>
+          <td>${it.status ?? "-"}</td>
+          <td>${it.id ?? "-"}</td>
+          <td>${it.arquivo_id ?? "-"}</td>
+        `;
+        body.appendChild(tr);
+      });
+      document.getElementById("filaMsg2").textContent = `${itens.length} item(ns)`;
+    }catch(e){
+      document.getElementById("filaMsg2").textContent = "ERRO";
+      log("ERRO fila: " + e.message);
+      body.innerHTML = `<tr><td colspan="5"><pre>${e.message}</pre></td></tr>`;
+    }
+  }
+
+  document.getElementById("btnUpload").onclick = async () => {
+    try{
+      const f = document.getElementById("fileInput").files[0];
+      if(!f){ alert("Selecione um arquivo .dxf"); return; }
+
+      const fd = new FormData();
+      fd.append("file", f); // <-- obrigatoriamente "file"
+
+      const r = await fetch(BACKEND + "/arquivos/upload", { method:"POST", body: fd });
+      const t = await r.text();
+      if(!r.ok) throw new Error(t);
+
+      const j = t ? JSON.parse(t) : {};
+      document.getElementById("uploadMsg").className = "pill ok";
+      document.getElementById("uploadMsg").textContent = `OK (id=${j.id})`;
+      log(`Upload OK: id=${j.id} nome=${j.nome}`);
+      document.getElementById("arquivoIdInput").value = j.id || "";
+      await refreshArquivos();
+    }catch(e){
+      document.getElementById("uploadMsg").className = "pill err";
+      document.getElementById("uploadMsg").textContent = "ERRO";
+      log("ERRO upload: " + e.message);
+      alert("Erro no upload:\n" + e.message);
+    }
+  };
+
+  document.getElementById("btnRefreshArq").onclick = refreshArquivos;
+
+  document.getElementById("btnAddFila").onclick = async () => {
+    try{
+      const mid = document.getElementById("maqSel").value;
+      const arquivoId = Number(document.getElementById("arquivoIdInput").value);
+      if(!arquivoId){ alert("Informe o Arquivo ID"); return; }
+
+      const r = await apiPostJson(`/fila/${mid}/add`, { arquivo_id: arquivoId });
+      document.getElementById("filaMsg").className = "pill ok";
+      document.getElementById("filaMsg").textContent = `OK (fila_item=${r.item_id})`;
+      log(`Add fila OK: maquina=${mid} arquivo_id=${arquivoId} fila_item=${r.item_id}`);
+      await refreshFila();
+    }catch(e){
+      document.getElementById("filaMsg").className = "pill err";
+      document.getElementById("filaMsg").textContent = "ERRO";
+      log("ERRO add fila: " + e.message);
+      alert("Erro ao adicionar à fila:\n" + e.message);
+    }
+  };
+
+  document.getElementById("btnAbrirOperador").onclick = () => {
+    const mid = document.getElementById("maqSel").value;
+    window.open(`${BACKEND}/ui/operador/${mid}`, "_blank");
+  };
+
+  document.getElementById("btnRefreshFila").onclick = refreshFila;
+  document.getElementById("maqSel").onchange = refreshFila;
+  document.getElementById("chkDone").onchange = refreshFila;
+
+  refreshArquivos();
+  refreshFila();
+</script>
+</body>
+</html>

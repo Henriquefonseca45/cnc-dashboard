@@ -1,0 +1,7 @@
+{
+  "base_url": "http://192.168.17.152:18000",
+  "operator_path": "/operador/{cnc}",
+  "local_host": "127.0.0.1",
+  "local_port": 8000,
+  "idle_exit_minutes": 720
+}
