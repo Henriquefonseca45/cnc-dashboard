@@ -507,7 +507,24 @@ function fmtSetupDuration(min) {
   return `${m}min`;
 }
 
-function DashManutLineChart({ title, subtitle, days = [], series = [], emptyText = "Sem dados." }) {
+function getMonthDays(monthKey = "") {
+  const match = String(monthKey || "").match(/^(\d{4})-(\d{2})$/);
+  if (!match) return [];
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const totalDays = new Date(year, month, 0).getDate();
+
+  return Array.from({ length: totalDays }, (_, idx) => {
+    const dia = idx + 1;
+    return {
+      data: `${year}-${String(month).padStart(2, "0")}-${String(dia).padStart(2, "0")}`,
+      dia,
+      label: String(dia).padStart(2, "0"),
+    };
+  });
+}
+
+function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emptyText = "Sem dados." }) {
   const width = 920;
   const height = 320;
   const padLeft = 58;
@@ -518,21 +535,29 @@ function DashManutLineChart({ title, subtitle, days = [], series = [], emptyText
   const chartH = height - padTop - padBottom;
   const safeDays = Array.isArray(days) ? days : [];
   const safeSeries = (Array.isArray(series) ? series : []).filter((item) => Number(item.total_min || 0) > 0);
-  const values = safeSeries.flatMap((item) => (item.pontos || []).map((point) => Number(point.min || 0)));
-  const maxMin = Math.max(1, ...values);
+  const pointMaps = safeSeries.map((item) => ({
+    ...item,
+    pointByDate: new Map((item.pontos || []).map((point) => [point.data, Number(point.min || 0)])),
+  }));
+  const dayTotals = safeDays.map((day) =>
+    pointMaps.reduce((acc, item) => acc + (item.pointByDate.get(day.data) || 0), 0)
+  );
+  const maxMin = Math.max(1, ...dayTotals);
   const totalMin = safeSeries.reduce((acc, item) => acc + Number(item.total_min || 0), 0);
-  const hasData = values.some((value) => value > 0);
-  const labelStep = Math.max(1, Math.ceil((safeDays.length || 1) / 10));
+  const hasData = dayTotals.some((value) => value > 0);
+  const labelStep = 1;
+  const barGap = safeDays.length > 20 ? 3 : 6;
+  const barW = safeDays.length > 0 ? Math.max(8, (chartW - barGap * (safeDays.length - 1)) / safeDays.length) : 0;
 
   const xFor = (idx) => {
-    if (safeDays.length <= 1) return padLeft + chartW / 2;
-    return padLeft + (idx / (safeDays.length - 1)) * chartW;
+    if (safeDays.length <= 1) return padLeft + chartW / 2 - barW / 2;
+    return padLeft + idx * (barW + barGap);
   };
   const yFor = (min) => padTop + chartH - (Number(min || 0) / maxMin) * chartH;
   const yTicks = [1, 0.75, 0.5, 0.25, 0];
 
   return (
-    <div className="pgDashChartCard pgDashManutLineCard">
+    <div className="pgDashChartCard pgDashManutStackedCard">
       <div className="pgDashChartHeader">
         <div>
           <div className="pgDashChartTitle">{title}</div>
@@ -548,7 +573,7 @@ function DashManutLineChart({ title, subtitle, days = [], series = [], emptyText
         <div className="pgEmpty">{emptyText}</div>
       ) : (
         <>
-          <svg className="pgDashManutLineSvg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title}>
+          <svg className="pgDashManutStackedSvg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title}>
             {yTicks.map((tick) => {
               const value = maxMin * tick;
               const y = yFor(value);
@@ -564,7 +589,7 @@ function DashManutLineChart({ title, subtitle, days = [], series = [], emptyText
 
             {safeDays.map((day, idx) => {
               if (idx % labelStep !== 0 && idx !== safeDays.length - 1) return null;
-              const x = xFor(idx);
+              const x = xFor(idx) + barW / 2;
               return (
                 <g key={`x-${day.data || idx}`}>
                   <line x1={x} y1={padTop} x2={x} y2={height - padBottom} className="pgDashManutGridLine pgDashManutGridLineVertical" />
@@ -575,38 +600,34 @@ function DashManutLineChart({ title, subtitle, days = [], series = [], emptyText
               );
             })}
 
-            {safeSeries.map((item) => {
-              const pointByDate = new Map((item.pontos || []).map((point) => [point.data, Number(point.min || 0)]));
-              const lineValues = safeDays.map((day) => pointByDate.get(day.data) || 0);
-              const path = lineValues
-                .map((value, idx) => `${idx === 0 ? "M" : "L"} ${xFor(idx).toFixed(2)} ${yFor(value).toFixed(2)}`)
-                .join(" ");
-
+            {safeDays.map((day, idx) => {
+              let stackedMin = 0;
+              const dayTotal = dayTotals[idx] || 0;
               return (
-                <g key={item.key || item.maquina || item.label}>
-                  <path
-                    d={path}
-                    fill="none"
-                    stroke={item.color || "#4a6fff"}
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="pgDashManutLinePath"
-                  />
-                  {lineValues.map((value, idx) =>
-                    value > 0 ? (
-                      <circle
-                        key={`${item.key || item.maquina || item.label}-${safeDays[idx]?.data || idx}`}
-                        cx={xFor(idx)}
-                        cy={yFor(value)}
-                        r="4.5"
+                <g key={`bar-${day.data || idx}`}>
+                  {pointMaps.map((item) => {
+                    const value = item.pointByDate.get(day.data) || 0;
+                    if (value <= 0) return null;
+                    const yTop = yFor(stackedMin + value);
+                    const yBottom = yFor(stackedMin);
+                    const h = Math.max(1, yBottom - yTop);
+                    stackedMin += value;
+
+                    return (
+                      <rect
+                        key={`${item.key || item.label}-${day.data || idx}`}
+                        x={xFor(idx)}
+                        y={yTop}
+                        width={barW}
+                        height={h}
+                        rx="3"
                         fill={item.color || "#4a6fff"}
-                        className="pgDashManutLinePoint"
+                        className="pgDashManutStackedBar"
                       >
-                        <title>{`${item.label || item.maquina}: ${fmtSetupDuration(value)} - ${safeDays[idx]?.label || safeDays[idx]?.dia || idx + 1}`}</title>
-                      </circle>
-                    ) : null
-                  )}
+                        <title>{`${day.label || day.dia || idx + 1}: ${item.label} ${fmtSetupDuration(value)} de ${fmtSetupDuration(dayTotal)}`}</title>
+                      </rect>
+                    );
+                  })}
                 </g>
               );
             })}
@@ -3349,7 +3370,8 @@ const limparLista = (lista) =>
       MECANICO: "Mecânico",
       LUBRIFICACAO: "Lubrificação",
     };
-    const dias = Array.isArray(dashManutApiRaw?.dias) ? dashManutApiRaw.dias : [];
+    const apiDias = Array.isArray(dashManutApiRaw?.dias) ? dashManutApiRaw.dias : [];
+    const dias = apiDias.length > 0 ? apiDias : getMonthDays(dashManutApiRaw?.mes || dashManutMonth);
     const rawMaquinas = Array.isArray(dashManutApiRaw?.maquinas) ? dashManutApiRaw.maquinas : [];
     const rawMotivos = Array.isArray(dashManutApiRaw?.motivos) ? dashManutApiRaw.motivos : [];
 
@@ -5004,12 +5026,12 @@ const limparLista = (lista) =>
       </section>
 
       <section className="pgDashManutCharts">
-        <DashManutLineChart
-          title="Tendência diária por CNC"
-          subtitle={`Tempo de manutenção por dia - ${dashManutChartData.periodoLabel}`}
+        <DashManutStackedBarChart
+          title="Manutenção diária por motivo"
+          subtitle={`Barras empilhadas do dia 1 ao fim do mês - ${dashManutChartData.periodoLabel}`}
           days={dashManutChartData.dias}
-          series={dashManutChartData.maquinasSeries}
-          emptyText={dashManutLoading ? "Carregando manutencoes..." : "Sem manutenção registrada por CNC neste mês."}
+          series={dashManutChartData.motivosSeries}
+          emptyText={dashManutLoading ? "Carregando manutencoes..." : "Sem manutenção registrada por motivo neste mês."}
         />
 
         <DashManutDonutChart

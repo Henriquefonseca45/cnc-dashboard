@@ -2065,12 +2065,14 @@ body::after{
   align-items:stretch;
 }
 
-.pgDashManutLineCard{
+.pgDashManutLineCard,
+.pgDashManutStackedCard{
   overflow:hidden;
   min-height:440px;
 }
 
-.pgDashManutLineSvg{
+.pgDashManutLineSvg,
+.pgDashManutStackedSvg{
   display:block;
   width:100%;
   min-height:280px;
@@ -2107,6 +2109,15 @@ body::after{
 
 .pgDashManutLinePoint:hover{
   r:7;
+}
+
+.pgDashManutStackedBar{
+  filter:drop-shadow(0 2px 2px rgba(15,23,42,.12));
+  transition:opacity .15s ease, transform .15s ease;
+}
+
+.pgDashManutStackedBar:hover{
+  opacity:.86;
 }
 
 .pgDashManutVisualValue{
@@ -2514,6 +2525,7 @@ body::after{
   }
 
   .pgDashManutLineCard,
+  .pgDashManutStackedCard,
   .pgDashManutDonutCard{
     min-height:auto;
   }
