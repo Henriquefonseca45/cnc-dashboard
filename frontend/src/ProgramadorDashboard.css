@@ -2332,6 +2332,10 @@ body::after{
   align-items:start;
 }
 
+.pgDashManutGridNowOnly{
+  grid-template-columns:minmax(300px, 480px);
+}
+
 .pgDashManutRows,
 .pgDashManutNowList{
   display:flex;

@@ -537,10 +537,18 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
   const safeSeries = (Array.isArray(series) ? series : []).filter((item) => Number(item.total_min || 0) > 0);
   const pointMaps = safeSeries.map((item) => ({
     ...item,
-    pointByDate: new Map((item.pontos || []).map((point) => [point.data, Number(point.min || 0)])),
+    pointByDate: new Map(
+      (item.pontos || []).map((point) => [
+        point.data,
+        {
+          min: Number(point.min || 0),
+          qtd: Number(point.qtd || point.quantidade || point.ocorrencias || 0),
+        },
+      ])
+    ),
   }));
   const dayTotals = safeDays.map((day) =>
-    pointMaps.reduce((acc, item) => acc + (item.pointByDate.get(day.data) || 0), 0)
+    pointMaps.reduce((acc, item) => acc + Number(item.pointByDate.get(day.data)?.min || 0), 0)
   );
   const maxMin = Math.max(1, ...dayTotals);
   const totalMin = safeSeries.reduce((acc, item) => acc + Number(item.total_min || 0), 0);
@@ -606,8 +614,10 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
               return (
                 <g key={`bar-${day.data || idx}`}>
                   {pointMaps.map((item) => {
-                    const value = item.pointByDate.get(day.data) || 0;
+                    const point = item.pointByDate.get(day.data) || {};
+                    const value = Number(point.min || 0);
                     if (value <= 0) return null;
+                    const qtd = Number(point.qtd || 0);
                     const yTop = yFor(stackedMin + value);
                     const yBottom = yFor(stackedMin);
                     const h = Math.max(1, yBottom - yTop);
@@ -624,7 +634,7 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
                         fill={item.color || "#4a6fff"}
                         className="pgDashManutStackedBar"
                       >
-                        <title>{`${day.label || day.dia || idx + 1}: ${item.label} ${fmtSetupDuration(value)} de ${fmtSetupDuration(dayTotal)}`}</title>
+                        <title>{`${day.label || day.dia || idx + 1} - ${item.label || item.maquina}: ${qtd} ocorrencia(s), ${fmtHoursHuman(value)} de ${fmtHoursHuman(dayTotal)}`}</title>
                       </rect>
                     );
                   })}
@@ -638,7 +648,7 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
               <div key={item.key || item.maquina || item.label} className="pgDashManutLegendItem">
                 <span style={{ background: item.color || "#4a6fff" }} />
                 <strong>{item.label || item.maquina}</strong>
-                <em>{fmtSetupDuration(item.total_min || 0)}</em>
+                <em>{Number(item.total_qtd || 0)} oc. - {fmtSetupDuration(item.total_min || 0)}</em>
               </div>
             ))}
           </div>
@@ -3385,6 +3395,7 @@ const limparLista = (lista) =>
         maquina: machineId,
         label: machineId,
         color: cncColors[machineId] || "#4a6fff",
+        total_qtd: Number(item.total_qtd || 0),
         total_min: Number(item.total_min || 0),
         pontos: Array.isArray(item.pontos) ? item.pontos : [],
       };
@@ -3396,6 +3407,7 @@ const limparLista = (lista) =>
         key,
         label: item.label || motivoLabels[key] || key,
         color: item.color || motivoColors[key] || "#4a6fff",
+        total_qtd: Number(item.total_qtd || 0),
         total_min: Number(item.total_min || 0),
         pontos: Array.isArray(item.pontos) ? item.pontos : [],
       };
@@ -5027,11 +5039,11 @@ const limparLista = (lista) =>
 
       <section className="pgDashManutCharts">
         <DashManutStackedBarChart
-          title="Manutenção diária por motivo"
-          subtitle={`Barras empilhadas do dia 1 ao fim do mês - ${dashManutChartData.periodoLabel}`}
+          title="Manutenção diária por CNC"
+          subtitle={`Barras empilhadas por CNC do dia 1 ao fim do mês - ${dashManutChartData.periodoLabel}`}
           days={dashManutChartData.dias}
-          series={dashManutChartData.motivosSeries}
-          emptyText={dashManutLoading ? "Carregando manutencoes..." : "Sem manutenção registrada por motivo neste mês."}
+          series={dashManutChartData.maquinasSeries}
+          emptyText={dashManutLoading ? "Carregando manutencoes..." : "Sem manutenção registrada por CNC neste mês."}
         />
 
         <DashManutDonutChart
@@ -5042,73 +5054,7 @@ const limparLista = (lista) =>
         />
       </section>
 
-      <section className="pgDashManutGrid">
-        <div className="pgDashChartCard">
-          <div className="pgDashChartHeader">
-            <div>
-              <div className="pgDashChartTitle">Controle de manutencao por CNC</div>
-              <div className="pgDashChartSubTitle">{dashManutData.periodoLabel}</div>
-            </div>
-          </div>
-
-          <div className="pgDashManutRows">
-            {dashManutData.rows.length === 0 ? (
-              <div className="pgEmpty">Nenhuma CNC encontrada.</div>
-            ) : (
-              dashManutData.rows.map((row) => {
-                const width = Math.max(2, Math.min(100, (Number(row.manutencaoMin || 0) / dashManutData.maxManutMin) * 100));
-
-                return (
-                  <div
-                    key={row.id}
-                    className={`pgDashManutRow ${row.emManutencao ? "active" : ""}`}
-                  >
-                    <div className="pgDashManutRowTop">
-                      <div>
-                        <div className="pgDashManutMachine">{row.id}</div>
-                        <div className="pgTiny">{row.nome}</div>
-                      </div>
-
-                      <span className={`pgTone ${badgeTone(row.status)}`}>{row.status}</span>
-                    </div>
-
-                    <div className="pgDashManutBar">
-                      <span style={{ width: `${width}%` }} />
-                    </div>
-
-                    <div className="pgDashManutMeta">
-                      <div>
-                        <strong>No periodo</strong>
-                        <span>{fmtHoursHuman(row.manutencaoMin)}</span>
-                      </div>
-
-                      <div>
-                        <strong>Agora</strong>
-                        <span>{row.emManutencao ? fmtSetupDuration(row.duracaoAtualMin) : "-"}</span>
-                      </div>
-
-                      <div>
-                        <strong>Desde</strong>
-                        <span>{row.emManutencao ? fmtDate(row.statusDesde) : "-"}</span>
-                      </div>
-
-                      <div>
-                        <strong>Operador</strong>
-                        <span>{row.operador || "-"}</span>
-                      </div>
-
-                      <div>
-                        <strong>Fila</strong>
-                        <span>{row.filaCount}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
+      <section className="pgDashManutGrid pgDashManutGridNowOnly">
         <div className="pgDashChartCard pgDashManutNowCard">
           <div className="pgDashChartTitle">CNCs em manutencao agora</div>
 
