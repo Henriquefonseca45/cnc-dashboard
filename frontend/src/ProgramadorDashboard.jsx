@@ -525,8 +525,8 @@ function getMonthDays(monthKey = "") {
 }
 
 function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emptyText = "Sem dados.", compact = false, showLegend = !compact }) {
-  const width = compact ? 520 : 920;
-  const height = compact ? 230 : 320;
+  const width = compact ? 920 : 920;
+  const height = compact ? 210 : 320;
   const padLeft = compact ? 46 : 58;
   const padRight = compact ? 14 : 22;
   const padTop = compact ? 18 : 24;
@@ -5089,43 +5089,6 @@ const limparLista = (lista) =>
             series={dashManutChartData.maquinasSeries}
             emptyText={dashManutLoading ? "Carregando manutencoes..." : "Sem manutenção registrada por CNC neste mês."}
           />
-        </div>
-
-        <DashManutDonutChart
-          title="Distribuição por motivo"
-          subtitle="Participação no tempo total de manutenção"
-          series={dashManutChartData.motivosSeries}
-          emptyText={dashManutLoading ? "Carregando manutencoes..." : "Sem manutenção registrada por motivo neste mês."}
-        />
-      </section>
-
-      <section className="pgDashManutGrid pgDashManutGridNowOnly">
-        <div className="pgDashChartCard pgDashManutNowCard">
-          <div className="pgDashChartTitle">CNCs em manutencao agora</div>
-
-          {dashManutData.manutAgora.length === 0 ? (
-            <div className="pgEmpty">Nenhuma CNC em manutencao neste momento.</div>
-          ) : (
-            <div className="pgDashManutNowList">
-              {dashManutData.manutAgora.map((row) => (
-                <div key={`now-${row.id}`} className="pgDashManutNowItem">
-                  <div>
-                    <strong>{row.id}</strong>
-                    <span>{row.operador || "-"}</span>
-                  </div>
-                  <div className="pgDashManutNowTime">{fmtSetupDuration(row.duracaoAtualMin)}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="pgDashManutInfo">
-            <div className="pgDashInfoTitle">Como e contado</div>
-            <div className="pgDashInfoText">
-              Esta tela usa o status atual da maquina e o historico do periodo selecionado.
-              Entradas com status contendo <span className="pgMono">MANUT</span> entram no controle.
-            </div>
-          </div>
         </div>
       </section>
     </section>

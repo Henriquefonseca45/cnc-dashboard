@@ -2060,7 +2060,7 @@ body::after{
 
 .pgDashManutCharts{
   display:grid;
-  grid-template-columns:minmax(0, 1.9fr) minmax(260px, 320px);
+  grid-template-columns:1fr;
   gap:16px;
   align-items:start;
 }
@@ -2087,7 +2087,7 @@ body::after{
 
 .pgDashManutCncCharts{
   display:grid;
-  grid-template-columns:repeat(2, minmax(260px, 1fr));
+  grid-template-columns:1fr;
   gap:12px;
   margin-top:14px;
 }
@@ -2102,7 +2102,7 @@ body::after{
 }
 
 .pgDashManutCncChartCard .pgDashManutStackedSvg{
-  min-height:190px;
+  min-height:170px;
 }
 
 .pgDashManutCncChartCard .pgDashManutVisualValue{
