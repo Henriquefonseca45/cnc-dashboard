@@ -1956,7 +1956,7 @@ export default function OperatorDashboard() {
               </div>
 
               <div className="mt-3 text-xs text-slate-500">
-                Regra: o item só deve sair da fila quando marcar <b>Concluído</b> ou <b>Cancelado</b>.
+                Regra: o item só deve sair da fila quando marcar <b>Cortado</b> ou <b>Cancelado</b>.
               </div>
 
               {baixadoPendente && (
@@ -2111,14 +2111,6 @@ export default function OperatorDashboard() {
             >
               <Play size={16} className="text-emerald-600" />
               Usinando
-            </button>
-
-            <button
-              onClick={() => confirmarECortar(menuItem)}
-              className="w-full px-3 py-2 rounded-xl hover:bg-[rgba(47,55,125,.05)] flex items-center gap-3 text-sm text-slate-800"
-            >
-              <CheckCircle2 size={16} className="text-emerald-600" />
-              Concluído
             </button>
 
             <button

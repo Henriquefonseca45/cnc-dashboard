@@ -452,14 +452,6 @@ export default function OperatorDashboard() {
                                   Usinando
                                 </button>
 
-                                <button
-                                  onClick={() => setItemStatus(item, "CONCLUIDO")}
-                                  className="w-full px-3 py-2 rounded-xl hover:bg-white/5 flex items-center gap-3 text-sm"
-                                >
-                                  <CheckCircle2 size={16} className="text-emerald-200" />
-                                  Concluído
-                                </button>
-
                                 <div className="h-px bg-white/10 my-2" />
 
                                 <button
@@ -568,7 +560,7 @@ export default function OperatorDashboard() {
 
               <div className="mt-4 text-xs text-slate-400">
                 Regra: o item só deve sair da fila quando marcar{" "}
-                <b>Concluído</b> ou <b>Cancelado</b>.
+                <b>Cortado</b> ou <b>Cancelado</b>.
               </div>
             </Card>
           </div>
