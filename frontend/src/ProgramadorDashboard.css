@@ -2068,20 +2068,17 @@ body::after{
 .pgDashManutLineCard,
 .pgDashManutStackedCard{
   overflow:hidden;
-  min-height:0;
-  border:1px solid rgba(226,232,240,.95);
-  box-shadow:0 10px 24px rgba(15,23,42,.06);
+  min-height:440px;
 }
 
 .pgDashManutLineSvg,
 .pgDashManutStackedSvg{
   display:block;
   width:100%;
-  min-height:250px;
-  border:1px solid rgba(226,232,240,.9);
-  border-radius:10px;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.92));
+  min-height:280px;
+  border:1px solid var(--stroke);
+  border-radius:12px;
+  background:linear-gradient(180deg, rgba(255,255,255,.38), rgba(255,255,255,.08));
 }
 
 .pgDashManutCncChartsCard{
@@ -2090,15 +2087,14 @@ body::after{
 
 .pgDashManutCncCharts{
   display:grid;
-  grid-template-columns:repeat(2, minmax(320px, 1fr));
+  grid-template-columns:1fr;
   gap:12px;
   margin-top:14px;
 }
 
 .pgDashManutCncChartCard{
   min-height:0;
-  padding:12px;
-  border-radius:12px;
+  padding:14px;
 }
 
 .pgDashManutCncChartCard .pgDashChartHeader{
@@ -2106,7 +2102,7 @@ body::after{
 }
 
 .pgDashManutCncChartCard .pgDashManutStackedSvg{
-  min-height:155px;
+  min-height:170px;
 }
 
 .pgDashManutCncChartCard .pgDashManutVisualValue{
@@ -2119,43 +2115,19 @@ body::after{
 }
 
 .pgDashManutGridLine{
-  stroke:rgba(148,163,184,.22);
+  stroke:rgba(100,116,139,.20);
   stroke-width:1;
-  stroke-dasharray:2 4;
+  stroke-dasharray:3 5;
 }
 
 .pgDashManutGridLineVertical{
-  opacity:.25;
+  opacity:.5;
 }
 
 .pgDashManutAxisText{
   fill:var(--muted);
-  font-size:10px;
+  font-size:11px;
   font-weight:700;
-}
-
-.pgDashManutAxisWeekend{
-  fill:#64748b;
-  font-weight:900;
-}
-
-.pgDashManutAxisHoliday{
-  fill:#dc2626;
-  font-weight:900;
-}
-
-.pgDashManutWeekendBand{
-  fill:#f1f5f9;
-  opacity:.82;
-}
-
-.pgDashManutHolidayBand{
-  fill:#fee2e2;
-  opacity:.72;
-}
-
-.pgDashManutHolidayDot{
-  fill:#dc2626;
 }
 
 .pgDashManutLinePath{
@@ -2173,7 +2145,7 @@ body::after{
 }
 
 .pgDashManutStackedBar{
-  filter:drop-shadow(0 1px 1px rgba(15,23,42,.10));
+  filter:drop-shadow(0 2px 2px rgba(15,23,42,.12));
   transition:opacity .15s ease, transform .15s ease;
 }
 
@@ -2182,11 +2154,11 @@ body::after{
 }
 
 .pgDashManutVisualValue{
-  min-width:92px;
-  padding:7px 10px;
-  border-left:4px solid #118dff;
-  background:rgba(17,141,255,.08);
-  border-radius:4px 9px 9px 4px;
+  min-width:96px;
+  padding:8px 12px;
+  border-left:3px solid #2563eb;
+  background:rgba(37,99,235,.07);
+  border-radius:0 8px 8px 0;
   text-align:right;
 }
 
@@ -2210,42 +2182,28 @@ body::after{
 .pgDashManutLegend{
   display:flex;
   flex-wrap:wrap;
-  gap:6px;
-  margin-top:10px;
+  gap:7px;
+  margin-top:12px;
 }
 
 .pgDashManutLegendItem{
-  min-height:26px;
+  min-height:30px;
   display:inline-flex;
   align-items:center;
-  gap:7px;
-  padding:4px 8px;
+  gap:8px;
+  padding:5px 9px;
   border:0;
-  border-radius:5px;
-  background:rgba(241,245,249,.92);
+  border-radius:6px;
+  background:rgba(100,116,139,.08);
   color:var(--text);
-  font-size:10px;
+  font-size:11px;
 }
 
 .pgDashManutLegendItem span{
   width:10px;
   height:10px;
-  border-radius:2px;
+  border-radius:999px;
   flex:0 0 auto;
-}
-
-.pgDashManutCalendarLegend{
-  color:#475569;
-}
-
-.pgDashManutLegendWeekend{
-  background:#e2e8f0;
-  border:1px solid #cbd5e1;
-}
-
-.pgDashManutLegendHoliday{
-  background:#fecaca;
-  border:1px solid #f87171;
 }
 
 .pgDashManutLegendItem strong{

@@ -524,76 +524,6 @@ function getMonthDays(monthKey = "") {
   });
 }
 
-function addDays(date, days) {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
-
-function isoLocalDate(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function getEasterDate(year) {
-  const a = year % 19;
-  const b = Math.floor(year / 100);
-  const c = year % 100;
-  const d = Math.floor(b / 4);
-  const e = b % 4;
-  const f = Math.floor((b + 8) / 25);
-  const g = Math.floor((b - f + 1) / 3);
-  const h = (19 * a + b - d - g + 15) % 30;
-  const i = Math.floor(c / 4);
-  const k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h - k) % 7;
-  const m = Math.floor((a + 11 * h + 22 * l) / 451);
-  const month = Math.floor((h + l - 7 * m + 114) / 31);
-  const day = ((h + l - 7 * m + 114) % 31) + 1;
-  return new Date(year, month - 1, day);
-}
-
-function getBrazilHolidayMap(year) {
-  const easter = getEasterDate(year);
-  const entries = [
-    ["01-01", "Confraternização"],
-    ["04-21", "Tiradentes"],
-    ["05-01", "Dia do Trabalho"],
-    ["09-07", "Independência"],
-    ["10-12", "Nossa Senhora Aparecida"],
-    ["11-02", "Finados"],
-    ["11-15", "Proclamação da República"],
-    ["11-20", "Consciência Negra"],
-    ["12-25", "Natal"],
-  ].map(([md, name]) => [`${year}-${md}`, name]);
-
-  entries.push([isoLocalDate(addDays(easter, -48)), "Carnaval"]);
-  entries.push([isoLocalDate(addDays(easter, -47)), "Carnaval"]);
-  entries.push([isoLocalDate(addDays(easter, -2)), "Sexta-feira Santa"]);
-  entries.push([isoLocalDate(addDays(easter, 60)), "Corpus Christi"]);
-
-  return new Map(entries);
-}
-
-function getDashDayInfo(day) {
-  const data = String(day?.data || "");
-  const match = data.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return { isWeekend: false, isHoliday: false, holidayName: "" };
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const date = Number(match[3]);
-  const d = new Date(year, month - 1, date);
-  const weekDay = d.getDay();
-  const holidayName = getBrazilHolidayMap(year).get(data) || "";
-
-  return {
-    isWeekend: weekDay === 0 || weekDay === 6,
-    isSaturday: weekDay === 6,
-    isSunday: weekDay === 0,
-    isHoliday: Boolean(holidayName),
-    holidayName,
-  };
-}
-
 function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emptyText = "Sem dados.", compact = false, showLegend = !compact }) {
   const width = compact ? 920 : 920;
   const height = compact ? 210 : 320;
@@ -604,7 +534,6 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
   const chartW = width - padLeft - padRight;
   const chartH = height - padTop - padBottom;
   const safeDays = Array.isArray(days) ? days : [];
-  const dayInfo = safeDays.map(getDashDayInfo);
   const safeSeries = (Array.isArray(series) ? series : []).filter((item) => Number(item.total_min || 0) > 0);
   const pointMaps = safeSeries.map((item) => ({
     ...item,
@@ -653,29 +582,6 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
       ) : (
         <>
           <svg className="pgDashManutStackedSvg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title}>
-            {safeDays.map((day, idx) => {
-              const info = dayInfo[idx] || {};
-              if (!info.isWeekend && !info.isHoliday) return null;
-              const x = xFor(idx) - barGap / 2;
-              const bandW = barW + barGap;
-              return (
-                <rect
-                  key={`mark-${day.data || idx}`}
-                  x={x}
-                  y={padTop}
-                  width={bandW}
-                  height={chartH}
-                  className={info.isHoliday ? "pgDashManutHolidayBand" : "pgDashManutWeekendBand"}
-                >
-                  <title>
-                    {`${day.label || day.dia || idx + 1}: ${
-                      info.isHoliday ? `Feriado - ${info.holidayName}` : info.isSunday ? "Domingo" : "Sábado"
-                    }`}
-                  </title>
-                </rect>
-              );
-            })}
-
             {yTicks.map((tick) => {
               const value = maxMin * tick;
               const y = yFor(value);
@@ -692,23 +598,12 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
             {safeDays.map((day, idx) => {
               if (idx % labelStep !== 0 && idx !== safeDays.length - 1) return null;
               const x = xFor(idx) + barW / 2;
-              const info = dayInfo[idx] || {};
               return (
                 <g key={`x-${day.data || idx}`}>
                   <line x1={x} y1={padTop} x2={x} y2={height - padBottom} className="pgDashManutGridLine pgDashManutGridLineVertical" />
-                  <text
-                    x={x}
-                    y={height - 16}
-                    textAnchor="middle"
-                    className={[
-                      "pgDashManutAxisText",
-                      info.isWeekend ? "pgDashManutAxisWeekend" : "",
-                      info.isHoliday ? "pgDashManutAxisHoliday" : "",
-                    ].filter(Boolean).join(" ")}
-                  >
+                  <text x={x} y={height - 16} textAnchor="middle" className="pgDashManutAxisText">
                     {day.label || day.dia || idx + 1}
                   </text>
-                  {info.isHoliday && <circle cx={x} cy={height - 27} r="2.8" className="pgDashManutHolidayDot" />}
                 </g>
               );
             })}
@@ -739,12 +634,7 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
                         fill={item.color || "#4a6fff"}
                         className="pgDashManutStackedBar"
                       >
-                        <title>{`${day.label || day.dia || idx + 1} - ${item.label || item.maquina}: ${qtd} ocorrencia(s), ${fmtHoursHuman(value)} de ${fmtHoursHuman(dayTotal)}${
-                          (dayInfo[idx]?.isHoliday && ` | Feriado: ${dayInfo[idx].holidayName}`) ||
-                          (dayInfo[idx]?.isSunday && " | Domingo") ||
-                          (dayInfo[idx]?.isSaturday && " | Sábado") ||
-                          ""
-                        }`}</title>
+                        <title>{`${day.label || day.dia || idx + 1} - ${item.label || item.maquina}: ${qtd} ocorrencia(s), ${fmtHoursHuman(value)} de ${fmtHoursHuman(dayTotal)}`}</title>
                       </rect>
                     );
                   })}
@@ -754,14 +644,6 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
           </svg>
 
           {showLegend && <div className="pgDashManutLegend">
-            <div className="pgDashManutLegendItem pgDashManutCalendarLegend">
-              <span className="pgDashManutLegendWeekend" />
-              <strong>Fim de semana</strong>
-            </div>
-            <div className="pgDashManutLegendItem pgDashManutCalendarLegend">
-              <span className="pgDashManutLegendHoliday" />
-              <strong>Feriado</strong>
-            </div>
             {safeSeries.map((item) => (
               <div key={item.key || item.maquina || item.label} className="pgDashManutLegendItem">
                 <span style={{ background: item.color || "#4a6fff" }} />
