@@ -1696,6 +1696,9 @@ def dashboard_indicadores(
 @app.get("/dashboard/manutencao")
 def dashboard_manutencao(
     mes: str | None = Query(None, description="Mes no formato YYYY-MM"),
+    data: str | None = Query(None, description="Data unica no formato YYYY-MM-DD"),
+    data_inicio: str | None = Query(None, description="Data inicial no formato YYYY-MM-DD"),
+    data_fim: str | None = Query(None, description="Data final no formato YYYY-MM-DD"),
 ):
     """
     Retorna a manutencao diaria do mes:
@@ -1703,20 +1706,36 @@ def dashboard_manutencao(
     - series por motivo (eletrico, mecanico, lubrificacao)
     """
     now_dt = datetime.now()
-    mes_ref = (mes or now_dt.strftime("%Y-%m")).strip()
-
-    if not re.match(r"^\d{4}-\d{2}$", mes_ref):
-        raise HTTPException(status_code=400, detail="Mes invalido. Use YYYY-MM.")
 
     try:
-        ano, mes_num = [int(x) for x in mes_ref.split("-")]
-        dt_ini = datetime(ano, mes_num, 1, 0, 0, 0)
-        if mes_num == 12:
-            dt_fim_exclusive = datetime(ano + 1, 1, 1, 0, 0, 0)
+        if data:
+            dia = datetime.fromisoformat(data.strip()).date()
+            dt_ini = datetime(dia.year, dia.month, dia.day, 0, 0, 0)
+            dt_fim_exclusive = dt_ini + timedelta(days=1)
+            periodo_ref = dia.isoformat()
+        elif data_inicio or data_fim:
+            ini_raw = (data_inicio or data_fim or "").strip()
+            fim_raw = (data_fim or data_inicio or "").strip()
+            dia_ini = datetime.fromisoformat(ini_raw).date()
+            dia_fim = datetime.fromisoformat(fim_raw).date()
+            if dia_fim < dia_ini:
+                dia_ini, dia_fim = dia_fim, dia_ini
+            dt_ini = datetime(dia_ini.year, dia_ini.month, dia_ini.day, 0, 0, 0)
+            dt_fim_exclusive = datetime(dia_fim.year, dia_fim.month, dia_fim.day, 0, 0, 0) + timedelta(days=1)
+            periodo_ref = f"{dia_ini.isoformat()} a {dia_fim.isoformat()}"
         else:
-            dt_fim_exclusive = datetime(ano, mes_num + 1, 1, 0, 0, 0)
+            mes_ref = (mes or now_dt.strftime("%Y-%m")).strip()
+            if not re.match(r"^\d{4}-\d{2}$", mes_ref):
+                raise ValueError("Mes invalido")
+            ano, mes_num = [int(x) for x in mes_ref.split("-")]
+            dt_ini = datetime(ano, mes_num, 1, 0, 0, 0)
+            if mes_num == 12:
+                dt_fim_exclusive = datetime(ano + 1, 1, 1, 0, 0, 0)
+            else:
+                dt_fim_exclusive = datetime(ano, mes_num + 1, 1, 0, 0, 0)
+            periodo_ref = mes_ref
     except Exception:
-        raise HTTPException(status_code=400, detail="Mes invalido. Use YYYY-MM.")
+        raise HTTPException(status_code=400, detail="Periodo invalido. Use YYYY-MM ou YYYY-MM-DD.")
 
     dt_fim = dt_fim_exclusive - timedelta(seconds=1)
     dias = []
@@ -1900,7 +1919,7 @@ def dashboard_manutencao(
         )
 
     return {
-        "mes": mes_ref,
+        "mes": periodo_ref,
         "data_inicio": dt_ini.date().isoformat(),
         "data_fim": dt_fim.date().isoformat(),
         "dias": dias,

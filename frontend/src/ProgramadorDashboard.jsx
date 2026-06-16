@@ -1392,7 +1392,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const [dashboardApiRaw, setDashboardApiRaw] = useState(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardErr, setDashboardErr] = useState("");
-  const [dashManutMonth, setDashManutMonth] = useState(() => monthValue(new Date()));
+  const dashManutMonth = monthValue(new Date());
   const [dashManutApiRaw, setDashManutApiRaw] = useState(null);
   const [dashManutLoading, setDashManutLoading] = useState(false);
   const [dashManutErr, setDashManutErr] = useState("");
@@ -2045,7 +2045,11 @@ async function exportarPDF() {
 
     try {
       const search = new URLSearchParams();
-      if (dashManutMonth) search.set("mes", dashManutMonth);
+      const params = buildDashboardParams(dashFilter, histFrom, histTo, nowTick);
+
+      if (params.data) search.set("data", params.data);
+      if (params.data_inicio) search.set("data_inicio", params.data_inicio);
+      if (params.data_fim) search.set("data_fim", params.data_fim);
 
       const r = await api.get(`/dashboard/manutencao?${search.toString()}`);
       setDashManutApiRaw(r.data || null);
@@ -2427,7 +2431,7 @@ async function exportarPDF() {
   useEffect(() => {
     if (!isVisual || visualTab !== "dashmanut") return;
     fetchDashManutAnalytics();
-  }, [isVisual, visualTab, dashManutMonth]);
+  }, [isVisual, visualTab, dashFilter, histFrom, histTo]);
 
   useEffect(() => {
     if (!isVisual || visualTab !== "dashmanut") return;
@@ -2435,7 +2439,7 @@ async function exportarPDF() {
       fetchDashManutAnalytics({ silent: true });
     }, 30000);
     return () => clearInterval(t);
-  }, [isVisual, visualTab, dashManutMonth]);
+  }, [isVisual, visualTab, dashFilter, histFrom, histTo]);
 
   const kpis = useMemo(() => {
     const list = Array.isArray(maquinas) ? maquinas.filter(isProductionMachine) : [];
@@ -5018,14 +5022,33 @@ const limparLista = (lista) =>
         </div>
 
         <div className="pgDashTopFilters">
-          <label className="pgDashManutMonthPicker">
-            <span>Mês</span>
-            <input
-              type="month"
-              value={dashManutMonth}
-              onChange={(e) => setDashManutMonth(e.target.value)}
-            />
-          </label>
+          <button
+            className={`pgDashFilter ${dashFilter === "today" ? "active" : ""}`}
+            onClick={() => setDashFilter("today")}
+          >
+            Hoje
+          </button>
+
+          <button
+            className={`pgDashFilter ${dashFilter === "week" ? "active" : ""}`}
+            onClick={() => setDashFilter("week")}
+          >
+            Semana
+          </button>
+
+          <button
+            className={`pgDashFilter ${dashFilter === "month" ? "active" : ""}`}
+            onClick={() => setDashFilter("month")}
+          >
+            Mês
+          </button>
+
+          <button
+            className={`pgDashFilter ${dashFilter === "custom" ? "active" : ""}`}
+            onClick={() => setDashFilter("custom")}
+          >
+            Personalizado
+          </button>
 
           <button
             className="pgBtn pgBtnGhost"
@@ -5045,6 +5068,49 @@ const limparLista = (lista) =>
           </button>
         </div>
       </section>
+
+      {dashFilter === "custom" && (
+        <section className="pgPanel" style={{ marginTop: 0 }}>
+          <div className="pgPanelHeader">
+            <div>
+              <div className="pgPanelTitle">Período personalizado</div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div className="pgTiny">De</div>
+                <input
+                  type="date"
+                  value={histFrom}
+                  onChange={(e) => setHistFrom(e.target.value)}
+                  className="pgInput"
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div className="pgTiny">Até</div>
+                <input
+                  type="date"
+                  value={histTo}
+                  onChange={(e) => setHistTo(e.target.value)}
+                  className="pgInput"
+                />
+              </div>
+
+              <button
+                className="pgBtn pgBtnGhost"
+                onClick={() => {
+                  setHistFrom("");
+                  setHistTo("");
+                  setDashFilter("today");
+                }}
+              >
+                Limpar
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
 
       {dashManutErr && (
         <div className="pgAlert pgAlertErr">
