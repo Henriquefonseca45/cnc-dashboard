@@ -2081,6 +2081,39 @@ body::after{
   background:linear-gradient(180deg, rgba(255,255,255,.38), rgba(255,255,255,.08));
 }
 
+.pgDashManutCncChartsCard{
+  overflow:hidden;
+}
+
+.pgDashManutCncCharts{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(260px, 1fr));
+  gap:12px;
+  margin-top:14px;
+}
+
+.pgDashManutCncChartCard{
+  min-height:0;
+  padding:14px;
+}
+
+.pgDashManutCncChartCard .pgDashChartHeader{
+  margin-bottom:10px;
+}
+
+.pgDashManutCncChartCard .pgDashManutStackedSvg{
+  min-height:210px;
+}
+
+.pgDashManutCncChartCard .pgDashManutVisualValue{
+  min-width:76px;
+  padding:7px 9px;
+}
+
+.pgDashManutCncChartCard .pgDashManutVisualValue strong{
+  font-size:15px;
+}
+
 .pgDashManutGridLine{
   stroke:rgba(100,116,139,.20);
   stroke-width:1;
@@ -2470,6 +2503,10 @@ body::after{
   }
 
   .pgDashManutCharts{
+    grid-template-columns:1fr;
+  }
+
+  .pgDashManutCncCharts{
     grid-template-columns:1fr;
   }
 

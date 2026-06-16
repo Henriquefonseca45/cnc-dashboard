@@ -524,13 +524,13 @@ function getMonthDays(monthKey = "") {
   });
 }
 
-function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emptyText = "Sem dados." }) {
-  const width = 920;
-  const height = 320;
-  const padLeft = 58;
-  const padRight = 22;
-  const padTop = 24;
-  const padBottom = 46;
+function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emptyText = "Sem dados.", compact = false }) {
+  const width = compact ? 520 : 920;
+  const height = compact ? 230 : 320;
+  const padLeft = compact ? 46 : 58;
+  const padRight = compact ? 14 : 22;
+  const padTop = compact ? 18 : 24;
+  const padBottom = compact ? 34 : 46;
   const chartW = width - padLeft - padRight;
   const chartH = height - padTop - padBottom;
   const safeDays = Array.isArray(days) ? days : [];
@@ -553,9 +553,9 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
   const maxMin = Math.max(1, ...dayTotals);
   const totalMin = safeSeries.reduce((acc, item) => acc + Number(item.total_min || 0), 0);
   const hasData = dayTotals.some((value) => value > 0);
-  const labelStep = 1;
-  const barGap = safeDays.length > 20 ? 3 : 6;
-  const barW = safeDays.length > 0 ? Math.max(8, (chartW - barGap * (safeDays.length - 1)) / safeDays.length) : 0;
+  const labelStep = compact ? Math.max(1, Math.ceil((safeDays.length || 1) / 16)) : 1;
+  const barGap = compact ? 2 : safeDays.length > 20 ? 3 : 6;
+  const barW = safeDays.length > 0 ? Math.max(compact ? 5 : 8, (chartW - barGap * (safeDays.length - 1)) / safeDays.length) : 0;
 
   const xFor = (idx) => {
     if (safeDays.length <= 1) return padLeft + chartW / 2 - barW / 2;
@@ -565,7 +565,7 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
   const yTicks = [1, 0.75, 0.5, 0.25, 0];
 
   return (
-    <div className="pgDashChartCard pgDashManutStackedCard">
+    <div className={`pgDashChartCard pgDashManutStackedCard ${compact ? "pgDashManutCncChartCard" : ""}`}>
       <div className="pgDashChartHeader">
         <div>
           <div className="pgDashChartTitle">{title}</div>
@@ -643,7 +643,7 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
             })}
           </svg>
 
-          <div className="pgDashManutLegend">
+          {!compact && <div className="pgDashManutLegend">
             {safeSeries.map((item) => (
               <div key={item.key || item.maquina || item.label} className="pgDashManutLegendItem">
                 <span style={{ background: item.color || "#4a6fff" }} />
@@ -651,10 +651,36 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
                 <em>{Number(item.total_qtd || 0)} oc. - {fmtSetupDuration(item.total_min || 0)}</em>
               </div>
             ))}
-          </div>
+          </div>}
         </>
       )}
     </div>
+  );
+}
+
+function DashManutCncChartGrid({ days = [], series = [], emptyText = "Sem dados." }) {
+  const safeSeries = Array.isArray(series) ? series : [];
+
+  return (
+    <section className="pgDashManutCncCharts">
+      {safeSeries.length === 0 ? (
+        <div className="pgDashChartCard">
+          <div className="pgEmpty">{emptyText}</div>
+        </div>
+      ) : (
+        safeSeries.map((item) => (
+          <DashManutStackedBarChart
+            key={item.key || item.maquina || item.label}
+            title={item.label || item.maquina}
+            subtitle={`${Number(item.total_qtd || 0)} ocorrencia(s) - ${fmtHoursHuman(item.total_min || 0)}`}
+            days={days}
+            series={[item]}
+            compact
+            emptyText="Sem manutenção registrada nesta CNC."
+          />
+        ))
+      )}
+    </section>
   );
 }
 
@@ -5038,13 +5064,21 @@ const limparLista = (lista) =>
       </section>
 
       <section className="pgDashManutCharts">
-        <DashManutStackedBarChart
-          title="Manutenção diária por CNC"
-          subtitle={`Barras empilhadas por CNC do dia 1 ao fim do mês - ${dashManutChartData.periodoLabel}`}
-          days={dashManutChartData.dias}
-          series={dashManutChartData.maquinasSeries}
-          emptyText={dashManutLoading ? "Carregando manutencoes..." : "Sem manutenção registrada por CNC neste mês."}
-        />
+        <div className="pgDashChartCard pgDashManutCncChartsCard">
+          <div className="pgDashChartHeader">
+            <div>
+              <div className="pgDashChartTitle">Manutenção diária por CNC</div>
+              <div className="pgDashChartSubTitle">
+                Cards separados por CNC do dia 1 ao fim do mês - {dashManutChartData.periodoLabel}
+              </div>
+            </div>
+          </div>
+          <DashManutCncChartGrid
+            days={dashManutChartData.dias}
+            series={dashManutChartData.maquinasSeries}
+            emptyText={dashManutLoading ? "Carregando manutencoes..." : "Sem manutenção registrada por CNC neste mês."}
+          />
+        </div>
 
         <DashManutDonutChart
           title="Distribuição por motivo"
