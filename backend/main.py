@@ -1756,6 +1756,14 @@ def dashboard_manutencao(
     maquinas_ids = [r["id"] for r in maquinas_rows]
     per_machine = {mid: {day: 0 for day in day_keys} for mid in maquinas_ids}
     per_machine_qtd = {mid: {day: 0 for day in day_keys} for mid in maquinas_ids}
+    per_machine_motivo = {
+        mid: {key: {day: 0 for day in day_keys} for key, _, _ in motivo_defs}
+        for mid in maquinas_ids
+    }
+    per_machine_motivo_qtd = {
+        mid: {key: {day: 0 for day in day_keys} for key, _, _ in motivo_defs}
+        for mid in maquinas_ids
+    }
     per_motivo = {key: {day: 0 for day in day_keys} for key, _, _ in motivo_defs}
     per_motivo_qtd = {key: {day: 0 for day in day_keys} for key, _, _ in motivo_defs}
 
@@ -1812,6 +1820,8 @@ def dashboard_manutencao(
             if motivo_key in per_motivo and day_key in per_motivo[motivo_key]:
                 per_motivo[motivo_key][day_key] += segundos
                 per_motivo_qtd[motivo_key][day_key] += 1
+                per_machine_motivo[maquina_id][motivo_key][day_key] += segundos
+                per_machine_motivo_qtd[maquina_id][motivo_key][day_key] += 1
 
             total_seg += segundos
             cursor_dt = day_end
@@ -1820,12 +1830,37 @@ def dashboard_manutencao(
     for machine_id in maquinas_ids:
         total_machine = sum(per_machine[machine_id].values())
         total_machine_qtd = sum(per_machine_qtd[machine_id].values())
+        motivos_machine_series = []
+        for key, label, color in motivo_defs:
+            total_machine_motivo = sum(per_machine_motivo[machine_id][key].values())
+            total_machine_motivo_qtd = sum(per_machine_motivo_qtd[machine_id][key].values())
+            motivos_machine_series.append(
+                {
+                    "key": key,
+                    "label": label,
+                    "color": color,
+                    "total_qtd": int(total_machine_motivo_qtd),
+                    "total_min": round(total_machine_motivo / 60, 2),
+                    "total_horas": round(total_machine_motivo / 3600, 2),
+                    "pontos": [
+                        {
+                            "data": day,
+                            "dia": int(day[-2:]),
+                            "qtd": int(per_machine_motivo_qtd[machine_id][key][day]),
+                            "min": round(per_machine_motivo[machine_id][key][day] / 60, 2),
+                            "horas": round(per_machine_motivo[machine_id][key][day] / 3600, 2),
+                        }
+                        for day in day_keys
+                    ],
+                }
+            )
         maquinas_series.append(
             {
                 "maquina": machine_id,
                 "total_qtd": int(total_machine_qtd),
                 "total_min": round(total_machine / 60, 2),
                 "total_horas": round(total_machine / 3600, 2),
+                "motivos": motivos_machine_series,
                 "pontos": [
                     {
                         "data": day,

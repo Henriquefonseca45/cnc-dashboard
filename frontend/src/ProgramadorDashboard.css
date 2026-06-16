@@ -2060,9 +2060,9 @@ body::after{
 
 .pgDashManutCharts{
   display:grid;
-  grid-template-columns:minmax(0, 1.65fr) minmax(340px, .85fr);
+  grid-template-columns:minmax(0, 1.9fr) minmax(260px, 320px);
   gap:16px;
-  align-items:stretch;
+  align-items:start;
 }
 
 .pgDashManutLineCard,
@@ -2102,7 +2102,7 @@ body::after{
 }
 
 .pgDashManutCncChartCard .pgDashManutStackedSvg{
-  min-height:210px;
+  min-height:190px;
 }
 
 .pgDashManutCncChartCard .pgDashManutVisualValue{
@@ -2217,19 +2217,19 @@ body::after{
 }
 
 .pgDashManutDonutCard{
-  min-height:440px;
+  min-height:0;
+  align-self:start;
 }
 
 .pgDashManutDonutLayout{
-  height:calc(100% - 54px);
   display:grid;
-  grid-template-rows:minmax(230px, 1fr) auto;
-  gap:14px;
+  grid-template-rows:auto auto;
+  gap:10px;
 }
 
 .pgDashManutDonutVisual{
   position:relative;
-  width:min(100%, 290px);
+  width:min(100%, 190px);
   margin:0 auto;
   aspect-ratio:1;
 }
@@ -2264,7 +2264,7 @@ body::after{
   position:absolute;
   inset:50% auto auto 50%;
   transform:translate(-50%, -50%);
-  width:120px;
+  width:88px;
   text-align:center;
   pointer-events:none;
 }
@@ -2284,7 +2284,7 @@ body::after{
   display:block;
   margin:4px 0;
   color:var(--text);
-  font-size:28px;
+  font-size:20px;
   line-height:1;
   letter-spacing:-.05em;
 }
@@ -2292,14 +2292,14 @@ body::after{
 .pgDashManutDonutLegend{
   display:flex;
   flex-direction:column;
-  gap:10px;
+  gap:6px;
 }
 
 .pgDashManutDonutLegendRow{
   display:grid;
   grid-template-columns:1fr auto;
   gap:5px 12px;
-  padding:9px 10px;
+  padding:7px 8px;
   border-bottom:1px solid var(--stroke);
 }
 

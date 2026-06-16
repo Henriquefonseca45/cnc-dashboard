@@ -524,7 +524,7 @@ function getMonthDays(monthKey = "") {
   });
 }
 
-function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emptyText = "Sem dados.", compact = false }) {
+function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emptyText = "Sem dados.", compact = false, showLegend = !compact }) {
   const width = compact ? 520 : 920;
   const height = compact ? 230 : 320;
   const padLeft = compact ? 46 : 58;
@@ -553,7 +553,7 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
   const maxMin = Math.max(1, ...dayTotals);
   const totalMin = safeSeries.reduce((acc, item) => acc + Number(item.total_min || 0), 0);
   const hasData = dayTotals.some((value) => value > 0);
-  const labelStep = compact ? Math.max(1, Math.ceil((safeDays.length || 1) / 16)) : 1;
+  const labelStep = 1;
   const barGap = compact ? 2 : safeDays.length > 20 ? 3 : 6;
   const barW = safeDays.length > 0 ? Math.max(compact ? 5 : 8, (chartW - barGap * (safeDays.length - 1)) / safeDays.length) : 0;
 
@@ -643,7 +643,7 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
             })}
           </svg>
 
-          {!compact && <div className="pgDashManutLegend">
+          {showLegend && <div className="pgDashManutLegend">
             {safeSeries.map((item) => (
               <div key={item.key || item.maquina || item.label} className="pgDashManutLegendItem">
                 <span style={{ background: item.color || "#4a6fff" }} />
@@ -674,8 +674,9 @@ function DashManutCncChartGrid({ days = [], series = [], emptyText = "Sem dados.
             title={item.label || item.maquina}
             subtitle={`${Number(item.total_qtd || 0)} ocorrencia(s) - ${fmtHoursHuman(item.total_min || 0)}`}
             days={days}
-            series={[item]}
+            series={Array.isArray(item.motivos) && item.motivos.length > 0 ? item.motivos : [item]}
             compact
+            showLegend
             emptyText="Sem manutenção registrada nesta CNC."
           />
         ))
@@ -3424,6 +3425,16 @@ const limparLista = (lista) =>
         total_qtd: Number(item.total_qtd || 0),
         total_min: Number(item.total_min || 0),
         pontos: Array.isArray(item.pontos) ? item.pontos : [],
+        motivos: Array.isArray(item.motivos)
+          ? item.motivos.map((motivo) => ({
+              key: motivo.key,
+              label: motivo.label || motivoLabels[String(motivo.key || "").toUpperCase()] || motivo.key,
+              color: motivo.color || motivoColors[String(motivo.key || "").toUpperCase()] || "#4a6fff",
+              total_qtd: Number(motivo.total_qtd || 0),
+              total_min: Number(motivo.total_min || 0),
+              pontos: Array.isArray(motivo.pontos) ? motivo.pontos : [],
+            }))
+          : [],
       };
     });
 
