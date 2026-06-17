@@ -3709,3 +3709,10 @@ body::after{
   padding: 3px 7px !important;
   font-size: 10px !important;
 }
+.pgDashManutCncChartCard .pgDashManutStackedSvg {
+  width: 100% !important;
+  height: 280px !important;
+  min-height: 280px !important;
+  max-height: 280px !important;
+  overflow: visible !important;
+}
