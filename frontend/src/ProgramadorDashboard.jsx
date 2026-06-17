@@ -845,7 +845,244 @@ function describeArc(cx, cy, rOuter, rInner, startAngle, endAngle) {
   ].join(" ");
 }
 
-const MINUTOS_DIA_MAQUINA = 17 * 60;
+const MINUTOS_DIA_MAQUINA = 18 * 60 + 24;
+const HORARIO_PADRAO_MAQUINA_LABEL = "05:00 às 23:24";
+const MINUTOS_DIA_MAQUINA_LABEL = "18h24 / 1104 min";
+
+const BRAZIL_NATIONAL_HOLIDAYS_FIXED = new Set([
+  "01-01", // Confraternização Universal
+  "04-21", // Tiradentes
+  "05-01", // Dia do Trabalho
+  "09-07", // Independência do Brasil
+  "10-12", // Nossa Senhora Aparecida
+  "11-02", // Finados
+  "11-15", // Proclamação da República
+  "11-20", // Consciência Negra
+  "12-25", // Natal
+]);
+
+function easterDateDayKey(year) {
+  const y = Number(year);
+  if (!Number.isFinite(y) || y < 1900) return "";
+
+  const a = y % 19;
+  const b = Math.floor(y / 100);
+  const c = y % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+
+  return `${y}-${pad2(month)}-${pad2(day)}`;
+}
+
+function addDaysToDayKey(dayKey, days) {
+  const start = localDayStartMs(dayKey);
+  return localDayKeyFromMs(start + Number(days || 0) * GANTT_DAY_MS);
+}
+
+function isBrazilNationalHolidayDay(dayKey = "") {
+  const [yyyy, mm, dd] = String(dayKey || "").split("-");
+  if (!yyyy || !mm || !dd) return false;
+
+  const fixedKey = `${mm}-${dd}`;
+  if (BRAZIL_NATIONAL_HOLIDAYS_FIXED.has(fixedKey)) return true;
+
+  const easter = easterDateDayKey(Number(yyyy));
+  const goodFriday = addDaysToDayKey(easter, -2);
+  return dayKey === goodFriday;
+}
+
+function isBaseMachineWorkingDay(dayKey = "") {
+  const d = new Date(`${dayKey}T12:00:00`);
+  if (!Number.isFinite(d.getTime())) return false;
+
+  const weekDay = d.getDay();
+  const isMondayToFriday = weekDay >= 1 && weekDay <= 5;
+  return isMondayToFriday && !isBrazilNationalHolidayDay(dayKey);
+}
+
+function isMachineOffStatus(status = "") {
+  const s = U(status);
+  return s.includes("DESLIG");
+}
+
+function machineKey(value = "") {
+  return String(value || "").trim().toUpperCase();
+}
+
+function getMachineApiRow(perMachineApi = [], machineId = "") {
+  const target = machineKey(machineId);
+  return (Array.isArray(perMachineApi) ? perMachineApi : []).find(
+    (item) => machineKey(item?.maquina || item?.maquina_id || item?.id) === target
+  );
+}
+
+function normalizeMachineDailyRows(rawValue) {
+  if (!rawValue) return [];
+
+  if (Array.isArray(rawValue)) return rawValue;
+
+  if (typeof rawValue === "object") {
+    return Object.entries(rawValue).map(([data, value]) => {
+      if (value && typeof value === "object") return { data, ...value };
+      return { data, tempo_min: Number(value || 0) };
+    });
+  }
+
+  return [];
+}
+
+function extractMachineDailyRows(item = {}) {
+  const candidates = [
+    item?.dias,
+    item?.por_dia,
+    item?.porDia,
+    item?.daily,
+    item?.days,
+    item?.historico_dias,
+    item?.historico_por_dia,
+    item?.status_por_dia,
+  ];
+
+  for (const candidate of candidates) {
+    const rows = normalizeMachineDailyRows(candidate);
+    if (rows.length > 0) return rows;
+  }
+
+  return [];
+}
+
+function rowDayKey(row = {}) {
+  const raw = row?.data || row?.dia || row?.date || row?.day || row?.inicio || row?.started_em || row?.criado_em;
+  if (!raw) return "";
+
+  const text = String(raw);
+  const match = text.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (match) return match[1];
+
+  return isoDay(text);
+}
+
+function nonOffActivityMinutes(row = {}) {
+  if (!row || typeof row !== "object") return 0;
+
+  const known = [
+    "usinando_min",
+    "setup_min",
+    "manutencao_min",
+    "falta_material_min",
+    "falta_operador_min",
+    "programacao_min",
+    "reuniao_min",
+    "refeicao_min",
+    "ociosa_min",
+    "parada_min",
+    "outros_min",
+    "rnc_min",
+    "abertura_material_min",
+    "tempo_usinando_min",
+    "tempo_setup_min",
+    "tempo_manutencao_min",
+    "tempo_parado_min",
+  ];
+
+  let total = 0;
+  for (const key of known) total += Number(row?.[key] || 0);
+
+  if (total > 0) return total;
+
+  if (!isMachineOffStatus(row?.status || row?.status_atual || row?.bucket || row?.motivo)) {
+    const generic = Number(row?.tempo_min || row?.min || row?.valor || 0);
+    if (generic > 0) return generic;
+  }
+
+  return 0;
+}
+
+function machineHasActivityOnDay(machine = {}, perMachineRow = {}, dayKey = "") {
+  const dailyRows = extractMachineDailyRows(perMachineRow);
+
+  if (dailyRows.length > 0) {
+    return dailyRows.some((row) => rowDayKey(row) === dayKey && nonOffActivityMinutes(row) > 0);
+  }
+
+  return false;
+}
+
+function machineHasAnyNonOffActivity(machine = {}, perMachineRow = {}) {
+  if (nonOffActivityMinutes(perMachineRow) > 0) return true;
+  if (!isMachineOffStatus(machine?.status || perMachineRow?.status_atual || perMachineRow?.status)) return true;
+  return false;
+}
+
+function calculateMachineCapacityInfo({ productionMaquinas = [], perMachineApi = [], rangeStartMs = 0, rangeEndMs = 0 }) {
+  const machines = (Array.isArray(productionMaquinas) ? productionMaquinas : []).filter(isProductionMachine);
+  const machineIds = machines.map((machine) => machineKey(machine?.id)).filter(Boolean);
+  const startMs = Number(rangeStartMs || 0) || Date.parse(`${localDayKeyFromMs(Date.now())}T00:00:00`);
+  const endMs = Math.max(startMs, Number(rangeEndMs || 0) || startMs);
+  const dayKeys = buildLocalDayKeys(startMs, endMs);
+  const workingDays = dayKeys.filter(isBaseMachineWorkingDay);
+  const nonWorkingDays = dayKeys.filter((dayKey) => !isBaseMachineWorkingDay(dayKey));
+  const perMachineMinutes = {};
+  const extraMachineDaysByDate = {};
+  let extraMachineDays = 0;
+  let usedDailyDetails = false;
+  let usedAggregateFallback = false;
+
+  for (const machine of machines) {
+    const id = machineKey(machine?.id);
+    const perMachineRow = getMachineApiRow(perMachineApi, id) || {};
+    const dailyRows = extractMachineDailyRows(perMachineRow);
+    const hasDailyRows = dailyRows.length > 0;
+    usedDailyDetails = usedDailyDetails || hasDailyRows;
+
+    let machineDays = workingDays.length;
+
+    if (hasDailyRows) {
+      for (const dayKey of nonWorkingDays) {
+        if (machineHasActivityOnDay(machine, perMachineRow, dayKey)) {
+          machineDays += 1;
+          extraMachineDays += 1;
+          extraMachineDaysByDate[dayKey] = (extraMachineDaysByDate[dayKey] || 0) + 1;
+        }
+      }
+    } else if (nonWorkingDays.length > 0 && machineHasAnyNonOffActivity(machine, perMachineRow)) {
+      // Sem histórico diário no retorno da API, conta 1 máquina-dia extra por CNC ligada no período.
+      // Isso evita multiplicar sábado/feriado por todas as máquinas quando nem todas ligaram.
+      machineDays += 1;
+      extraMachineDays += 1;
+      usedAggregateFallback = true;
+      extraMachineDaysByDate[nonWorkingDays[0]] = (extraMachineDaysByDate[nonWorkingDays[0]] || 0) + 1;
+    }
+
+    perMachineMinutes[id] = machineDays * MINUTOS_DIA_MAQUINA;
+  }
+
+  const baseMachineDays = workingDays.length * machineIds.length;
+  const totalMachineDays = baseMachineDays + extraMachineDays;
+
+  return {
+    totalMin: totalMachineDays * MINUTOS_DIA_MAQUINA,
+    perMachineMinutes,
+    workingDays: workingDays.length,
+    nonWorkingDays: nonWorkingDays.length,
+    baseMachineDays,
+    extraMachineDays,
+    extraMachineDaysByDate,
+    machineCount: machineIds.length,
+    dayKeys,
+    usedDailyDetails,
+    usedAggregateFallback,
+  };
+}
 const THEME_STORAGE_KEY = "programador_dashboard_theme";
 const TEST_MACHINE_IDS = new Set(["CNC_TESTE"]);
 const DASHBOARD_MACHINE_IDS = ["CNC01", "CNC02", "CNC03", "CNC04", "CNC05", "CNC06", "CNC07"];
@@ -1396,6 +1633,23 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
     .filter((item) => item.bucket !== "desligada" && item.bucket !== "parada" && item.min > 0)
     .sort((a, b) => b.min - a.min);
 
+  const rangeStartMs = periodo.data_inicio
+    ? Date.parse(`${periodo.data_inicio}T00:00:00`)
+    : periodo.data
+    ? Date.parse(`${periodo.data}T00:00:00`)
+    : Date.parse(`${localDayKeyFromMs(nowTick || Date.now())}T00:00:00`);
+  const rangeEndMs = periodo.data_fim
+    ? Date.parse(`${periodo.data_fim}T23:59:59`)
+    : periodo.data
+    ? Date.parse(`${periodo.data}T23:59:59`)
+    : rangeStartMs;
+  const capacidadeInfo = calculateMachineCapacityInfo({
+    productionMaquinas,
+    perMachineApi,
+    rangeStartMs,
+    rangeEndMs,
+  });
+
   return {
     turnoAtual: getTurnoInfo(getNowDateSafe(nowTick)),
     total,
@@ -1407,8 +1661,10 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
     setupMedioAtualMin: Number(setupObj.tempo_medio_setup_min || 0),
     totalFaltaMaterial: Number(faltaMaterialObj.quantidade_ocorrencias || 0),
     faltaMaterialMedioAtualMin: Number(faltaMaterialObj.tempo_medio_falta_material_min || 0),
-    capacidadePlanejadaPorMaquinaMin: Number(parametros.capacidade_por_maquina_min || MINUTOS_DIA_MAQUINA),
-    capacidadePlanejadaTotalMin: Number(parametros.capacidade_total_min || 0),
+    capacidadePlanejadaPorMaquinaMin: MINUTOS_DIA_MAQUINA,
+    capacidadePlanejadaPorMaquina: capacidadeInfo.perMachineMinutes,
+    capacidadePlanejadaTotalMin: Number(capacidadeInfo.totalMin || parametros.capacidade_total_min || 0),
+    capacidadeInfo,
     tempoUsinandoMin: Number(iefObj.tempo_usinando_min || 0),
     tempoSetupMin: Number(setupObj.tempo_total_setup_min || 0),
     tempoFaltaMaterialMin: Number(faltaMaterialObj.tempo_total_falta_material_min || totals.falta_material || 0),
@@ -1432,8 +1688,8 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
     producaoNoPeriodo: 0,
     periodoLabel,
     periodoDias,
-    startMs: periodo.data_inicio ? Date.parse(`${periodo.data_inicio}T00:00:00`) : 0,
-    endMs: periodo.data_fim ? Date.parse(`${periodo.data_fim}T23:59:59`) : 0,
+    startMs: Number.isFinite(rangeStartMs) ? rangeStartMs : 0,
+    endMs: Number.isFinite(rangeEndMs) ? rangeEndMs : 0,
     snapshotInfo: raw?._snapshot || null,
   };
 }
@@ -3324,9 +3580,12 @@ async function exportarPDF() {
   }, [dashboardApiRaw, maquinas, filasById, nowTick, dashboardRequestInfo]);
 
   const grafico2Data = useMemo(() => {
-    const capacidadeMaquinaMin = Number(dashboardData?.capacidadePlanejadaPorMaquinaMin || 0);
+    const capacidadePorMaquina = dashboardData?.capacidadePlanejadaPorMaquina || {};
+    const capacidadePadraoMin = Number(dashboardData?.capacidadePlanejadaPorMaquinaMin || 0);
     const rows = (dashboardData?.rankingMaquinas || [])
       .map((item) => {
+        const machineId = machineKey(item.maquina);
+        const capacidadeMaquinaMin = Number(capacidadePorMaquina[machineId] || capacidadePadraoMin || 0);
         const usinandoMin = Number(item.usinandoMin || 0);
         const eficienciaPct =
           capacidadeMaquinaMin > 0 ? Number(((usinandoMin / capacidadeMaquinaMin) * 100).toFixed(1)) : 0;
@@ -3338,8 +3597,9 @@ async function exportarPDF() {
           eficienciaPct,
           valor: isPercentual ? eficienciaPct : usinandoMin,
           valorTexto: isPercentual ? `${eficienciaPct}%` : fmtHoursHuman(usinandoMin),
+          capacidadeMaquinaMin,
           tooltip: isPercentual
-            ? `${item.maquina} • ${eficienciaPct}% de eficiência`
+            ? `${item.maquina} • ${eficienciaPct}% de eficiência sobre ${fmtHoursHuman(capacidadeMaquinaMin)} disponíveis`
             : `${item.maquina} • ${fmtHoursHuman(usinandoMin)} usinando`,
         };
       })
@@ -3383,10 +3643,13 @@ const limparLista = (lista) =>
   }, [dashboardData, dashboardApiRaw, grafico3Maquina]);
 
   const grafico4Data = useMemo(() => {
-    const capacidadeMaquinaMin = Number(dashboardData?.capacidadePlanejadaPorMaquinaMin || 0);
+    const capacidadePorMaquina = dashboardData?.capacidadePlanejadaPorMaquina || {};
+    const capacidadePadraoMin = Number(dashboardData?.capacidadePlanejadaPorMaquinaMin || 0);
 
     return (dashboardData?.rankingMaquinas || [])
       .map((item) => {
+        const machineId = machineKey(item.maquina);
+        const capacidadeMaquinaMin = Number(capacidadePorMaquina[machineId] || capacidadePadraoMin || 0);
         const eficienciaPct =
           capacidadeMaquinaMin > 0
             ? Number(((Number(item.usinandoMin || 0) / capacidadeMaquinaMin) * 100).toFixed(1))
@@ -3394,6 +3657,7 @@ const limparLista = (lista) =>
 
         return {
           ...item,
+          capacidadeMaquinaMin,
           eficienciaPct,
         };
       })
@@ -5394,13 +5658,26 @@ const limparLista = (lista) =>
         <div className="pgDashInfoCard">
           <div className="pgDashInfoTitle">Capacidade do período</div>
           <div className="pgDashInfoText">
-            Cada máquina = <span className="pgMono">17h / 1020 min por dia</span>
+            Dia normal = <span className="pgMono">Segunda a sexta, {HORARIO_PADRAO_MAQUINA_LABEL}</span>
           </div>
           <div className="pgDashInfoText">
-            Período = <span className="pgMono">{dashboardData.periodoDias} dia(s)</span>
+            Cada CNC = <span className="pgMono">{MINUTOS_DIA_MAQUINA_LABEL}</span>
           </div>
           <div className="pgDashInfoText">
-            Total planejado = <span className="pgMono">{fmtMinHuman(dashboardData.capacidadePlanejadaTotalMin)}</span>
+            Dias úteis = <span className="pgMono">{dashboardData.capacidadeInfo?.workingDays || 0}</span> • CNCs ={" "}
+            <span className="pgMono">{dashboardData.capacidadeInfo?.machineCount || dashboardData.total}</span>
+          </div>
+          <div className="pgDashInfoText">
+            Sábado/domingo/feriado ativo ={" "}
+            <span className="pgMono">{dashboardData.capacidadeInfo?.extraMachineDays || 0} máquina-dia(s)</span>
+          </div>
+          {dashboardData.capacidadeInfo?.usedAggregateFallback && (
+            <div className="pgDashInfoText">
+              Sem detalhe diário: extra contado unitário por CNC ligada no período.
+            </div>
+          )}
+          <div className="pgDashInfoText">
+            Total disponível = <span className="pgMono">{fmtMinHuman(dashboardData.capacidadePlanejadaTotalMin)}</span>
           </div>
         </div>
 
