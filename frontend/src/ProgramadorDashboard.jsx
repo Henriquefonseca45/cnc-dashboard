@@ -526,11 +526,11 @@ function getMonthDays(monthKey = "") {
 
 function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emptyText = "Sem dados.", compact = false, showLegend = !compact }) {
   const width = compact ? 920 : 920;
-  const height = compact ? 210 : 320;
-  const padLeft = compact ? 46 : 58;
-  const padRight = compact ? 14 : 22;
-  const padTop = compact ? 18 : 24;
-  const padBottom = compact ? 34 : 46;
+  const height = compact ? 320 : 320;
+  const padLeft = compact ? 48 : 58;
+  const padRight = compact ? 18 : 22;
+  const padTop = compact ? 24 : 24;
+  const padBottom = compact ? 46 : 46;
   const chartW = width - padLeft - padRight;
   const chartH = height - padTop - padBottom;
   const safeDays = Array.isArray(days) ? days : [];
