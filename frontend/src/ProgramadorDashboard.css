@@ -3670,49 +3670,145 @@ body::after{
 .pdf-export-mode .pgCard {
   background-image: none !important;
 }
-/* ===== Ajuste correto do card Manutenção diária por CNC - DashManut ===== */
 
-.pgDashManutCncChartsCard {
-  padding: 14px 16px !important;
+/* ===== Gráfico 4 - Cronograma/Gantt por CNC ===== */
+.pgDashGanttCard{
+  grid-column:1 / -1;
+  min-height:0;
 }
 
-.pgDashManutCncCharts {
-  margin-top: 10px !important;
-  gap: 10px !important;
+.pgDashGantt{
+  display:grid;
+  gap:10px;
+  overflow-x:auto;
+  padding:2px 2px 8px;
 }
 
-.pgDashManutCncChartCard {
-  padding: 10px 12px 8px !important;
-  min-height: 0 !important;
+.pgDashGanttScale,
+.pgDashGanttRow{
+  display:grid;
+  grid-template-columns:92px minmax(820px, 1fr);
+  gap:12px;
+  align-items:center;
 }
 
-.pgDashManutCncChartCard .pgDashChartHeader {
-  margin-bottom: 8px !important;
+.pgDashGanttMachineHead{
+  color:var(--muted);
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.06em;
 }
 
-/* Altura ideal: menor que antes, mas sem deixar o gráfico pequeno */
-.pgDashManutCncChartCard .pgDashManutStackedSvg {
-  width: 100% !important;
-  height: 300px !important;
-  min-height: 300px !important;
-  max-height: 300px !important;
+.pgDashGanttTimeline{
+  position:relative;
+  min-width:820px;
+  height:30px;
+  border-bottom:1px dashed rgba(100,116,139,.28);
 }
 
-/* Legenda mais compacta */
-.pgDashManutCncChartCard .pgDashManutLegend {
-  margin-top: 8px !important;
-  gap: 6px !important;
+.pgDashGanttTick{
+  position:absolute;
+  top:0;
+  transform:translateX(-50%);
+  height:30px;
+  color:var(--muted);
+  font-size:11px;
+  font-weight:800;
+  white-space:nowrap;
 }
 
-.pgDashManutCncChartCard .pgDashManutLegendItem {
-  min-height: 24px !important;
-  padding: 3px 7px !important;
-  font-size: 10px !important;
+.pgDashGanttTick::before{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:20px;
+  width:1px;
+  height:10px;
+  border-left:1px dashed rgba(100,116,139,.28);
 }
-.pgDashManutCncChartCard .pgDashManutStackedSvg {
-  width: 100% !important;
-  height: 280px !important;
-  min-height: 280px !important;
-  max-height: 280px !important;
-  overflow: visible !important;
+
+.pgDashGanttMachine{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+
+.pgDashGanttMachine strong{
+  color:var(--brand);
+  font-size:13px;
+  font-weight:900;
+}
+
+.pgDashGanttMachine span{
+  color:var(--muted);
+  font-size:10px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.pgDashGanttTrack{
+  position:relative;
+  min-width:820px;
+  height:46px;
+  border:1px solid var(--stroke);
+  border-radius:12px;
+  background:rgba(47,55,125,.035);
+  overflow:hidden;
+}
+
+.pgDashGanttTrack > i{
+  position:absolute;
+  top:0;
+  bottom:0;
+  width:1px;
+  border-left:1px dashed rgba(100,116,139,.22);
+  pointer-events:none;
+}
+
+.pgDashGanttSegment{
+  position:absolute;
+  top:7px;
+  height:30px;
+  min-width:8px;
+  border-radius:8px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 8px;
+  color:#fff;
+  font-size:11px;
+  font-weight:900;
+  overflow:hidden;
+  box-shadow:0 6px 14px rgba(15,23,42,.16);
+}
+
+.pgDashGanttSegment span{
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  text-shadow:0 1px 2px rgba(15,23,42,.30);
+}
+
+.pgDashGanttEmptySegment{
+  position:absolute;
+  inset:8px 10px;
+  display:flex;
+  align-items:center;
+  color:var(--muted);
+  font-size:12px;
+  font-weight:800;
+}
+
+.pgDashGanttNotice{
+  padding:10px 12px;
+  border:1px solid var(--stroke);
+  border-radius:12px;
+  background:rgba(47,55,125,.04);
+  color:var(--muted);
+  font-size:12px;
+  font-weight:800;
 }

@@ -909,6 +909,60 @@ function bucketLabel(bucket) {
   }
 }
 
+function statusTimelineLabel(status = "") {
+  const raw = String(status || "").trim();
+  const bucket = dashboardBucket(raw);
+  if (!raw) return "Sem status";
+  if (bucket === "outros") return raw;
+  return bucketLabel(bucket);
+}
+
+function statusTimelineColor(status = "") {
+  const bucket = dashboardBucket(status);
+  const colors = {
+    usinando: "#22c55e",
+    setup: "#f59e0b",
+    manutencao: "#8b5cf6",
+    falta_material: "#ef4444",
+    falta_operador: "#dc2626",
+    programacao: "#3b82f6",
+    reuniao: "#06b6d4",
+    refeicao: "#14b8a6",
+    desligada: "#64748b",
+    ociosa: "#94a3b8",
+    parada: "#f97316",
+    rnc: "#7c3aed",
+    abertura_material: "#0f766e",
+    outros: "#475569",
+  };
+  return colors[bucket] || colors.outros;
+}
+
+function fmtGanttDateTime(ms, periodoDias = 1) {
+  const d = new Date(ms);
+  if (!Number.isFinite(d.getTime())) return "-";
+  const opts =
+    Number(periodoDias || 1) > 1
+      ? { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }
+      : { hour: "2-digit", minute: "2-digit" };
+  return d.toLocaleString("pt-BR", opts);
+}
+
+function fmtGanttRange(startMs, endMs, periodoDias = 1) {
+  return `${fmtGanttDateTime(startMs, periodoDias)} até ${fmtGanttDateTime(endMs, periodoDias)}`;
+}
+
+function machineIdFromMovement(mov = {}) {
+  return String(
+    mov.maquina_destino ||
+      mov.maquina_origem ||
+      mov.maquina_id ||
+      mov.maquina ||
+      mov.cnc ||
+      ""
+  ).toUpperCase();
+}
+
 function isUsinandoMachineStatus(machineStatus = "") {
   const s = U(machineStatus);
   return (
@@ -1413,6 +1467,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const [dashManutApiRaw, setDashManutApiRaw] = useState(null);
   const [dashManutLoading, setDashManutLoading] = useState(false);
   const [dashManutErr, setDashManutErr] = useState("");
+  const [grafico2Modo, setGrafico2Modo] = useState("hora");
   const [grafico3Maquina, setGrafico3Maquina] = useState("TODAS");
   const [grafico5Tipo, setGrafico5Tipo] = useState("setup");
 
@@ -2435,6 +2490,7 @@ async function exportarPDF() {
   useEffect(() => {
     if (!isVisual || visualTab !== "dashboard") return;
     fetchDashboardAnalytics();
+    fetchRastreamentoFilas({ somenteOperadores: false });
   }, [isVisual, visualTab, dashFilter, histFrom, histTo]);
 
   useEffect(() => {
@@ -3216,6 +3272,36 @@ async function exportarPDF() {
     );
   }, [dashboardApiRaw, maquinas, filasById, nowTick, dashboardRequestInfo]);
 
+  const grafico2Data = useMemo(() => {
+    const capacidadeMaquinaMin = Number(dashboardData?.capacidadePlanejadaPorMaquinaMin || 0);
+    const rows = (dashboardData?.rankingMaquinas || [])
+      .map((item) => {
+        const usinandoMin = Number(item.usinandoMin || 0);
+        const eficienciaPct =
+          capacidadeMaquinaMin > 0 ? Number(((usinandoMin / capacidadeMaquinaMin) * 100).toFixed(1)) : 0;
+        const isPercentual = grafico2Modo === "percentual";
+
+        return {
+          ...item,
+          usinandoMin,
+          eficienciaPct,
+          valor: isPercentual ? eficienciaPct : usinandoMin,
+          valorTexto: isPercentual ? `${eficienciaPct}%` : fmtHoursHuman(usinandoMin),
+          tooltip: isPercentual
+            ? `${item.maquina} • ${eficienciaPct}% de eficiência`
+            : `${item.maquina} • ${fmtHoursHuman(usinandoMin)} usinando`,
+        };
+      })
+      .sort((a, b) => Number(b.valor || 0) - Number(a.valor || 0));
+
+    return {
+      rows,
+      maxValor: grafico2Modo === "percentual" ? 100 : Math.max(1, ...rows.map((item) => Number(item.valor || 0))),
+      isPercentual: grafico2Modo === "percentual",
+      subtitulo: grafico2Modo === "percentual" ? "Eficiência por máquina" : "Tempo usinando por máquina",
+    };
+  }, [dashboardData, grafico2Modo]);
+
   const grafico3MachineOptions = useMemo(() => {
     const ids = (dashboardData?.rankingMaquinas || [])
       .map((x) => x.maquina)
@@ -3407,6 +3493,141 @@ const limparLista = (lista) =>
 
     return { totalMin, items };
   }, [dashboardData]);
+
+  const graficoGanttData = useMemo(() => {
+    const startMs = Number(dashboardRequestInfo?.startMs || 0) || Date.parse(`${isoDay(new Date(nowTick || Date.now()))}T00:00:00`);
+    const rawEndMs = Number(dashboardRequestInfo?.endMs || 0) || Number(nowTick || Date.now());
+    const endMs = Math.max(startMs + 60 * 1000, Math.min(rawEndMs, Number(nowTick || Date.now())));
+    const periodoDias = Math.max(1, countDaysInclusive(startMs, endMs));
+    const totalMs = Math.max(1, endMs - startMs);
+
+    const productionMachines = (Array.isArray(maquinas) ? maquinas : [])
+      .filter(isProductionMachine)
+      .slice()
+      .sort((a, b) => {
+        const aId = String(a?.id || "").toUpperCase();
+        const bId = String(b?.id || "").toUpperCase();
+        const ai = DASHBOARD_MACHINE_IDS.indexOf(aId);
+        const bi = DASHBOARD_MACHINE_IDS.indexOf(bId);
+        return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi) || aId.localeCompare(bId);
+      });
+
+    const movements = Array.isArray(rastreamentoFilas) ? rastreamentoFilas : [];
+
+    const rows = productionMachines.map((machine) => {
+      const machineId = String(machine?.id || "").toUpperCase();
+      const events = [];
+
+      for (const mov of movements) {
+        const ts = Date.parse(mov?.criado_em || mov?.data || mov?.created_at || "");
+        if (!Number.isFinite(ts)) continue;
+
+        const ids = [
+          mov?.maquina_destino,
+          mov?.maquina_origem,
+          mov?.maquina_id,
+          mov?.maquina,
+          mov?.cnc,
+        ]
+          .filter(Boolean)
+          .map((id) => String(id).toUpperCase());
+
+        if (!ids.includes(machineId)) continue;
+
+        const statusDestino = mov?.status_destino || mov?.status || "";
+        const statusOrigem = mov?.status_origem || "";
+        if (!statusDestino && !statusOrigem) continue;
+
+        events.push({
+          ts,
+          status: statusDestino || statusOrigem,
+          statusOrigem,
+          detalhe: mov?.detalhe || mov?.acao || "",
+          operador: mov?.operador_nome || "",
+          arquivo: mov?.arquivo_nome || "",
+        });
+      }
+
+      const statusDesdeMs = Date.parse(machine?.status_desde || "");
+      if (Number.isFinite(statusDesdeMs) && machine?.status) {
+        events.push({
+          ts: statusDesdeMs,
+          status: machine.status,
+          statusOrigem: "",
+          detalhe: "Status atual da máquina",
+          operador: machine?.operador_nome || "",
+          arquivo: "",
+        });
+      }
+
+      events.sort((a, b) => a.ts - b.ts);
+
+      const priorEvents = events.filter((ev) => ev.ts <= startMs);
+      const inRange = events.filter((ev) => ev.ts > startMs && ev.ts < endMs);
+      const firstInRange = inRange[0];
+      let currentStatus =
+        priorEvents[priorEvents.length - 1]?.status ||
+        firstInRange?.statusOrigem ||
+        (Number.isFinite(statusDesdeMs) && statusDesdeMs <= startMs ? machine?.status : "") ||
+        machine?.status ||
+        "Sem registro";
+
+      let cursor = startMs;
+      const segments = [];
+      const pushSegment = (fromMs, toMs, status, eventInfo = {}) => {
+        const ini = Math.max(startMs, fromMs);
+        const fim = Math.min(endMs, toMs);
+        if (fim <= ini) return;
+        if (fim - ini < 60 * 1000) return;
+
+        const left = ((ini - startMs) / totalMs) * 100;
+        const width = Math.max(0.8, ((fim - ini) / totalMs) * 100);
+        const label = statusTimelineLabel(status);
+
+        segments.push({
+          startMs: ini,
+          endMs: fim,
+          status,
+          label,
+          color: statusTimelineColor(status),
+          left,
+          width: Math.min(width, 100 - left),
+          title: `${machineId} • ${label} • ${fmtGanttRange(ini, fim, periodoDias)}${eventInfo.operador ? ` • Operador: ${eventInfo.operador}` : ""}${eventInfo.arquivo ? ` • Arquivo: ${eventInfo.arquivo}` : ""}`,
+        });
+      };
+
+      for (const ev of inRange) {
+        pushSegment(cursor, ev.ts, currentStatus, ev);
+        currentStatus = ev.status || currentStatus;
+        cursor = ev.ts;
+      }
+
+      pushSegment(cursor, endMs, currentStatus, { operador: machine?.operador_nome || "" });
+
+      return {
+        maquina: machineId,
+        nome: machine?.nome || machineId,
+        operador: machine?.operador_nome || "-",
+        segments,
+      };
+    });
+
+    const tickCount = periodoDias > 7 ? 6 : 5;
+    const ticks = Array.from({ length: tickCount }, (_, idx) => {
+      const pct = tickCount === 1 ? 0 : (idx / (tickCount - 1)) * 100;
+      const ms = startMs + (totalMs * pct) / 100;
+      return { pct, label: fmtGanttDateTime(ms, periodoDias) };
+    });
+
+    return {
+      rows,
+      ticks,
+      periodoDias,
+      startMs,
+      endMs,
+      hasHistory: movements.length > 0,
+    };
+  }, [dashboardRequestInfo, maquinas, rastreamentoFilas, nowTick]);
 
   const dashManutChartData = useMemo(() => {
     const cncColors = {
@@ -3772,7 +3993,10 @@ const limparLista = (lista) =>
           className={`pgVisualTabBtn ${visualTab === "dashboard" ? "active" : ""}`}
           onClick={async () => {
             setVisualTab("dashboard");
-            await fetchDashboardAnalytics();
+            await Promise.all([
+              fetchDashboardAnalytics(),
+              fetchRastreamentoFilas({ somenteOperadores: false }),
+            ]);
           }}
         >
           Dashboard
@@ -4569,10 +4793,15 @@ const limparLista = (lista) =>
 
   <button
     className="pgBtn pgBtnGhost"
-    onClick={() => fetchDashboardAnalytics()}
+    onClick={async () => {
+      await Promise.all([
+        fetchDashboardAnalytics(),
+        fetchRastreamentoFilas({ somenteOperadores: false }),
+      ]);
+    }}
     style={{ marginLeft: 8 }}
   >
-    {dashboardLoading ? "Atualizando..." : "Atualizar"}
+    {dashboardLoading || rastreamentoLoading ? "Atualizando..." : "Atualizar"}
   </button>
 
   <button
@@ -4698,34 +4927,58 @@ const limparLista = (lista) =>
         </div>
 
         <div className="pgDashChartCard pgDashChartSide">
-          <div className="pgDashChartTitle">
-            Gráfico 2 — Ranking por Máquina ({dashboardData.periodoLabel})
+          <div className="pgDashChartHeader">
+            <div>
+              <div className="pgDashChartTitle">
+                Gráfico 2 — Ranking por Máquina ({dashboardData.periodoLabel})
+              </div>
+              <div className="pgDashChartSubTitle">{grafico2Data.subtitulo}</div>
+            </div>
+
+            <div className="pgDashMetricTabs" aria-label="Medida do ranking por máquina">
+              <button
+                type="button"
+                className={`pgDashMetricTab ${grafico2Modo === "hora" ? "active" : ""}`}
+                onClick={() => setGrafico2Modo("hora")}
+              >
+                Horas
+              </button>
+              <button
+                type="button"
+                className={`pgDashMetricTab ${grafico2Modo === "percentual" ? "active" : ""}`}
+                onClick={() => setGrafico2Modo("percentual")}
+              >
+                %
+              </button>
+            </div>
           </div>
 
           <div className="pgDashBarList">
-            {dashboardData.rankingMaquinas.length === 0 ? (
+            {grafico2Data.rows.length === 0 ? (
               <div className="pgEmpty">Sem dados.</div>
-            ) : (() => {
-              const maxUso = Math.max(1, ...dashboardData.rankingMaquinas.map((x) => x.usinandoMin));
+            ) : (
+              grafico2Data.rows.map((item) => {
+                const width = grafico2Data.isPercentual
+                  ? Math.max(2, Math.min(100, Number(item.valor || 0)))
+                  : Math.max(2, Math.min(100, (Number(item.valor || 0) / grafico2Data.maxValor) * 100));
 
-              return dashboardData.rankingMaquinas.map((item) => (
-                <div key={item.maquina} className="pgDashBarRow">
-                  <div className="pgDashBarName">{item.maquina}</div>
+                return (
+                  <div key={item.maquina} className="pgDashBarRow">
+                    <div className="pgDashBarName">{item.maquina}</div>
 
-                  <div className="pgDashBarTrack">
-                    <div
-                      className="pgDashBarFill"
-                      style={{ width: `${(item.usinandoMin / maxUso) * 100}%` }}
-                      title={`${fmtHoursHuman(item.usinandoMin)} usinando`}
-                    />
+                    <div className="pgDashBarTrack">
+                      <div
+                        className={`pgDashBarFill ${grafico2Data.isPercentual ? "pgDashPerfFill" : ""}`}
+                        style={{ width: `${width}%` }}
+                        title={item.tooltip}
+                      />
+                    </div>
+
+                    <div className="pgDashBarValueRight">{item.valorTexto}</div>
                   </div>
-
-                  <div className="pgDashBarValueRight">
-                    {fmtHoursHuman(item.usinandoMin)}
-                  </div>
-                </div>
-              ));
-            })()}
+                );
+              })
+            )}
           </div>
         </div>
       </section>
@@ -4784,35 +5037,81 @@ const limparLista = (lista) =>
           </div>
         </div>
 
-        <div className="pgDashChartCard">
-          <div className="pgDashChartTitle">
-            Gráfico 4 — Eficiência por Máquina ({dashboardData.periodoLabel})
+        <div className="pgDashChartCard pgDashGanttCard">
+          <div className="pgDashChartHeader">
+            <div>
+              <div className="pgDashChartTitle">
+                Gráfico 4 — Cronograma por CNC ({dashboardData.periodoLabel})
+              </div>
+              <div className="pgDashChartSubTitle">
+                Status por horário, do início do período até o último registro.
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="pgBtn pgBtnGhost"
+              onClick={() => fetchRastreamentoFilas({ somenteOperadores: false })}
+              disabled={rastreamentoLoading}
+            >
+              {rastreamentoLoading ? "Atualizando..." : "Atualizar movimentos"}
+            </button>
           </div>
 
-          <div className="pgDashReasonList">
-            {grafico4Data.length === 0 ? (
-              <div className="pgEmpty">Sem dados.</div>
-            ) : (
-              grafico4Data.map((item) => (
-                <div key={item.maquina} className="pgDashReasonRow">
-                  <div className="pgDashReasonName">{item.maquina}</div>
+          {rastreamentoLoading ? (
+            <div className="pgEmpty">Carregando cronograma...</div>
+          ) : graficoGanttData.rows.length === 0 ? (
+            <div className="pgEmpty">Sem dados para montar o cronograma.</div>
+          ) : (
+            <div className="pgDashGantt">
+              <div className="pgDashGanttScale">
+                <div className="pgDashGanttMachineHead">CNC</div>
+                <div className="pgDashGanttTimeline">
+                  {graficoGanttData.ticks.map((tick) => (
+                    <div key={`${tick.pct}-${tick.label}`} className="pgDashGanttTick" style={{ left: `${tick.pct}%` }}>
+                      <span>{tick.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-                  <div className="pgDashReasonTrack">
-                    <div
-                      className="pgDashPerfFill"
-                      style={{
-                        width: `${Math.max(2, Math.min(100, Number(item.eficienciaPct || 0)))}%`,
-                        background: "linear-gradient(90deg, #22c55e, #16a34a)",
-                      }}
-                      title={`${item.maquina} • ${item.eficienciaPct}%`}
-                    />
+              {graficoGanttData.rows.map((row) => (
+                <div key={row.maquina} className="pgDashGanttRow">
+                  <div className="pgDashGanttMachine">
+                    <strong>{row.maquina}</strong>
+                    <span>{row.operador}</span>
                   </div>
 
-                  <div className="pgDashReasonValue">{item.eficienciaPct}%</div>
+                  <div className="pgDashGanttTrack">
+                    {graficoGanttData.ticks.map((tick) => (
+                      <i key={`${row.maquina}-${tick.pct}`} style={{ left: `${tick.pct}%` }} />
+                    ))}
+
+                    {row.segments.length === 0 ? (
+                      <div className="pgDashGanttEmptySegment">Sem registro</div>
+                    ) : (
+                      row.segments.map((seg, idx) => (
+                        <div
+                          key={`${row.maquina}-${seg.startMs}-${idx}`}
+                          className="pgDashGanttSegment"
+                          style={{ left: `${seg.left}%`, width: `${seg.width}%`, background: seg.color }}
+                          title={seg.title}
+                        >
+                          <span>{seg.label}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+
+              {!graficoGanttData.hasHistory && (
+                <div className="pgDashGanttNotice">
+                  Sem histórico de movimentações carregado. O cronograma está usando apenas o status atual das CNCs.
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
