@@ -3512,69 +3512,15 @@ const limparLista = (lista) =>
         return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi) || aId.localeCompare(bId);
       });
 
-    const movements = Array.isArray(rastreamentoFilas) ? rastreamentoFilas : [];
-
     const rows = productionMachines.map((machine) => {
       const machineId = String(machine?.id || "").toUpperCase();
-      const events = [];
-
-      for (const mov of movements) {
-        const ts = Date.parse(mov?.criado_em || mov?.data || mov?.created_at || "");
-        if (!Number.isFinite(ts)) continue;
-
-        const ids = [
-          mov?.maquina_destino,
-          mov?.maquina_origem,
-          mov?.maquina_id,
-          mov?.maquina,
-          mov?.cnc,
-        ]
-          .filter(Boolean)
-          .map((id) => String(id).toUpperCase());
-
-        if (!ids.includes(machineId)) continue;
-
-        const statusDestino = mov?.status_destino || mov?.status || "";
-        const statusOrigem = mov?.status_origem || "";
-        if (!statusDestino && !statusOrigem) continue;
-
-        events.push({
-          ts,
-          status: statusDestino || statusOrigem,
-          statusOrigem,
-          detalhe: mov?.detalhe || mov?.acao || "",
-          operador: mov?.operador_nome || "",
-          arquivo: mov?.arquivo_nome || "",
-        });
-      }
-
+      const machineStatus = machine?.status || "Sem status";
       const statusDesdeMs = Date.parse(machine?.status_desde || "");
-      if (Number.isFinite(statusDesdeMs) && machine?.status) {
-        events.push({
-          ts: statusDesdeMs,
-          status: machine.status,
-          statusOrigem: "",
-          detalhe: "Status atual da máquina",
-          operador: machine?.operador_nome || "",
-          arquivo: "",
-        });
-      }
+      const segmentStartMs = Number.isFinite(statusDesdeMs) ? Math.max(startMs, statusDesdeMs) : startMs;
 
-      events.sort((a, b) => a.ts - b.ts);
-
-      const priorEvents = events.filter((ev) => ev.ts <= startMs);
-      const inRange = events.filter((ev) => ev.ts > startMs && ev.ts < endMs);
-      const firstInRange = inRange[0];
-      let currentStatus =
-        priorEvents[priorEvents.length - 1]?.status ||
-        firstInRange?.statusOrigem ||
-        (Number.isFinite(statusDesdeMs) && statusDesdeMs <= startMs ? machine?.status : "") ||
-        machine?.status ||
-        "Sem registro";
-
-      let cursor = startMs;
       const segments = [];
-      const pushSegment = (fromMs, toMs, status, eventInfo = {}) => {
+
+      const pushSegment = (fromMs, toMs, status, titleExtra = "") => {
         const ini = Math.max(startMs, fromMs);
         const fim = Math.min(endMs, toMs);
         if (fim <= ini) return;
@@ -3592,17 +3538,20 @@ const limparLista = (lista) =>
           color: statusTimelineColor(status),
           left,
           width: Math.min(width, 100 - left),
-          title: `${machineId} • ${label} • ${fmtGanttRange(ini, fim, periodoDias)}${eventInfo.operador ? ` • Operador: ${eventInfo.operador}` : ""}${eventInfo.arquivo ? ` • Arquivo: ${eventInfo.arquivo}` : ""}`,
+          title: `${machineId} • ${label} • ${fmtGanttRange(ini, fim, periodoDias)}${titleExtra}`,
         });
       };
 
-      for (const ev of inRange) {
-        pushSegment(cursor, ev.ts, currentStatus, ev);
-        currentStatus = ev.status || currentStatus;
-        cursor = ev.ts;
+      if (segmentStartMs > startMs) {
+        pushSegment(startMs, segmentStartMs, "Sem registro", " • Antes do status atual");
       }
 
-      pushSegment(cursor, endMs, currentStatus, { operador: machine?.operador_nome || "" });
+      pushSegment(
+        segmentStartMs,
+        endMs,
+        machineStatus,
+        `${machine?.operador_nome ? ` • Operador: ${machine.operador_nome}` : ""}`
+      );
 
       return {
         maquina: machineId,
@@ -3625,9 +3574,9 @@ const limparLista = (lista) =>
       periodoDias,
       startMs,
       endMs,
-      hasHistory: movements.length > 0,
+      hasHistory: rows.some((row) => row.segments.length > 0),
     };
-  }, [dashboardRequestInfo, maquinas, rastreamentoFilas, nowTick]);
+  }, [dashboardRequestInfo, maquinas, nowTick]);
 
   const dashManutChartData = useMemo(() => {
     const cncColors = {
@@ -5044,21 +4993,24 @@ const limparLista = (lista) =>
                 Gráfico 4 — Cronograma por CNC ({dashboardData.periodoLabel})
               </div>
               <div className="pgDashChartSubTitle">
-                Status por horário, do início do período até o último registro.
+                Status da máquina por horário, do início do período até agora.
               </div>
             </div>
 
             <button
               type="button"
               className="pgBtn pgBtnGhost"
-              onClick={() => fetchRastreamentoFilas({ somenteOperadores: false })}
-              disabled={rastreamentoLoading}
+              onClick={async () => {
+                await fetchMaquinas();
+                await fetchDashboardAnalytics({ silent: true });
+              }}
+              disabled={dashboardLoading}
             >
-              {rastreamentoLoading ? "Atualizando..." : "Atualizar movimentos"}
+              {dashboardLoading ? "Atualizando..." : "Atualizar status"}
             </button>
           </div>
 
-          {rastreamentoLoading ? (
+          {dashboardLoading ? (
             <div className="pgEmpty">Carregando cronograma...</div>
           ) : graficoGanttData.rows.length === 0 ? (
             <div className="pgEmpty">Sem dados para montar o cronograma.</div>
