@@ -952,6 +952,56 @@ function fmtGanttRange(startMs, endMs, periodoDias = 1) {
   return `${fmtGanttDateTime(startMs, periodoDias)} até ${fmtGanttDateTime(endMs, periodoDias)}`;
 }
 
+const GANTT_SHIFT_START = "05:00";
+const GANTT_SHIFT_END = "23:24";
+const GANTT_DAY_MS = 24 * 60 * 60 * 1000;
+
+function pad2(value) {
+  return String(value).padStart(2, "0");
+}
+
+function localDayKeyFromMs(ms) {
+  const d = new Date(ms);
+  if (!Number.isFinite(d.getTime())) return isoDay(new Date());
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function localDayStartMs(dayKey) {
+  const ms = Date.parse(`${dayKey}T00:00:00`);
+  return Number.isFinite(ms) ? ms : Date.parse(`${isoDay(new Date())}T00:00:00`);
+}
+
+function localDayTimeMs(dayKey, timeText = "00:00") {
+  if (timeText === "24:00") return localDayStartMs(dayKey) + GANTT_DAY_MS;
+  const [hh = "00", mm = "00"] = String(timeText).split(":");
+  const ms = Date.parse(`${dayKey}T${pad2(Number(hh) || 0)}:${pad2(Number(mm) || 0)}:00`);
+  return Number.isFinite(ms) ? ms : localDayStartMs(dayKey);
+}
+
+function localDateLabel(dayKey = "") {
+  const [yyyy, mm, dd] = String(dayKey).split("-");
+  return yyyy && mm && dd ? `${dd}/${mm}/${yyyy}` : dayKey || "-";
+}
+
+function buildLocalDayKeys(startMs, endMs) {
+  const firstDayMs = localDayStartMs(localDayKeyFromMs(startMs));
+  const lastDayMs = localDayStartMs(localDayKeyFromMs(endMs));
+  const days = [];
+
+  for (let cursor = firstDayMs; cursor <= lastDayMs; cursor += GANTT_DAY_MS) {
+    days.push(localDayKeyFromMs(cursor));
+  }
+
+  return days.length ? days : [localDayKeyFromMs(Date.now())];
+}
+
+function ganttTimePct(timeText) {
+  if (timeText === "24:00") return 100;
+  const [hh = "0", mm = "0"] = String(timeText).split(":");
+  const minutes = (Number(hh) || 0) * 60 + (Number(mm) || 0);
+  return Math.max(0, Math.min(100, (minutes / (24 * 60)) * 100));
+}
+
 function machineIdFromMovement(mov = {}) {
   return String(
     mov.maquina_destino ||
@@ -1469,6 +1519,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const [dashManutErr, setDashManutErr] = useState("");
   const [grafico2Modo, setGrafico2Modo] = useState("hora");
   const [grafico3Maquina, setGrafico3Maquina] = useState("TODAS");
+  const [graficoGanttMaquina, setGraficoGanttMaquina] = useState("CNC01");
   const [grafico5Tipo, setGrafico5Tipo] = useState("setup");
 
   const [selectedPoolIds, setSelectedPoolIds] = useState(() => new Set());
@@ -3494,89 +3545,165 @@ const limparLista = (lista) =>
     return { totalMin, items };
   }, [dashboardData]);
 
+  const graficoGanttMachineOptions = useMemo(() => {
+    const ids = (Array.isArray(maquinas) ? maquinas : [])
+      .filter(isProductionMachine)
+      .map((machine) => String(machine?.id || "").toUpperCase())
+      .filter(Boolean)
+      .sort((a, b) => {
+        const ai = DASHBOARD_MACHINE_IDS.indexOf(a);
+        const bi = DASHBOARD_MACHINE_IDS.indexOf(b);
+        return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi) || a.localeCompare(b);
+      });
+
+    return ids.length ? ids : DASHBOARD_MACHINE_IDS;
+  }, [maquinas]);
+
+  useEffect(() => {
+    if (graficoGanttMachineOptions.length > 0 && !graficoGanttMachineOptions.includes(graficoGanttMaquina)) {
+      setGraficoGanttMaquina(graficoGanttMachineOptions[0]);
+    }
+  }, [graficoGanttMachineOptions, graficoGanttMaquina]);
+
   const graficoGanttData = useMemo(() => {
-    const startMs = Number(dashboardRequestInfo?.startMs || 0) || Date.parse(`${isoDay(new Date(nowTick || Date.now()))}T00:00:00`);
-    const rawEndMs = Number(dashboardRequestInfo?.endMs || 0) || Number(nowTick || Date.now());
-    const endMs = Math.max(startMs + 60 * 1000, Math.min(rawEndMs, Number(nowTick || Date.now())));
-    const periodoDias = Math.max(1, countDaysInclusive(startMs, endMs));
-    const totalMs = Math.max(1, endMs - startMs);
+    const nowMs = Number(nowTick || Date.now());
+    const fallbackDayStartMs = Date.parse(`${localDayKeyFromMs(nowMs)}T00:00:00`);
+    const rangeStartMs = Number(dashboardRequestInfo?.startMs || 0) || fallbackDayStartMs;
+    const rawRangeEndMs = Number(dashboardRequestInfo?.endMs || 0) || nowMs;
+    const rangeEndMs = Math.max(rangeStartMs + 60 * 1000, Math.min(rawRangeEndMs, nowMs));
+    const periodoDias = Math.max(1, countDaysInclusive(rangeStartMs, rangeEndMs));
+    const selectedMachineId = String(graficoGanttMaquina || graficoGanttMachineOptions[0] || "").toUpperCase();
 
     const productionMachines = (Array.isArray(maquinas) ? maquinas : [])
       .filter(isProductionMachine)
-      .slice()
-      .sort((a, b) => {
-        const aId = String(a?.id || "").toUpperCase();
-        const bId = String(b?.id || "").toUpperCase();
-        const ai = DASHBOARD_MACHINE_IDS.indexOf(aId);
-        const bi = DASHBOARD_MACHINE_IDS.indexOf(bId);
-        return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi) || aId.localeCompare(bId);
-      });
+      .slice();
 
-    const rows = productionMachines.map((machine) => {
-      const machineId = String(machine?.id || "").toUpperCase();
-      const machineStatus = machine?.status || "Sem status";
-      const statusDesdeMs = Date.parse(machine?.status_desde || "");
-      const segmentStartMs = Number.isFinite(statusDesdeMs) ? Math.max(startMs, statusDesdeMs) : startMs;
+    const selectedMachine =
+      productionMachines.find((machine) => String(machine?.id || "").toUpperCase() === selectedMachineId) ||
+      productionMachines[0] ||
+      null;
 
+    const machineId = String(selectedMachine?.id || selectedMachineId || "CNC").toUpperCase();
+    const machineStatus = selectedMachine?.status || "Sem status";
+    const operatorName = selectedMachine?.operador_nome || "-";
+    const statusDesdeMs = Date.parse(selectedMachine?.status_desde || "");
+    const hasStatusSince = Number.isFinite(statusDesdeMs);
+
+    const dayKeys = buildLocalDayKeys(rangeStartMs, rangeEndMs);
+    const ticks = [
+      { time: "00:00", label: "00:00", pct: 0 },
+      { time: GANTT_SHIFT_START, label: GANTT_SHIFT_START, pct: ganttTimePct(GANTT_SHIFT_START), marker: "Início" },
+      { time: "14:18", label: "14:18", pct: ganttTimePct("14:18") },
+      { time: GANTT_SHIFT_END, label: GANTT_SHIFT_END, pct: ganttTimePct(GANTT_SHIFT_END), marker: "Fim" },
+      { time: "24:00", label: "24:00", pct: 100 },
+    ];
+
+    const rows = dayKeys.map((dayKey) => {
+      const displayStartMs = localDayTimeMs(dayKey, "00:00");
+      const displayEndMs = localDayTimeMs(dayKey, "24:00");
+      const shiftStartMs = localDayTimeMs(dayKey, GANTT_SHIFT_START);
+      const shiftEndMs = localDayTimeMs(dayKey, GANTT_SHIFT_END);
+      const rowStartMs = Math.max(displayStartMs, rangeStartMs);
+      const rowEndMs = Math.min(displayEndMs, rangeEndMs, nowMs);
+      const totalMs = Math.max(1, displayEndMs - displayStartMs);
       const segments = [];
 
+      const pctFor = (ms) => Math.max(0, Math.min(100, ((ms - displayStartMs) / totalMs) * 100));
+
+      const overtimeBands = [
+        {
+          key: "before-shift",
+          left: 0,
+          width: Math.max(0, pctFor(shiftStartMs)),
+          label: "Hora extra",
+          title: `${localDateLabel(dayKey)} • 00:00 até ${GANTT_SHIFT_START} • Hora extra`,
+        },
+        {
+          key: "after-shift",
+          left: pctFor(shiftEndMs),
+          width: Math.max(0, 100 - pctFor(shiftEndMs)),
+          label: "Hora extra",
+          title: `${localDateLabel(dayKey)} • ${GANTT_SHIFT_END} até 24:00 • Hora extra`,
+        },
+      ].filter((band) => band.width > 0.2);
+
       const pushSegment = (fromMs, toMs, status, titleExtra = "") => {
-        const ini = Math.max(startMs, fromMs);
-        const fim = Math.min(endMs, toMs);
-        if (fim <= ini) return;
-        if (fim - ini < 60 * 1000) return;
+        const iniBase = Math.max(displayStartMs, rowStartMs, fromMs);
+        const fimBase = Math.min(displayEndMs, rowEndMs, toMs);
+        if (fimBase <= iniBase || fimBase - iniBase < 60 * 1000) return;
 
-        const left = ((ini - startMs) / totalMs) * 100;
-        const width = Math.max(0.8, ((fim - ini) / totalMs) * 100);
-        const label = statusTimelineLabel(status);
+        const cuts = [iniBase, fimBase, shiftStartMs, shiftEndMs]
+          .filter((value) => value > iniBase && value < fimBase)
+          .sort((a, b) => a - b);
+        const points = [iniBase, ...cuts, fimBase];
 
-        segments.push({
-          startMs: ini,
-          endMs: fim,
-          status,
-          label,
-          color: statusTimelineColor(status),
-          left,
-          width: Math.min(width, 100 - left),
-          title: `${machineId} • ${label} • ${fmtGanttRange(ini, fim, periodoDias)}${titleExtra}`,
-        });
+        for (let idx = 0; idx < points.length - 1; idx += 1) {
+          const ini = points[idx];
+          const fim = points[idx + 1];
+          if (fim <= ini || fim - ini < 60 * 1000) continue;
+
+          const isExtra = fim <= shiftStartMs || ini >= shiftEndMs;
+          const left = pctFor(ini);
+          const width = Math.max(0.8, ((fim - ini) / totalMs) * 100);
+          const label = statusTimelineLabel(status);
+
+          segments.push({
+            startMs: ini,
+            endMs: fim,
+            status,
+            label,
+            isExtra,
+            color: statusTimelineColor(status),
+            left,
+            width: Math.min(width, 100 - left),
+            title: `${machineId} • ${label} • ${localDateLabel(dayKey)} • ${fmtGanttRange(ini, fim, 1)}${
+              isExtra ? " • Hora extra" : ""
+            }${titleExtra}`,
+          });
+        }
       };
 
-      if (segmentStartMs > startMs) {
-        pushSegment(startMs, segmentStartMs, "Sem registro", " • Antes do status atual");
+      if (rowEndMs > rowStartMs) {
+        const currentStatusTouchesRow = hasStatusSince && statusDesdeMs < rowEndMs && nowMs > rowStartMs;
+        const currentStatusStartMs = currentStatusTouchesRow ? Math.max(rowStartMs, statusDesdeMs) : 0;
+
+        if (!currentStatusTouchesRow) {
+          pushSegment(rowStartMs, rowEndMs, "Sem registro", " • Sem histórico de status da máquina");
+        } else {
+          if (currentStatusStartMs > rowStartMs) {
+            pushSegment(rowStartMs, currentStatusStartMs, "Sem registro", " • Antes do status atual");
+          }
+
+          pushSegment(
+            currentStatusStartMs,
+            rowEndMs,
+            machineStatus,
+            `${operatorName && operatorName !== "-" ? ` • Operador: ${operatorName}` : ""}`
+          );
+        }
       }
 
-      pushSegment(
-        segmentStartMs,
-        endMs,
-        machineStatus,
-        `${machine?.operador_nome ? ` • Operador: ${machine.operador_nome}` : ""}`
-      );
-
       return {
+        data: dayKey,
+        dataLabel: localDateLabel(dayKey),
         maquina: machineId,
-        nome: machine?.nome || machineId,
-        operador: machine?.operador_nome || "-",
+        operador: operatorName,
         segments,
+        overtimeBands,
       };
-    });
-
-    const tickCount = periodoDias > 7 ? 6 : 5;
-    const ticks = Array.from({ length: tickCount }, (_, idx) => {
-      const pct = tickCount === 1 ? 0 : (idx / (tickCount - 1)) * 100;
-      const ms = startMs + (totalMs * pct) / 100;
-      return { pct, label: fmtGanttDateTime(ms, periodoDias) };
     });
 
     return {
+      selectedMachineId: machineId,
+      selectedMachineName: selectedMachine?.nome || machineId,
       rows,
       ticks,
       periodoDias,
-      startMs,
-      endMs,
-      hasHistory: rows.some((row) => row.segments.length > 0),
+      startMs: rangeStartMs,
+      endMs: rangeEndMs,
+      hasHistory: Boolean(selectedMachine?.status_desde),
     };
-  }, [dashboardRequestInfo, maquinas, nowTick]);
+  }, [dashboardRequestInfo, maquinas, nowTick, graficoGanttMaquina, graficoGanttMachineOptions]);
 
   const dashManutChartData = useMemo(() => {
     const cncColors = {
@@ -4993,21 +5120,38 @@ const limparLista = (lista) =>
                 Gráfico 4 — Cronograma por CNC ({dashboardData.periodoLabel})
               </div>
               <div className="pgDashChartSubTitle">
-                Status da máquina por horário, do início do período até agora.
+                Status da máquina por data. Horário normal: 05:00 às 23:24; antes e depois é hora extra.
               </div>
             </div>
 
-            <button
-              type="button"
-              className="pgBtn pgBtnGhost"
-              onClick={async () => {
-                await fetchMaquinas();
-                await fetchDashboardAnalytics({ silent: true });
-              }}
-              disabled={dashboardLoading}
-            >
-              {dashboardLoading ? "Atualizando..." : "Atualizar status"}
-            </button>
+            <div className="pgDashGanttActions">
+              <label className="pgDashGanttSelectWrap">
+                <span>CNC</span>
+                <select
+                  className="pgInput pgDashGanttSelect"
+                  value={graficoGanttMaquina}
+                  onChange={(e) => setGraficoGanttMaquina(e.target.value)}
+                >
+                  {graficoGanttMachineOptions.map((machineId) => (
+                    <option key={machineId} value={machineId}>
+                      {machineId}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <button
+                type="button"
+                className="pgBtn pgBtnGhost"
+                onClick={async () => {
+                  await fetchMaquinas();
+                  await fetchDashboardAnalytics({ silent: true });
+                }}
+                disabled={dashboardLoading}
+              >
+                {dashboardLoading ? "Atualizando..." : "Atualizar status"}
+              </button>
+            </div>
           </div>
 
           {dashboardLoading ? (
@@ -5017,26 +5161,46 @@ const limparLista = (lista) =>
           ) : (
             <div className="pgDashGantt">
               <div className="pgDashGanttScale">
-                <div className="pgDashGanttMachineHead">CNC</div>
+                <div className="pgDashGanttMachineHead">Data</div>
                 <div className="pgDashGanttTimeline">
                   {graficoGanttData.ticks.map((tick) => (
-                    <div key={`${tick.pct}-${tick.label}`} className="pgDashGanttTick" style={{ left: `${tick.pct}%` }}>
+                    <div
+                      key={`${tick.pct}-${tick.label}`}
+                      className={`pgDashGanttTick ${tick.marker ? "isShiftLimit" : ""}`}
+                      style={{ left: `${tick.pct}%` }}
+                    >
                       <span>{tick.label}</span>
+                      {tick.marker && <em>{tick.marker}</em>}
                     </div>
                   ))}
                 </div>
               </div>
 
               {graficoGanttData.rows.map((row) => (
-                <div key={row.maquina} className="pgDashGanttRow">
-                  <div className="pgDashGanttMachine">
-                    <strong>{row.maquina}</strong>
-                    <span>{row.operador}</span>
+                <div key={`${row.maquina}-${row.data}`} className="pgDashGanttRow">
+                  <div className="pgDashGanttDate">
+                    <strong>{row.dataLabel}</strong>
+                    <span>{graficoGanttData.selectedMachineId}</span>
                   </div>
 
                   <div className="pgDashGanttTrack">
+                    {row.overtimeBands.map((band) => (
+                      <div
+                        key={`${row.data}-${band.key}`}
+                        className="pgDashGanttOvertimeBand"
+                        style={{ left: `${band.left}%`, width: `${band.width}%` }}
+                        title={band.title}
+                      >
+                        <span>{band.label}</span>
+                      </div>
+                    ))}
+
                     {graficoGanttData.ticks.map((tick) => (
-                      <i key={`${row.maquina}-${tick.pct}`} style={{ left: `${tick.pct}%` }} />
+                      <i
+                        key={`${row.maquina}-${row.data}-${tick.pct}`}
+                        className={tick.marker ? "isShiftLimit" : ""}
+                        style={{ left: `${tick.pct}%` }}
+                      />
                     ))}
 
                     {row.segments.length === 0 ? (
@@ -5044,8 +5208,8 @@ const limparLista = (lista) =>
                     ) : (
                       row.segments.map((seg, idx) => (
                         <div
-                          key={`${row.maquina}-${seg.startMs}-${idx}`}
-                          className="pgDashGanttSegment"
+                          key={`${row.maquina}-${row.data}-${seg.startMs}-${idx}`}
+                          className={`pgDashGanttSegment ${seg.isExtra ? "isExtra" : ""}`}
                           style={{ left: `${seg.left}%`, width: `${seg.width}%`, background: seg.color }}
                           title={seg.title}
                         >
@@ -5057,11 +5221,9 @@ const limparLista = (lista) =>
                 </div>
               ))}
 
-              {!graficoGanttData.hasHistory && (
-                <div className="pgDashGanttNotice">
-                  Sem histórico de movimentações carregado. O cronograma está usando apenas o status atual das CNCs.
-                </div>
-              )}
+              <div className="pgDashGanttNotice">
+                Exibindo {graficoGanttData.selectedMachineId}. Com os dados atuais, o gráfico usa o status atual da máquina e o horário desde quando ele começou.
+              </div>
             </div>
           )}
         </div>
