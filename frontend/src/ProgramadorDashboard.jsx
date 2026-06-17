@@ -525,9 +525,9 @@ function getMonthDays(monthKey = "") {
 }
 
 function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emptyText = "Sem dados.", compact = false, showLegend = !compact }) {
-  const width = compact ? 920 : 920;
+  const width = compact ? 2020 : 920;
   const height = compact ? 320 : 320;
-  const padLeft = compact ? 100 : 58;
+  const padLeft = compact ? 120 : 58;
   const padRight = compact ? 18 : 22;
   const padTop = compact ? 24 : 24;
   const padBottom = compact ? 46 : 46;
@@ -580,10 +580,10 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
       {!hasData ? (
         <div className="pgEmpty">{emptyText}</div>
       ) : (
-        <><svg
+        <>
+          <svg
   className="pgDashManutStackedSvg"
   viewBox={`0 0 ${width} ${height}`}
-  preserveAspectRatio="none"
   role="img"
   aria-label={title}
 >
