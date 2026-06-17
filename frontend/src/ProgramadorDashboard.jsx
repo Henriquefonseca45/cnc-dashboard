@@ -580,21 +580,38 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
       {!hasData ? (
         <div className="pgEmpty">{emptyText}</div>
       ) : (
-        <>
-          <svg className="pgDashManutStackedSvg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title}>
-            {yTicks.map((tick) => {
-              const value = maxMin * tick;
-              const y = yFor(value);
-              return (
-                <g key={`y-${tick}`}>
-                  <line x1={padLeft} y1={y} x2={width - padRight} y2={y} className="pgDashManutGridLine" />
-                  <text x={padLeft - 10} y={y + 4} textAnchor="end" className="pgDashManutAxisText">
-                    {fmtSetupDuration(value)}
-                  </text>
-                </g>
-              );
-            })}
+        <><svg
+  className="pgDashManutStackedSvg"
+  viewBox={`0 0 ${width} ${height}`}
+  preserveAspectRatio="none"
+  role="img"
+  aria-label={title}
+>
+  {yTicks.map((tick) => {
+    const value = maxMin * tick;
+    const y = yFor(value);
 
+    return (
+      <g key={`y-${tick}`}>
+        <line
+          x1={padLeft}
+          y1={y}
+          x2={width - padRight}
+          y2={y}
+          className="pgDashManutGridLine"
+        />
+
+        <text
+          x={padLeft - 10}
+          y={y + 4}
+          textAnchor="end"
+          className="pgDashManutAxisText"
+        >
+          {fmtSetupDuration(value)}
+        </text>
+      </g>
+    );
+  })}
             {safeDays.map((day, idx) => {
               if (idx % labelStep !== 0 && idx !== safeDays.length - 1) return null;
               const x = xFor(idx) + barW / 2;

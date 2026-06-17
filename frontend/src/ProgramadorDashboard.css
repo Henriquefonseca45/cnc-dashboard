@@ -3670,7 +3670,7 @@ body::after{
 .pdf-export-mode .pgCard {
   background-image: none !important;
 }
-/* ===== Ajuste altura do card Manutenção diária por CNC - DashManut ===== */
+/* ===== Ajuste correto do card Manutenção diária por CNC - DashManut ===== */
 
 .pgDashManutCncChartsCard {
   padding: 14px 16px !important;
@@ -3682,22 +3682,23 @@ body::after{
 }
 
 .pgDashManutCncChartCard {
-  padding: 10px 12px !important;
-  min-height: auto !important;
+  padding: 10px 12px 8px !important;
+  min-height: 0 !important;
 }
 
 .pgDashManutCncChartCard .pgDashChartHeader {
-  margin-bottom: 6px !important;
+  margin-bottom: 8px !important;
 }
 
-/* Aqui reduz a altura principal do gráfico */
+/* Altura ideal: menor que antes, mas sem deixar o gráfico pequeno */
 .pgDashManutCncChartCard .pgDashManutStackedSvg {
-  height: 220px !important;
-  min-height: 220px !important;
-  max-height: 220px !important;
+  width: 100% !important;
+  height: 300px !important;
+  min-height: 300px !important;
+  max-height: 300px !important;
 }
 
-/* Legenda menor */
+/* Legenda mais compacta */
 .pgDashManutCncChartCard .pgDashManutLegend {
   margin-top: 8px !important;
   gap: 6px !important;
