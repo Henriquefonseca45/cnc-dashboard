@@ -1175,6 +1175,18 @@ function statusTimelineColor(status = "") {
   return colors[bucket] || colors.outros;
 }
 
+function isGanttHiddenStatus(status = "") {
+  const raw = String(status || "").trim();
+  const s = U(raw);
+
+  return (
+    !raw ||
+    s.includes("DESLIG") ||
+    s.includes("SEM REGISTRO") ||
+    s.includes("SEM STATUS")
+  );
+}
+
 function fmtGanttDateTime(ms, periodoDias = 1) {
   const d = new Date(ms);
   if (!Number.isFinite(d.getTime())) return "-";
@@ -3892,6 +3904,8 @@ const limparLista = (lista) =>
       ].filter((band) => band.width > 0.2);
 
       const pushSegment = (fromMs, toMs, status, titleExtra = "") => {
+        if (isGanttHiddenStatus(status)) return;
+
         const iniBase = Math.max(displayStartMs, rowStartMs, fromMs);
         const fimBase = Math.min(displayEndMs, rowEndMs, toMs);
         if (fimBase <= iniBase || fimBase - iniBase < 60 * 1000) return;
@@ -3931,13 +3945,8 @@ const limparLista = (lista) =>
         const currentStatusTouchesRow = hasStatusSince && statusDesdeMs < rowEndMs && nowMs > rowStartMs;
         const currentStatusStartMs = currentStatusTouchesRow ? Math.max(rowStartMs, statusDesdeMs) : 0;
 
-        if (!currentStatusTouchesRow) {
-          pushSegment(rowStartMs, rowEndMs, "Sem registro", " • Sem histórico de status da máquina");
-        } else {
-          if (currentStatusStartMs > rowStartMs) {
-            pushSegment(rowStartMs, currentStatusStartMs, "Sem registro", " • Antes do status atual");
-          }
-
+        // Mostra apenas status reais da máquina. "Desligada" e períodos sem registro ficam fora do Gantt.
+        if (currentStatusTouchesRow && !isGanttHiddenStatus(machineStatus)) {
           pushSegment(
             currentStatusStartMs,
             rowEndMs,
@@ -5384,7 +5393,7 @@ const limparLista = (lista) =>
                 Gráfico 4 — Cronograma por CNC ({dashboardData.periodoLabel})
               </div>
               <div className="pgDashChartSubTitle">
-                Status da máquina por data. Horário normal: 05:00 às 23:24; antes e depois é hora extra.
+                Status da máquina por data, ignorando Desligada. Horário normal: 05:00 às 23:24; antes e depois é hora extra.
               </div>
             </div>
 
@@ -5486,7 +5495,7 @@ const limparLista = (lista) =>
               ))}
 
               <div className="pgDashGanttNotice">
-                Exibindo {graficoGanttData.selectedMachineId}. Com os dados atuais, o gráfico usa o status atual da máquina e o horário desde quando ele começou.
+                Exibindo {graficoGanttData.selectedMachineId}. O Gantt mostra apenas status diferentes de Desligada.
               </div>
             </div>
           )}
