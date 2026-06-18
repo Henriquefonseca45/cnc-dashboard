@@ -3896,7 +3896,10 @@ body::after{
   letter-spacing:.05em;
 }
 
-.pgDashGanttTick.isShiftLimit::before,
+.pgDashGanttTick.isShiftLimit::before{
+  display:none;
+}
+
 .pgDashGanttTrack > i.isShiftLimit{
   content:"";
   display:block;
