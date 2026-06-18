@@ -3939,23 +3939,12 @@ const limparLista = (lista) =>
         }
       }
 
-      const overtimeBands = segments
-        .filter((seg) => seg.isExtra)
-        .map((seg, idx) => ({
-          key: `extra-${seg.startMs}-${idx}`,
-          left: seg.left,
-          width: seg.width,
-          label: "Hora extra",
-          title: seg.title,
-        }));
-
       return {
         data: dayKey,
         dataLabel: localDateLabel(dayKey),
         maquina: machineId,
         operador: operatorName,
         segments,
-        overtimeBands,
       };
     });
 
@@ -5450,17 +5439,6 @@ const limparLista = (lista) =>
                   </div>
 
                   <div className="pgDashGanttTrack">
-                    {row.overtimeBands.map((band) => (
-                      <div
-                        key={`${row.data}-${band.key}`}
-                        className="pgDashGanttOvertimeBand"
-                        style={{ left: `${band.left}%`, width: `${band.width}%` }}
-                        title={band.title}
-                      >
-                        <span>{band.label}</span>
-                      </div>
-                    ))}
-
                     {graficoGanttData.ticks.map((tick) => (
                       <i
                         key={`${row.maquina}-${row.data}-${tick.pct}`}
