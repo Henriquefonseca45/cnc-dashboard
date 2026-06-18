@@ -871,7 +871,9 @@ def _dashboard_bucket_from_status(status: str, motivo: str | None = None) -> str
         return "abertura_material"
     if "USIN" in txt or "CORT" in txt:
         return "usinando"
-    if "SETUP" in txt or ("TROCA" in txt and "SACRIFIC" in txt):
+    if "TROCA" in txt and "SACRIFIC" in txt:
+        return "troca_sacrificio"
+    if "SETUP" in txt:
         return "setup"
     if "MANUT" in txt:
         return "manutencao"
@@ -982,6 +984,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
         "falta_material",
         "falta_operador",
         "programacao",
+        "troca_sacrificio",
         "reuniao",
         "refeicao",
         "desligada",
@@ -1087,6 +1090,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
         totals["manutencao"]
         + totals["falta_material"]
         + totals["falta_operador"]
+        + totals["troca_sacrificio"]
         + totals["reuniao"]
         + totals["refeicao"]
         + totals["desligada"]
@@ -1117,6 +1121,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
                 "falta_material": totals["falta_material"],
                 "falta_operador": totals["falta_operador"],
                 "programacao": totals["programacao"],
+                "troca_sacrificio": totals["troca_sacrificio"],
                 "reuniao": totals["reuniao"],
                 "refeicao": totals["refeicao"],
                 "desligada": totals["desligada"],
@@ -1150,6 +1155,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
                 item["manutencao"]
                 + item["falta_material"]
                 + item["falta_operador"]
+                + item["troca_sacrificio"]
                 + item["reuniao"]
                 + item["refeicao"]
                 + item["desligada"]
@@ -1178,6 +1184,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
                 "setup_medio_min": setup_medio_machine_min,
                 "total_setups": setup_count,
                 "programacao_min": programacao_min,
+                "troca_sacrificio_min": round(item["troca_sacrificio"] / 60, 2),
                 "manutencao_min": round(item["manutencao"] / 60, 2),
                 "falta_material_min": round(item["falta_material"] / 60, 2),
                 "falta_operador_min": round(item["falta_operador"] / 60, 2),

@@ -1099,7 +1099,8 @@ function dashboardBucket(status = "") {
   const s = U(status);
 
   if (s.includes("USIN") || s.includes("CORT")) return "usinando";
-  if (s.includes("SETUP") || (s.includes("TROCA") && s.includes("SACRIFIC"))) return "setup";
+  if (s.includes("TROCA") && s.includes("SACRIFIC")) return "troca_sacrificio";
+  if (s.includes("SETUP")) return "setup";
   if (s.includes("MANUT")) return "manutencao";
   if ((s.includes("AGUAR") || s.includes("AGUARD")) && (s.includes("EMPILH") || s.includes("EMPILHADEIRA")))
     return "falta_material";
@@ -1127,6 +1128,8 @@ function bucketLabel(bucket) {
       return "Falta de operador";
     case "programacao":
       return "Programação";
+    case "troca_sacrificio":
+      return "Troca chapa sacrificio";
     case "reuniao":
       return "Reunião";
     case "refeicao":
@@ -1163,6 +1166,7 @@ function statusTimelineColor(status = "") {
     falta_material: "#ef4444",
     falta_operador: "#dc2626",
     programacao: "#3b82f6",
+    troca_sacrificio: "#fb923c",
     reuniao: "#06b6d4",
     refeicao: "#14b8a6",
     desligada: "#64748b",
@@ -1547,6 +1551,7 @@ function extractMachineReasonRows(raw, machineId) {
       { bucket: "falta_material", min: Number(perMachine.falta_material_min || 0) },
       { bucket: "falta_operador", min: Number(perMachine.falta_operador_min || 0) },
       { bucket: "programacao", min: Number(perMachine.programacao_min || 0) },
+      { bucket: "troca_sacrificio", min: Number(perMachine.troca_sacrificio_min || 0) },
       { bucket: "reuniao", min: Number(perMachine.reuniao_min || 0) },
       { bucket: "refeicao", min: Number(perMachine.refeicao_min || 0) },
       { bucket: "ociosa", min: Number(perMachine.ociosa_min || 0) },
@@ -1592,6 +1597,7 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
       totalSetups: Number(item.total_setups || 0),
       faltaMaterialMin: Number(item.falta_material_min || 0),
       faltaOperadorMin: Number(item.falta_operador_min || 0),
+      trocaSacrificioMin: Number(item.troca_sacrificio_min || 0),
       faltaMaterialMedioMin: Number(item.falta_material_medio_min || 0),
       totalFaltaMaterial: Number(item.total_falta_material || 0),
       manutencaoMin: Number(item.manutencao_min || 0),
@@ -1611,6 +1617,7 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
     falta_material: Number(totalsObj.falta_material?.tempo_min || 0),
     falta_operador: Number(totalsObj.falta_operador?.tempo_min || 0),
     programacao: Number(totalsObj.programacao?.tempo_min || 0),
+    troca_sacrificio: Number(totalsObj.troca_sacrificio?.tempo_min || 0),
     reuniao: Number(totalsObj.reuniao?.tempo_min || 0),
     refeicao: Number(totalsObj.refeicao?.tempo_min || 0),
     desligada: Number(totalsObj.desligada?.tempo_min || 0),
@@ -1686,6 +1693,7 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
       Number(totals.manutencao || 0) +
       Number(totals.falta_material || 0) +
       Number(totals.falta_operador || 0) +
+      Number(totals.troca_sacrificio || 0) +
       Number(totals.ociosa || 0) +
       Number(totals.reuniao || 0) +
       Number(totals.refeicao || 0) +
@@ -3740,6 +3748,7 @@ const limparLista = (lista) =>
       "falta_material",
       "falta_operador",
       "programacao",
+      "troca_sacrificio",
       "reuniao",
       "refeicao",
       "ociosa",
@@ -3754,6 +3763,7 @@ const limparLista = (lista) =>
       falta_material: "#ef4444",
       falta_operador: "#dc2626",
       programacao: "#3b82f6",
+      troca_sacrificio: "#fb923c",
       reuniao: "#06b6d4",
       refeicao: "#eab308",
       ociosa: "#f97316",
@@ -3936,12 +3946,13 @@ const limparLista = (lista) =>
           const timelineStartMs = Date.parse(entry?.inicio_em || entry?.inicio || entry?.start || "");
           const timelineEndMs = Date.parse(entry?.fim_em || entry?.fim || entry?.end || "");
           if (!Number.isFinite(timelineStartMs) || !Number.isFinite(timelineEndMs)) return;
+          const timelineStatus = `${entry?.status || ""} ${entry?.motivo || ""}`.trim();
 
           pushSegment(
             timelineStartMs,
             timelineEndMs,
-            entry?.status || "",
-            `${entry?.motivo ? ` â€¢ Motivo: ${entry.motivo}` : ""}`
+            timelineStatus,
+            ""
           );
         });
 
