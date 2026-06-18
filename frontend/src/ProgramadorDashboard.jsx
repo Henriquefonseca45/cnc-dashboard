@@ -3886,23 +3886,6 @@ const limparLista = (lista) =>
 
       const pctFor = (ms) => Math.max(0, Math.min(100, ((ms - displayStartMs) / totalMs) * 100));
 
-      const overtimeBands = [
-        {
-          key: "before-shift",
-          left: 0,
-          width: Math.max(0, pctFor(shiftStartMs)),
-          label: "Hora extra",
-          title: `${localDateLabel(dayKey)} • 00:00 até ${GANTT_SHIFT_START} • Hora extra`,
-        },
-        {
-          key: "after-shift",
-          left: pctFor(shiftEndMs),
-          width: Math.max(0, 100 - pctFor(shiftEndMs)),
-          label: "Hora extra",
-          title: `${localDateLabel(dayKey)} • ${GANTT_SHIFT_END} até 24:00 • Hora extra`,
-        },
-      ].filter((band) => band.width > 0.2);
-
       const pushSegment = (fromMs, toMs, status, titleExtra = "") => {
         if (isGanttHiddenStatus(status)) return;
 
@@ -3955,6 +3938,16 @@ const limparLista = (lista) =>
           );
         }
       }
+
+      const overtimeBands = segments
+        .filter((seg) => seg.isExtra)
+        .map((seg, idx) => ({
+          key: `extra-${seg.startMs}-${idx}`,
+          left: seg.left,
+          width: seg.width,
+          label: "Hora extra",
+          title: seg.title,
+        }));
 
       return {
         data: dayKey,
@@ -5393,7 +5386,7 @@ const limparLista = (lista) =>
                 Gráfico 4 — Cronograma por CNC ({dashboardData.periodoLabel})
               </div>
               <div className="pgDashChartSubTitle">
-                Status da máquina por data, ignorando Desligada. Horário normal: 05:00 às 23:24; antes e depois é hora extra.
+                Status da máquina por data, ignorando Desligada. Horário normal: 05:00 às 23:24; trechos ativos antes ou depois viram hora extra.
               </div>
             </div>
 
