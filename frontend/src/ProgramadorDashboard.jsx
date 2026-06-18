@@ -5388,108 +5388,32 @@ const limparLista = (lista) =>
           </div>
         </div>
 
-        <div className="pgDashChartCard pgDashGanttCard">
-          <div className="pgDashChartHeader">
-            <div>
-              <div className="pgDashChartTitle">
-                Gráfico 4 — Cronograma por CNC ({dashboardData.periodoLabel})
-              </div>
-              <div className="pgDashChartSubTitle">
-                Status da máquina por data, ignorando Desligada. Horário normal: 05:00 às 23:24; trechos ativos antes ou depois viram hora extra.
-              </div>
-            </div>
-
-            <div className="pgDashGanttActions">
-              <label className="pgDashGanttSelectWrap">
-                <span>CNC</span>
-                <select
-                  className="pgInput pgDashGanttSelect"
-                  value={graficoGanttMaquina}
-                  onChange={(e) => setGraficoGanttMaquina(e.target.value)}
-                >
-                  {graficoGanttMachineOptions.map((machineId) => (
-                    <option key={machineId} value={machineId}>
-                      {machineId}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <button
-                type="button"
-                className="pgBtn pgBtnGhost"
-                onClick={async () => {
-                  await fetchMaquinas();
-                  await fetchDashboardAnalytics({ silent: true });
-                }}
-                disabled={dashboardLoading}
-              >
-                {dashboardLoading ? "Atualizando..." : "Atualizar status"}
-              </button>
-            </div>
+        <div className="pgDashChartCard pgDashChartCard7">
+          <div className="pgDashChartTitle">
+            Gráfico 7 — Tempo em RNC e Abertura Material ({dashboardData.periodoLabel})
           </div>
 
-          {dashboardLoading ? (
-            <div className="pgEmpty">Carregando cronograma...</div>
-          ) : graficoGanttData.rows.length === 0 ? (
-            <div className="pgEmpty">Sem dados para montar o cronograma.</div>
-          ) : (
-            <div className="pgDashGantt">
-              <div className="pgDashGanttScale">
-                <div className="pgDashGanttMachineHead">Data</div>
-                <div className="pgDashGanttTimeline">
-                  {graficoGanttData.ticks.map((tick) => (
-                    <div
-                      key={`${tick.pct}-${tick.label}`}
-                      className={`pgDashGanttTick ${tick.marker ? "isShiftLimit" : ""}`}
-                      style={{ left: `${tick.pct}%` }}
-                    >
-                      <span>{tick.label}</span>
-                      {tick.marker && <em>{tick.marker}</em>}
-                    </div>
-                  ))}
+          {grafico7Data.items.length === 0 ? (
+            <div className="pgEmpty">Sem registros de RNC ou Abertura material no período.</div>
+          ) : (() => {
+            const maxEspecial = Math.max(1, ...grafico7Data.items.map((x) => x.min));
+
+            return grafico7Data.items.map((item) => (
+              <div key={item.bucket} className="pgDashReasonRow">
+                <div className="pgDashReasonName">{item.label}</div>
+                <div className="pgDashReasonTrack">
+                  <div
+                    className="pgDashReasonFill"
+                    style={{
+                      width: `${(item.min / maxEspecial) * 100}%`,
+                      background: item.color,
+                    }}
+                  />
                 </div>
+                <div className="pgDashReasonValue">{fmtMinHuman(item.min)}</div>
               </div>
-
-              {graficoGanttData.rows.map((row) => (
-                <div key={`${row.maquina}-${row.data}`} className="pgDashGanttRow">
-                  <div className="pgDashGanttDate">
-                    <strong>{row.dataLabel}</strong>
-                    <span>{graficoGanttData.selectedMachineId}</span>
-                  </div>
-
-                  <div className="pgDashGanttTrack">
-                    {graficoGanttData.ticks.map((tick) => (
-                      <i
-                        key={`${row.maquina}-${row.data}-${tick.pct}`}
-                        className={tick.marker ? "isShiftLimit" : ""}
-                        style={{ left: `${tick.pct}%` }}
-                      />
-                    ))}
-
-                    {row.segments.length === 0 ? (
-                      <div className="pgDashGanttEmptySegment">Sem registro</div>
-                    ) : (
-                      row.segments.map((seg, idx) => (
-                        <div
-                          key={`${row.maquina}-${row.data}-${seg.startMs}-${idx}`}
-                          className={`pgDashGanttSegment ${seg.isExtra ? "isExtra" : ""}`}
-                          style={{ left: `${seg.left}%`, width: `${seg.width}%`, background: seg.color }}
-                          title={seg.title}
-                        >
-                          <span>{seg.label}</span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              ))}
-
-              <div className="pgDashGanttNotice">
-                Exibindo {graficoGanttData.selectedMachineId}. O Gantt mostra apenas status diferentes de Desligada.
-              </div>
-            </div>
-          )}
+            ));
+          })()}
         </div>
       </section>
 
@@ -5625,33 +5549,113 @@ const limparLista = (lista) =>
           )}
         </div>
 
-        <div className="pgDashChartCard pgDashChartCard7">
-          <div className="pgDashChartTitle">
-            Gráfico 7 — Tempo em RNC e Abertura Material ({dashboardData.periodoLabel})
+      </section>
+
+      <section className="pgDashChartsRow pgDashChartsRowBottom">
+        <div className="pgDashChartCard pgDashGanttCard">
+          <div className="pgDashChartHeader">
+            <div>
+              <div className="pgDashChartTitle">
+                Gráfico 4 — Cronograma por CNC ({dashboardData.periodoLabel})
+              </div>
+              <div className="pgDashChartSubTitle">
+                Status da máquina por data, ignorando Desligada. Horário normal: 05:00 às 23:24; trechos ativos antes ou depois viram hora extra.
+              </div>
+            </div>
+
+            <div className="pgDashGanttActions">
+              <label className="pgDashGanttSelectWrap">
+                <span>CNC</span>
+                <select
+                  className="pgInput pgDashGanttSelect"
+                  value={graficoGanttMaquina}
+                  onChange={(e) => setGraficoGanttMaquina(e.target.value)}
+                >
+                  {graficoGanttMachineOptions.map((machineId) => (
+                    <option key={machineId} value={machineId}>
+                      {machineId}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <button
+                type="button"
+                className="pgBtn pgBtnGhost"
+                onClick={async () => {
+                  await fetchMaquinas();
+                  await fetchDashboardAnalytics({ silent: true });
+                }}
+                disabled={dashboardLoading}
+              >
+                {dashboardLoading ? "Atualizando..." : "Atualizar status"}
+              </button>
+            </div>
           </div>
 
-          {grafico7Data.items.length === 0 ? (
-            <div className="pgEmpty">Sem registros de RNC ou Abertura material no período.</div>
-          ) : (() => {
-            const maxEspecial = Math.max(1, ...grafico7Data.items.map((x) => x.min));
-
-            return grafico7Data.items.map((item) => (
-              <div key={item.bucket} className="pgDashReasonRow">
-                <div className="pgDashReasonName">{item.label}</div>
-                <div className="pgDashReasonTrack">
-                  <div
-                    className="pgDashReasonFill"
-                    style={{
-                      width: `${(item.min / maxEspecial) * 100}%`,
-                      background: item.color,
-                    }}
-                  />
+          {dashboardLoading ? (
+            <div className="pgEmpty">Carregando cronograma...</div>
+          ) : graficoGanttData.rows.length === 0 ? (
+            <div className="pgEmpty">Sem dados para montar o cronograma.</div>
+          ) : (
+            <div className="pgDashGantt">
+              <div className="pgDashGanttScale">
+                <div className="pgDashGanttMachineHead">Data</div>
+                <div className="pgDashGanttTimeline">
+                  {graficoGanttData.ticks.map((tick) => (
+                    <div
+                      key={`${tick.pct}-${tick.label}`}
+                      className={`pgDashGanttTick ${tick.marker ? "isShiftLimit" : ""}`}
+                      style={{ left: `${tick.pct}%` }}
+                    >
+                      <span>{tick.label}</span>
+                      {tick.marker && <em>{tick.marker}</em>}
+                    </div>
+                  ))}
                 </div>
-                <div className="pgDashReasonValue">{fmtMinHuman(item.min)}</div>
               </div>
-            ));
-          })()}
+
+              {graficoGanttData.rows.map((row) => (
+                <div key={`${row.maquina}-${row.data}`} className="pgDashGanttRow">
+                  <div className="pgDashGanttDate">
+                    <strong>{row.dataLabel}</strong>
+                    <span>{graficoGanttData.selectedMachineId}</span>
+                  </div>
+
+                  <div className="pgDashGanttTrack">
+                    {graficoGanttData.ticks.map((tick) => (
+                      <i
+                        key={`${row.maquina}-${row.data}-${tick.pct}`}
+                        className={tick.marker ? "isShiftLimit" : ""}
+                        style={{ left: `${tick.pct}%` }}
+                      />
+                    ))}
+
+                    {row.segments.length === 0 ? (
+                      <div className="pgDashGanttEmptySegment">Sem registro</div>
+                    ) : (
+                      row.segments.map((seg, idx) => (
+                        <div
+                          key={`${row.maquina}-${row.data}-${seg.startMs}-${idx}`}
+                          className={`pgDashGanttSegment ${seg.isExtra ? "isExtra" : ""}`}
+                          style={{ left: `${seg.left}%`, width: `${seg.width}%`, background: seg.color }}
+                          title={seg.title}
+                        >
+                          <span>{seg.label}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              <div className="pgDashGanttNotice">
+                Exibindo {graficoGanttData.selectedMachineId}. O Gantt mostra apenas status diferentes de Desligada.
+              </div>
+            </div>
+          )}
         </div>
+
       </section>
 
       <section className="pgDashBottomInfo">
