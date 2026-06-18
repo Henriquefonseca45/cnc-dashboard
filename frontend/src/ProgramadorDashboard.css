@@ -3681,7 +3681,8 @@ body::after{
   display:grid;
   gap:7px;
   max-height:360px;
-  overflow:auto;
+  overflow-x:hidden;
+  overflow-y:auto;
   padding:2px 2px 8px;
   overscroll-behavior:contain;
 }
@@ -3689,7 +3690,7 @@ body::after{
 .pgDashGanttScale,
 .pgDashGanttRow{
   display:grid;
-  grid-template-columns:92px minmax(560px, 1fr);
+  grid-template-columns:96px minmax(0, 1fr);
   gap:10px;
   align-items:center;
 }
@@ -3712,7 +3713,7 @@ body::after{
 
 .pgDashGanttTimeline{
   position:relative;
-  min-width:560px;
+  min-width:0;
   height:22px;
 }
 
@@ -3754,7 +3755,7 @@ body::after{
 
 .pgDashGanttTrack{
   position:relative;
-  min-width:560px;
+  min-width:0;
   height:26px;
   border:2px solid #111827;
   border-radius:2px;
@@ -3845,7 +3846,7 @@ body::after{
 
 .pgDashGanttScale,
 .pgDashGanttRow{
-  grid-template-columns:124px minmax(560px, 1fr) !important;
+  grid-template-columns:104px minmax(0, 1fr) !important;
 }
 
 .pgDashGanttMachineHead{
@@ -3854,7 +3855,7 @@ body::after{
 
 .pgDashGanttTimeline,
 .pgDashGanttTrack{
-  min-width:560px !important;
+  min-width:0 !important;
 }
 
 .pgDashGanttDate{
@@ -3897,7 +3898,15 @@ body::after{
 
 .pgDashGanttTick.isShiftLimit::before,
 .pgDashGanttTrack > i.isShiftLimit{
-  display:none;
+  content:"";
+  display:block;
+  position:absolute;
+  top:0;
+  bottom:0;
+  width:0;
+  border-left:2px dotted #111827;
+  pointer-events:none;
+  z-index:3;
 }
 
 .pgDashGanttSegment{
@@ -3919,11 +3928,11 @@ body::after{
 
   .pgDashGanttScale,
   .pgDashGanttRow{
-    grid-template-columns:104px minmax(460px, 1fr) !important;
+    grid-template-columns:92px minmax(0, 1fr) !important;
   }
 
   .pgDashGanttTimeline,
   .pgDashGanttTrack{
-    min-width:460px !important;
+    min-width:0 !important;
   }
 }
