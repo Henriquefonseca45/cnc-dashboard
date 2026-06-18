@@ -1000,6 +1000,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
             "maquina": m["id"],
             "operador_nome": m["operador_nome"] or "",
             "status_atual": m["status"] or "",
+            "status_timeline": [],
             "qtd_setups": 0,
             "qtd_falta_material": 0,
             **{k: 0 for k in bucket_keys},
@@ -1048,6 +1049,17 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
         secs = overlap_seconds(seg_ini, seg_fim)
         if secs <= 0:
             continue
+
+        timeline_ini = max(seg_ini, dt_ini_base)
+        timeline_fim = min(seg_fim, dt_fim_base)
+        per_machine[maquina_id]["status_timeline"].append(
+            {
+                "status": r["status"] or "",
+                "motivo": r["motivo"] or "",
+                "inicio_em": timeline_ini.isoformat(timespec="seconds"),
+                "fim_em": timeline_fim.isoformat(timespec="seconds"),
+            }
+        )
 
         special_bucket = _dashboard_special_bucket_from_status(r["status"], r["motivo"])
         if special_bucket in special_totals:
@@ -1160,6 +1172,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
                 "maquina": machine_id,
                 "operador_nome": item["operador_nome"],
                 "status_atual": item["status_atual"],
+                "status_timeline": item["status_timeline"],
                 "usinando_min": usinando_min,
                 "setup_min": setup_min,
                 "setup_medio_min": setup_medio_machine_min,

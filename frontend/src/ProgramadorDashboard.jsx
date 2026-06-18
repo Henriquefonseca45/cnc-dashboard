@@ -1600,6 +1600,7 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
       performancePct: Number(item.performance_pct || 0),
       statusAtual: item.status_atual || "",
       operadorNome: item.operador_nome || "",
+      statusTimeline: Array.isArray(item.status_timeline) ? item.status_timeline : [],
     }))
     .sort((a, b) => b.usinandoMin - a.usinandoMin);
 
@@ -3864,6 +3865,12 @@ const limparLista = (lista) =>
     const operatorName = selectedMachine?.operador_nome || "-";
     const statusDesdeMs = Date.parse(selectedMachine?.status_desde || "");
     const hasStatusSince = Number.isFinite(statusDesdeMs);
+    const selectedDashboardMachine = (dashboardData?.rankingMaquinas || []).find(
+      (item) => String(item?.maquina || "").toUpperCase() === machineId
+    );
+    const statusTimeline = Array.isArray(selectedDashboardMachine?.statusTimeline)
+      ? selectedDashboardMachine.statusTimeline
+      : [];
 
     const dayKeys = buildLocalDayKeys(rangeStartMs, rangeEndMs);
     const ticks = [
@@ -3925,11 +3932,24 @@ const limparLista = (lista) =>
       };
 
       if (rowEndMs > rowStartMs) {
+        statusTimeline.forEach((entry) => {
+          const timelineStartMs = Date.parse(entry?.inicio_em || entry?.inicio || entry?.start || "");
+          const timelineEndMs = Date.parse(entry?.fim_em || entry?.fim || entry?.end || "");
+          if (!Number.isFinite(timelineStartMs) || !Number.isFinite(timelineEndMs)) return;
+
+          pushSegment(
+            timelineStartMs,
+            timelineEndMs,
+            entry?.status || "",
+            `${entry?.motivo ? ` â€¢ Motivo: ${entry.motivo}` : ""}`
+          );
+        });
+
         const currentStatusTouchesRow = hasStatusSince && statusDesdeMs < rowEndMs && nowMs > rowStartMs;
         const currentStatusStartMs = currentStatusTouchesRow ? Math.max(rowStartMs, statusDesdeMs) : 0;
 
         // Mostra apenas status reais da máquina. "Desligada" e períodos sem registro ficam fora do Gantt.
-        if (currentStatusTouchesRow && !isGanttHiddenStatus(machineStatus)) {
+        if (statusTimeline.length === 0 && currentStatusTouchesRow && !isGanttHiddenStatus(machineStatus)) {
           pushSegment(
             currentStatusStartMs,
             rowEndMs,
@@ -3958,7 +3978,7 @@ const limparLista = (lista) =>
       endMs: rangeEndMs,
       hasHistory: Boolean(selectedMachine?.status_desde),
     };
-  }, [dashboardRequestInfo, maquinas, nowTick, graficoGanttMaquina, graficoGanttMachineOptions]);
+  }, [dashboardData, dashboardRequestInfo, maquinas, nowTick, graficoGanttMaquina, graficoGanttMachineOptions]);
 
   const dashManutChartData = useMemo(() => {
     const cncColors = {
