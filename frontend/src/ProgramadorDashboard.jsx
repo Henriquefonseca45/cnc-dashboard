@@ -5390,7 +5390,7 @@ const limparLista = (lista) =>
 
         <div className="pgDashChartCard pgDashChartCard7">
           <div className="pgDashChartTitle">
-            Gráfico 7 — Tempo em RNC e Abertura Material ({dashboardData.periodoLabel})
+            Gráfico 4 — Tempo em RNC e Abertura Material ({dashboardData.periodoLabel})
           </div>
 
           {grafico7Data.items.length === 0 ? (
@@ -5556,10 +5556,7 @@ const limparLista = (lista) =>
           <div className="pgDashChartHeader">
             <div>
               <div className="pgDashChartTitle">
-                Gráfico 4 — Cronograma por CNC ({dashboardData.periodoLabel})
-              </div>
-              <div className="pgDashChartSubTitle">
-                Status da máquina por data, ignorando Desligada. Horário normal: 05:00 às 23:24; trechos ativos antes ou depois viram hora extra.
+                Gráfico 7 — Cronograma por CNC ({dashboardData.periodoLabel})
               </div>
             </div>
 
@@ -5649,9 +5646,6 @@ const limparLista = (lista) =>
                 </div>
               ))}
 
-              <div className="pgDashGanttNotice">
-                Exibindo {graficoGanttData.selectedMachineId}. O Gantt mostra apenas status diferentes de Desligada.
-              </div>
             </div>
           )}
         </div>
