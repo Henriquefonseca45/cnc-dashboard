@@ -3680,8 +3680,10 @@ body::after{
 .pgDashGantt{
   display:grid;
   gap:7px;
-  overflow-x:auto;
+  max-height:360px;
+  overflow:auto;
   padding:2px 2px 8px;
+  overscroll-behavior:contain;
 }
 
 .pgDashGanttScale,
@@ -3690,6 +3692,14 @@ body::after{
   grid-template-columns:92px minmax(560px, 1fr);
   gap:10px;
   align-items:center;
+}
+
+.pgDashGanttScale{
+  position:sticky;
+  top:0;
+  z-index:4;
+  padding-bottom:2px;
+  background:var(--card);
 }
 
 .pgDashGanttMachineHead{
@@ -3823,7 +3833,14 @@ body::after{
   min-width:112px;
   height:36px;
   font-weight:900;
-  color:var(--brand);
+  color:#111827 !important;
+  background:#ffffff !important;
+  -webkit-text-fill-color:#111827;
+}
+
+.pgDashGanttSelect option{
+  color:#111827;
+  background:#ffffff;
 }
 
 .pgDashGanttScale,
@@ -3896,6 +3913,10 @@ body::after{
 }
 
 @media (max-width: 820px){
+  .pgDashGantt{
+    max-height:300px;
+  }
+
   .pgDashGanttScale,
   .pgDashGanttRow{
     grid-template-columns:104px minmax(460px, 1fr) !important;
