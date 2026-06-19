@@ -530,7 +530,7 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
   const padLeft = compact ? 86 : 58;
   const padRight = compact ? 18 : 22;
   const padTop = compact ? 12 : 24;
-  const padBottom = compact ? 20 : 46;
+  const padBottom = compact ? 28 : 46;
   const chartW = width - padLeft - padRight;
   const chartH = height - padTop - padBottom;
   const safeDays = Array.isArray(days) ? days : [];
@@ -555,11 +555,13 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
   const hasData = dayTotals.some((value) => value > 0);
   const labelStep = 1;
   const barGap = compact ? 2 : safeDays.length > 20 ? 3 : 6;
-  const barW = safeDays.length > 0 ? Math.max(compact ? 5 : 8, (chartW - barGap * (safeDays.length - 1)) / safeDays.length) : 0;
+  const rawBarW = safeDays.length > 0 ? (chartW - barGap * (safeDays.length - 1)) / safeDays.length : 0;
+  const barW = safeDays.length > 0 ? Math.min(compact ? 44 : 999, Math.max(compact ? 3 : 8, rawBarW)) : 0;
 
   const xFor = (idx) => {
     if (safeDays.length <= 1) return padLeft + chartW / 2 - barW / 2;
-    return padLeft + idx * (barW + barGap);
+    const slotW = safeDays.length > 0 ? chartW / safeDays.length : 0;
+    return padLeft + idx * slotW + (slotW - barW) / 2;
   };
   const yFor = (min) => padTop + chartH - (Number(min || 0) / maxMin) * chartH;
   const yTicks = [1, 0.75, 0.5, 0.25, 0];
