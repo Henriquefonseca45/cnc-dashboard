@@ -2093,22 +2093,22 @@ body::after{
 }
 
 .pgDashManutCncChartCard{
-  height:205px;
-  min-height:205px;
-  padding:14px;
+  height:220px;
+  min-height:220px;
+  padding:12px 14px 10px;
   display:flex;
   flex-direction:column;
 }
 
 .pgDashManutCncChartCard .pgDashChartHeader{
   flex:0 0 auto;
-  margin-bottom:8px;
+  margin-bottom:6px;
 }
 
 .pgDashManutCncChartCard .pgDashManutStackedSvg{
   flex:0 0 auto;
-  height:104px;
-  min-height:104px;
+  height:112px;
+  min-height:112px;
 }
 
 .pgDashManutCncChartCard .pgDashManutVisualValue{
@@ -2124,7 +2124,7 @@ body::after{
   flex:0 0 auto;
   flex-wrap:nowrap;
   gap:6px;
-  margin-top:8px;
+  margin-top:6px;
   overflow-x:auto;
   overflow-y:hidden;
   padding-bottom:2px;
@@ -2132,8 +2132,9 @@ body::after{
 
 .pgDashManutCncChartCard .pgDashManutLegendItem{
   flex:0 0 auto;
-  min-height:26px;
-  padding:4px 8px;
+  min-height:24px;
+  padding:3px 7px;
+  font-size:10px;
 }
 
 .pgDashManutGridLine{
