@@ -652,7 +652,7 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
                     stackedMin += value;
                     const hitH = Math.max(12, h);
                     const hitY = Math.max(padTop, yTop - (hitH - h) / 2);
-                    const tooltip = `${day.label || day.dia || idx + 1} - ${item.label || item.maquina}: ${qtd} ocorrencia(s), ${fmtHoursHuman(value)} de ${fmtHoursHuman(dayTotal)}`;
+                    const tooltip = `${day.label || day.dia || idx + 1} - ${item.label || item.maquina}: ${qtd} ocorrencia(s), ${fmtSetupDuration(value)} de ${fmtSetupDuration(dayTotal)}`;
 
                     return (
                       <g key={`${item.key || item.label}-${day.data || idx}`}>
