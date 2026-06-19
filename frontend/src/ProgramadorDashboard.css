@@ -2113,13 +2113,17 @@ body::after{
 
 .pgDashManutCncChartCard .pgDashChartHeader{
   flex:0 0 auto;
+  display:grid;
+  grid-template-columns:minmax(170px, auto) minmax(0, 1fr) auto;
+  align-items:start;
+  gap:10px;
   margin-bottom:6px;
 }
 
 .pgDashManutCncChartCard .pgDashManutStackedSvg{
   flex:0 0 auto;
-  height:188px;
-  min-height:188px;
+  height:216px;
+  min-height:216px;
 }
 
 .pgDashManutCncChartCard .pgDashManutVisualValue{
@@ -2132,13 +2136,13 @@ body::after{
 }
 
 .pgDashManutCncChartCard .pgDashManutLegend{
-  flex:0 0 auto;
   flex-wrap:nowrap;
   gap:6px;
-  margin:0 0 6px;
+  margin:0;
   overflow-x:auto;
   overflow-y:hidden;
   padding-bottom:2px;
+  align-self:center;
 }
 
 .pgDashManutCncChartCard .pgDashManutLegendItem{
@@ -2146,6 +2150,10 @@ body::after{
   min-height:24px;
   padding:3px 7px;
   font-size:10px;
+}
+
+.pgDashManutHitArea{
+  pointer-events:all;
 }
 
 .pgDashManutGridLine{

@@ -573,6 +573,15 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
           <div className="pgDashChartTitle">{title}</div>
           {subtitle && <div className="pgDashChartSubTitle">{subtitle}</div>}
         </div>
+        {showLegend && hasData && <div className="pgDashManutLegend">
+          {safeSeries.map((item) => (
+            <div key={item.key || item.maquina || item.label} className="pgDashManutLegendItem">
+              <span style={{ background: item.color || "#4a6fff" }} />
+              <strong>{item.label || item.maquina}</strong>
+              <em>{Number(item.total_qtd || 0)} oc. - {fmtSetupDuration(item.total_min || 0)}</em>
+            </div>
+          ))}
+        </div>}
         <div className="pgDashManutVisualValue">
           <span>Total</span>
           <strong>{fmtHoursHuman(totalMin)}</strong>
@@ -583,16 +592,6 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
         <div className="pgEmpty">{emptyText}</div>
       ) : (
         <>
-          {showLegend && <div className="pgDashManutLegend">
-            {safeSeries.map((item) => (
-              <div key={item.key || item.maquina || item.label} className="pgDashManutLegendItem">
-                <span style={{ background: item.color || "#4a6fff" }} />
-                <strong>{item.label || item.maquina}</strong>
-                <em>{Number(item.total_qtd || 0)} oc. - {fmtSetupDuration(item.total_min || 0)}</em>
-              </div>
-            ))}
-          </div>}
-
           <svg
   className="pgDashManutStackedSvg"
   viewBox={`0 0 ${width} ${height}`}
@@ -651,20 +650,34 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
                     const yBottom = yFor(stackedMin);
                     const h = Math.max(1, yBottom - yTop);
                     stackedMin += value;
+                    const hitH = Math.max(12, h);
+                    const hitY = Math.max(padTop, yTop - (hitH - h) / 2);
+                    const tooltip = `${day.label || day.dia || idx + 1} - ${item.label || item.maquina}: ${qtd} ocorrencia(s), ${fmtHoursHuman(value)} de ${fmtHoursHuman(dayTotal)}`;
 
                     return (
-                      <rect
-                        key={`${item.key || item.label}-${day.data || idx}`}
-                        x={xFor(idx)}
-                        y={yTop}
-                        width={barW}
-                        height={h}
-                        rx="3"
-                        fill={item.color || "#4a6fff"}
-                        className="pgDashManutStackedBar"
-                      >
-                        <title>{`${day.label || day.dia || idx + 1} - ${item.label || item.maquina}: ${qtd} ocorrencia(s), ${fmtHoursHuman(value)} de ${fmtHoursHuman(dayTotal)}`}</title>
-                      </rect>
+                      <g key={`${item.key || item.label}-${day.data || idx}`}>
+                        <rect
+                          x={xFor(idx)}
+                          y={hitY}
+                          width={barW}
+                          height={Math.min(hitH, height - padBottom - hitY)}
+                          fill="transparent"
+                          className="pgDashManutHitArea"
+                        >
+                          <title>{tooltip}</title>
+                        </rect>
+                        <rect
+                          x={xFor(idx)}
+                          y={yTop}
+                          width={barW}
+                          height={h}
+                          rx="3"
+                          fill={item.color || "#4a6fff"}
+                          className="pgDashManutStackedBar"
+                        >
+                          <title>{tooltip}</title>
+                        </rect>
+                      </g>
                     );
                   })}
                 </g>
