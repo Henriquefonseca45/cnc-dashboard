@@ -2107,8 +2107,8 @@ body::after{
 
 .pgDashManutCncChartCard .pgDashManutStackedSvg{
   flex:0 0 auto;
-  height:96px;
-  min-height:96px;
+  height:104px;
+  min-height:104px;
 }
 
 .pgDashManutCncChartCard .pgDashManutVisualValue{
