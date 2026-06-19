@@ -2104,8 +2104,8 @@ body::after{
 }
 
 .pgDashManutCncChartCard{
-  height:260px;
-  min-height:260px;
+  height:310px;
+  min-height:310px;
   padding:12px 14px 10px;
   display:flex;
   flex-direction:column;
@@ -2118,8 +2118,8 @@ body::after{
 
 .pgDashManutCncChartCard .pgDashManutStackedSvg{
   flex:0 0 auto;
-  height:150px;
-  min-height:150px;
+  height:188px;
+  min-height:188px;
 }
 
 .pgDashManutCncChartCard .pgDashManutVisualValue{
@@ -2135,7 +2135,7 @@ body::after{
   flex:0 0 auto;
   flex-wrap:nowrap;
   gap:6px;
-  margin-top:6px;
+  margin:0 0 6px;
   overflow-x:auto;
   overflow-y:hidden;
   padding-bottom:2px;

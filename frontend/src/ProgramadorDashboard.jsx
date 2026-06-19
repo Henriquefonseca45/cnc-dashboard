@@ -526,7 +526,7 @@ function getMonthDays(monthKey = "") {
 
 function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emptyText = "Sem dados.", compact = false, showLegend = !compact }) {
   const width = compact ? 2020 : 920;
-  const height = compact ? 168 : 320;
+  const height = compact ? 200 : 320;
   const padLeft = compact ? 86 : 58;
   const padRight = compact ? 18 : 22;
   const padTop = compact ? 14 : 24;
@@ -583,6 +583,16 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
         <div className="pgEmpty">{emptyText}</div>
       ) : (
         <>
+          {showLegend && <div className="pgDashManutLegend">
+            {safeSeries.map((item) => (
+              <div key={item.key || item.maquina || item.label} className="pgDashManutLegendItem">
+                <span style={{ background: item.color || "#4a6fff" }} />
+                <strong>{item.label || item.maquina}</strong>
+                <em>{Number(item.total_qtd || 0)} oc. - {fmtSetupDuration(item.total_min || 0)}</em>
+              </div>
+            ))}
+          </div>}
+
           <svg
   className="pgDashManutStackedSvg"
   viewBox={`0 0 ${width} ${height}`}
@@ -661,16 +671,6 @@ function DashManutStackedBarChart({ title, subtitle, days = [], series = [], emp
               );
             })}
           </svg>
-
-          {showLegend && <div className="pgDashManutLegend">
-            {safeSeries.map((item) => (
-              <div key={item.key || item.maquina || item.label} className="pgDashManutLegendItem">
-                <span style={{ background: item.color || "#4a6fff" }} />
-                <strong>{item.label || item.maquina}</strong>
-                <em>{Number(item.total_qtd || 0)} oc. - {fmtSetupDuration(item.total_min || 0)}</em>
-              </div>
-            ))}
-          </div>}
         </>
       )}
     </div>
