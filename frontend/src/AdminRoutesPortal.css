@@ -1,0 +1,283 @@
+.adminRoutesPage {
+  min-height: 100vh;
+  padding: 76px 18px 24px;
+  color: #24284a;
+}
+
+.adminRoutesShell,
+.adminRoutesBlocked {
+  max-width: 1500px;
+  margin: 0 auto;
+  border-radius: 24px;
+  border: 1px solid rgba(47, 55, 125, 0.1);
+  background: rgba(255, 255, 255, 0.93);
+  box-shadow: 0 22px 70px -48px rgba(32, 37, 61, 0.34);
+  padding: 22px;
+}
+
+.adminRoutesHeader,
+.adminRoutesSearch,
+.adminRoutesSectionTitle,
+.adminRouteTop,
+.adminRouteMeta,
+.adminRouteActions {
+  display: flex;
+  align-items: center;
+}
+
+.adminRoutesHeader {
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.adminRoutesHeader p {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #626783;
+}
+
+.adminRoutesHeader h1,
+.adminRoutesBlocked h1 {
+  margin: 0;
+  color: #38327c;
+  font-size: 34px;
+  line-height: 1.08;
+}
+
+.adminRoutesHeader span,
+.adminRoutesBlocked p {
+  display: block;
+  margin-top: 6px;
+  color: #626783;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.adminRoutesSearch {
+  width: min(100%, 520px);
+  height: 46px;
+  gap: 9px;
+  padding: 0 14px;
+  border-radius: 15px;
+  border: 1px solid rgba(47, 55, 125, 0.12);
+  background: #fff;
+}
+
+.adminRoutesSearch input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: #1f2540;
+  font-weight: 800;
+}
+
+.adminRoutesSection {
+  margin-top: 20px;
+}
+
+.adminRoutesSectionTitle {
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.adminRoutesSectionTitle h2 {
+  margin: 0;
+  color: #38327c;
+  font-size: 20px;
+}
+
+.adminRoutesSectionTitle span {
+  min-width: 30px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.adminRoutesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 13px;
+}
+
+.adminRoutesGrid.featured,
+.adminRoutesGrid.recent {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+.adminRouteCard {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: 18px;
+  border: 1px solid rgba(47, 55, 125, 0.1);
+  background: #fff;
+  padding: 14px;
+  box-shadow: 0 18px 48px -42px rgba(32, 37, 61, 0.38);
+}
+
+.adminRouteCard.disabled {
+  background: #f8fafc;
+  opacity: 0.78;
+}
+
+.adminRouteCard.compact {
+  padding: 12px;
+}
+
+.adminRouteTop {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.adminRouteGroup {
+  display: inline-flex;
+  margin-bottom: 4px;
+  color: #626783;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.adminRouteCard h3 {
+  margin: 0;
+  color: #1f2540;
+  font-size: 17px;
+  line-height: 1.15;
+}
+
+.adminRouteIconBtn {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  border: 1px solid rgba(47, 55, 125, 0.12);
+  background: #fff;
+  color: #f59e0b;
+  cursor: pointer;
+}
+
+.adminRouteCard code {
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-radius: 10px;
+  background: #eef2ff;
+  color: #38327c;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.adminRouteCard p {
+  margin: 0;
+  color: #626783;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.adminRouteMeta {
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.adminRouteMeta span {
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.adminRouteMeta .active {
+  color: #047857;
+  background: #d1fae5;
+}
+
+.adminRouteMeta .dev {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.adminRouteActions {
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: auto;
+}
+
+.adminRouteActions button,
+.adminRoutesBlocked button {
+  min-height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(47, 55, 125, 0.12);
+  background: #fff;
+  color: #38327c;
+  font-weight: 900;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 11px;
+}
+
+.adminRouteActions button:first-child,
+.adminRoutesBlocked button {
+  color: #fff;
+  background: #38327c;
+}
+
+.adminRouteActions button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.adminRoutesBlocked {
+  max-width: 620px;
+  text-align: center;
+}
+
+.adminRoutesBlocked button {
+  margin-top: 14px;
+}
+
+@media (max-width: 780px) {
+  .adminRoutesPage {
+    padding: 66px 10px 16px;
+  }
+
+  .adminRoutesShell {
+    padding: 14px;
+  }
+
+  .adminRoutesHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .adminRoutesSearch {
+    width: 100%;
+  }
+
+  .adminRoutesGrid,
+  .adminRoutesGrid.featured,
+  .adminRoutesGrid.recent {
+    grid-template-columns: 1fr;
+  }
+}

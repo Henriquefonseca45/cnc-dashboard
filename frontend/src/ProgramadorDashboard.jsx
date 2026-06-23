@@ -4250,6 +4250,16 @@ const limparLista = (lista) =>
             </button>
 
             <button
+              className="pgNavItem"
+              onClick={() => {
+                window.location.href = "/admin/rotas";
+              }}
+            >
+              <span className="pgNavDot" />
+              Central Admin
+            </button>
+
+            <button
               className={`pgNavItem ${view === "chat" ? "pgNavActive" : ""}`}
               onClick={() => openChatMachine(selectedId)}
             >
