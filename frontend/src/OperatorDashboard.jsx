@@ -1449,7 +1449,29 @@ export default function OperatorDashboard() {
   }
 
   async function setupMaterial(item) {
-    await solicitarMaterial(item);
+    if (!item?.id || materialSetupId) return;
+
+    try {
+      setMaterialSetupId(item.id);
+
+      await http.post(`/maquinas/${cnc}/status`, {
+        status: "SETUP",
+      });
+
+      await http.post("/almoxarifado/solicitacoes/entregar", {
+        maquina_id: cnc,
+        item_id: item.id,
+      });
+
+      setStatusMaquina("SETUP");
+      setMenuOpenId(null);
+      await carregarTudo();
+    } catch (e) {
+      console.error("setupMaterial erro:", e);
+      alert("Erro ao iniciar setup de material: " + getErrMsg(e));
+    } finally {
+      setMaterialSetupId(null);
+    }
   }
 
   async function setItemStatus(item, novoStatus, extraPayload = {}) {
@@ -2388,7 +2410,7 @@ export default function OperatorDashboard() {
 
             <button
               onClick={() => setupMaterial(menuItem)}
-              disabled={materialRequestingId === menuItem?.id}
+              disabled={materialSetupId === menuItem?.id}
               className="w-full px-3 py-2 rounded-xl hover:bg-[rgba(47,55,125,.05)] disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-3 text-sm text-slate-800"
             >
               <Wrench size={16} className="text-amber-600" />
