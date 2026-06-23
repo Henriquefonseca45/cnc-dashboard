@@ -34,6 +34,13 @@ function statusClass(status) {
   return "open";
 }
 
+function machineCardClass(status) {
+  const st = String(status || "").toUpperCase();
+  if (st.includes("USINANDO")) return "machineRunning";
+  if (st.includes("EMPILHADEIRA")) return "machineMaterialWait";
+  return "";
+}
+
 function materialDate(req) {
   const st = String(req?.status || "").toUpperCase();
   if (st === "ENTREGUE") return `Entregue: ${fmtDate(req.entregue_em || req.atendido_em)}`;
@@ -151,9 +158,10 @@ export function AlmoxarifadoCardsView({ tv = false }) {
           const next = queue.filter((item) => String(item.status || "").toUpperCase() !== "EM_EXECUCAO").slice(0, tv ? 2 : 3);
           const materialList = (requestsByMachine[machine.id] || []).slice(0, 3);
           const totalMaterials = (requestsByMachine[machine.id] || []).length;
+          const toneClass = machineCardClass(machine.status);
 
           return (
-            <article key={machine.id} className={tv ? "almoxTvCard" : "almoxCncCard"}>
+            <article key={machine.id} className={`${tv ? "almoxTvCard" : "almoxCncCard"} ${toneClass}`}>
               <div className="almoxCardHeader">
                 <div>
                   <strong>{machine.id}</strong>

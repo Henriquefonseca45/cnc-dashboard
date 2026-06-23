@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { MessageSquare, PackageCheck, RefreshCw, Search, Send, Truck, XCircle } from "lucide-react";
+import { MessageSquare, PackageCheck, RefreshCw, Search, Send, XCircle } from "lucide-react";
 import { http } from "./http";
 import { getErrMsg } from "./api";
 import "./AlmoxarifadoChatPage.css";
@@ -158,13 +158,10 @@ export default function AlmoxarifadoChatPage({ embedded = false, basePath = "/al
   async function finishRequest(type, requestId = selectedId) {
     if (!requestId || acting) return;
     const isDelivered = type === "entregar";
-    const isSeparating = type === "em-separacao";
-    if (!isSeparating) {
-      const question = isDelivered
-        ? "Confirmar entrega deste material?"
-        : "Tem certeza que deseja marcar esta solicitacao como SEM MATERIAL?";
-      if (!window.confirm(question)) return;
-    }
+    const question = isDelivered
+      ? "Confirmar entrega deste material?"
+      : "Tem certeza que deseja marcar esta solicitacao como SEM MATERIAL?";
+    if (!window.confirm(question)) return;
 
     try {
       setActing(`${type}-${requestId}`);
@@ -260,14 +257,6 @@ export default function AlmoxarifadoChatPage({ embedded = false, basePath = "/al
 
                     {isPendingRequest(item) ? (
                       <div className="almCardActions" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          className="separating"
-                          onClick={() => finishRequest("em-separacao", item.id)}
-                          disabled={Boolean(acting) || String(item.status || "").toUpperCase() === "EM_SEPARACAO"}
-                        >
-                          <Truck size={15} />
-                          Estou separando
-                        </button>
                         <button
                           className="deliver"
                           onClick={() => finishRequest("entregar", item.id)}

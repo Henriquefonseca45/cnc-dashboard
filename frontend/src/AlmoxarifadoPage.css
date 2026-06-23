@@ -121,6 +121,20 @@
   overflow: hidden;
 }
 
+.almoxCncCard.machineRunning,
+.almoxTvCard.machineRunning {
+  background: linear-gradient(135deg, rgba(187, 247, 208, 0.9), rgba(220, 252, 231, 0.82));
+  border-color: rgba(34, 197, 94, 0.62);
+  box-shadow: inset 0 3px 0 #22c55e, 0 20px 55px -42px rgba(22, 101, 52, 0.44);
+}
+
+.almoxCncCard.machineMaterialWait,
+.almoxTvCard.machineMaterialWait {
+  background: linear-gradient(135deg, rgba(254, 202, 202, 0.92), rgba(254, 226, 226, 0.84));
+  border-color: rgba(244, 63, 94, 0.62);
+  box-shadow: inset 0 3px 0 #f43f5e, 0 20px 55px -42px rgba(153, 27, 27, 0.44);
+}
+
 .almoxCardHeader {
   justify-content: space-between;
   gap: 10px;
@@ -150,12 +164,29 @@
   white-space: nowrap;
 }
 
+.machineRunning .almoxCardHeader > span {
+  color: #047857;
+  background: #bbf7d0;
+  border: 1px solid rgba(34, 197, 94, 0.28);
+}
+
+.machineMaterialWait .almoxCardHeader > span {
+  color: #be123c;
+  background: #fecdd3;
+  border: 1px solid rgba(244, 63, 94, 0.28);
+}
+
 .almoxCardBlock {
   border-radius: 14px;
   border: 1px solid rgba(47, 55, 125, 0.1);
   background: rgba(248, 250, 252, 0.86);
   padding: 10px;
   min-width: 0;
+}
+
+.machineRunning .almoxCardBlock,
+.machineMaterialWait .almoxCardBlock {
+  background: rgba(255, 255, 255, 0.62);
 }
 
 .almoxCardBlock b,
