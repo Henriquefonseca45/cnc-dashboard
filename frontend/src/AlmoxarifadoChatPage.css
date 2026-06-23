@@ -1,0 +1,445 @@
+.almPage {
+  min-height: 100vh;
+  padding: 76px 18px 24px;
+  color: #24284a;
+}
+
+.almShell {
+  max-width: 1500px;
+  margin: 0 auto;
+  border-radius: 24px;
+  border: 1px solid rgba(47, 55, 125, 0.1);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 22px 70px -48px rgba(32, 37, 61, 0.34);
+  padding: 22px;
+}
+
+.almHeader,
+.almFilters,
+.almRequestTop,
+.almLast,
+.almChatHead,
+.almChatTitle,
+.almActions,
+.almInput,
+.almMsgMeta {
+  display: flex;
+  align-items: center;
+}
+
+.almHeader {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.almEyebrow {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #626783;
+}
+
+.almHeader h1 {
+  margin: 0;
+  font-size: clamp(22px, 3vw, 34px);
+  line-height: 1.1;
+  color: #38327c;
+}
+
+.almHeader span,
+.almChatHead small,
+.almRequest small {
+  color: #626783;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.almRefresh,
+.almInput button,
+.almActions button {
+  border: 0;
+  border-radius: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.almRefresh {
+  height: 42px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #38327c;
+  background: #fff;
+  border: 1px solid rgba(47, 55, 125, 0.12);
+}
+
+.almFilters {
+  justify-content: space-between;
+  gap: 12px;
+  margin: 18px 0;
+  flex-wrap: wrap;
+}
+
+.almTabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.almTabs button {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(47, 55, 125, 0.12);
+  background: #fff;
+  color: #38327c;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.almTabs button.active {
+  color: #fff;
+  background: #38327c;
+}
+
+.almSearch {
+  height: 40px;
+  min-width: min(360px, 100%);
+  flex: 0 1 380px;
+  padding: 0 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(47, 55, 125, 0.12);
+  background: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.almSearch input,
+.almInput input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #1f2540;
+  font-weight: 700;
+}
+
+.almGrid {
+  display: grid;
+  grid-template-columns: minmax(290px, 390px) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.almList,
+.almChat {
+  min-height: 640px;
+  border-radius: 20px;
+  border: 1px solid rgba(47, 55, 125, 0.1);
+  background: rgba(248, 250, 252, 0.74);
+}
+
+.almList {
+  padding: 12px;
+  overflow: auto;
+  max-height: calc(100vh - 235px);
+}
+
+.almRequest {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 13px;
+  text-align: left;
+  border-radius: 17px;
+  border: 1px solid rgba(47, 55, 125, 0.1);
+  background: #fff;
+  color: inherit;
+  cursor: pointer;
+}
+
+.almRequest.active {
+  border-color: rgba(56, 50, 124, 0.42);
+  box-shadow: inset 4px 0 0 #38327c;
+}
+
+.almRequestTop,
+.almLast,
+.almChatTitle,
+.almActions,
+.almInput,
+.almMsgMeta {
+  gap: 8px;
+}
+
+.almRequestTop,
+.almLast {
+  justify-content: space-between;
+}
+
+.almMaterial {
+  margin-top: 8px;
+  font-weight: 900;
+  color: #1f2540;
+}
+
+.almMeta,
+.almLast {
+  margin-top: 6px;
+  color: #626783;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.almLast span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.almLast b {
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+}
+
+.almStatus {
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.almStatus.info {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.almStatus.warn {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.almStatus.ok {
+  color: #047857;
+  background: #d1fae5;
+}
+
+.almStatus.danger {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.almStatus.muted {
+  color: #475569;
+  background: #e2e8f0;
+}
+
+.almChat {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.almChatHead {
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px;
+  border-bottom: 1px solid rgba(47, 55, 125, 0.1);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.almChatHead p {
+  margin: 7px 0 4px;
+  font-weight: 900;
+  color: #1f2540;
+}
+
+.almActions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.almActions button {
+  min-height: 38px;
+  padding: 0 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #fff;
+}
+
+.almActions .deliver {
+  background: #059669;
+}
+
+.almActions .noMaterial {
+  background: #dc2626;
+}
+
+.almActions button:disabled,
+.almInput button:disabled,
+.almRefresh:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.almMessages {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.almMsg {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.almMsg.mine {
+  justify-content: flex-end;
+}
+
+.almMsg.system {
+  justify-content: center;
+}
+
+.almMsgBubble {
+  max-width: min(680px, 84%);
+  padding: 11px 13px;
+  border-radius: 16px;
+  border: 1px solid rgba(47, 55, 125, 0.1);
+  background: #fff;
+}
+
+.almMsg.mine .almMsgBubble {
+  background: #dbeafe;
+  border-color: #bfdbfe;
+}
+
+.almMsg.system .almMsgBubble {
+  background: #fef3c7;
+  border-color: #fde68a;
+}
+
+.almMsgMeta {
+  flex-wrap: wrap;
+  margin-bottom: 5px;
+  font-size: 11px;
+  color: #626783;
+  font-weight: 800;
+}
+
+.almMsgMeta strong {
+  color: #38327c;
+}
+
+.almMsgBubble p {
+  margin: 0;
+  color: #1f2540;
+  font-weight: 700;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.almInput {
+  padding: 14px;
+  border-top: 1px solid rgba(47, 55, 125, 0.1);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.almInput input {
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(47, 55, 125, 0.12);
+  background: #fff;
+}
+
+.almInput button {
+  height: 44px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  background: #38327c;
+}
+
+.almEmpty {
+  min-height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #626783;
+  font-weight: 800;
+  text-align: center;
+}
+
+.almEmptyChat {
+  min-height: 100%;
+  flex-direction: column;
+}
+
+.almError {
+  margin-bottom: 14px;
+  border-radius: 14px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 10px 12px;
+  font-weight: 800;
+}
+
+@media (max-width: 900px) {
+  .almPage {
+    padding: 66px 10px 16px;
+  }
+
+  .almShell {
+    padding: 14px;
+  }
+
+  .almHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .almGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .almList,
+  .almChat {
+    min-height: 430px;
+    max-height: none;
+  }
+
+  .almChatHead {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .almActions {
+    width: 100%;
+  }
+
+  .almActions button {
+    flex: 1;
+    justify-content: center;
+  }
+}

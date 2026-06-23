@@ -160,13 +160,25 @@ class ChatMensagemOut(BaseModel):
 class MaterialSolicitacaoIn(BaseModel):
     maquina_id: str
     item_id: int | None = None
+    arquivo_id: int | None = None
     arquivo_nome: str | None = None
+    op: str | None = None
     material: str | None = None
+    quantidade: str | None = None
+    operador_id: str | None = None
+    operador_nome: str | None = None
 
 
 class MaterialEntregaIn(BaseModel):
     maquina_id: str
     item_id: int
+
+
+class MaterialChatMensagemIn(BaseModel):
+    usuario_id: str | None = None
+    usuario_nome: str | None = None
+    perfil: str = "OPERADOR"
+    mensagem: str
 
 
 class CortadoRequest(BaseModel):
@@ -407,6 +419,47 @@ def _ensure_material_solicitacoes_table(conn):
         )
         """
     )
+    for _col, ddl in (
+        ("maquina_nome", "ALTER TABLE material_solicitacoes ADD COLUMN maquina_nome TEXT"),
+        ("arquivo_id", "ALTER TABLE material_solicitacoes ADD COLUMN arquivo_id INTEGER"),
+        ("op", "ALTER TABLE material_solicitacoes ADD COLUMN op TEXT"),
+        ("quantidade", "ALTER TABLE material_solicitacoes ADD COLUMN quantidade TEXT"),
+        ("operador_id", "ALTER TABLE material_solicitacoes ADD COLUMN operador_id TEXT"),
+        ("operador_nome", "ALTER TABLE material_solicitacoes ADD COLUMN operador_nome TEXT"),
+        ("atualizado_em", "ALTER TABLE material_solicitacoes ADD COLUMN atualizado_em TEXT"),
+        ("entregue_por", "ALTER TABLE material_solicitacoes ADD COLUMN entregue_por TEXT"),
+        ("entregue_por_nome", "ALTER TABLE material_solicitacoes ADD COLUMN entregue_por_nome TEXT"),
+        ("entregue_em", "ALTER TABLE material_solicitacoes ADD COLUMN entregue_em TEXT"),
+        ("cancelado_por", "ALTER TABLE material_solicitacoes ADD COLUMN cancelado_por TEXT"),
+        ("cancelado_por_nome", "ALTER TABLE material_solicitacoes ADD COLUMN cancelado_por_nome TEXT"),
+        ("cancelado_em", "ALTER TABLE material_solicitacoes ADD COLUMN cancelado_em TEXT"),
+        ("motivo_cancelamento", "ALTER TABLE material_solicitacoes ADD COLUMN motivo_cancelamento TEXT"),
+        ("visualizado_almoxarifado", "ALTER TABLE material_solicitacoes ADD COLUMN visualizado_almoxarifado INTEGER DEFAULT 0"),
+        ("visualizado_operador", "ALTER TABLE material_solicitacoes ADD COLUMN visualizado_operador INTEGER DEFAULT 1"),
+        ("ultima_mensagem", "ALTER TABLE material_solicitacoes ADD COLUMN ultima_mensagem TEXT"),
+        ("ultima_mensagem_em", "ALTER TABLE material_solicitacoes ADD COLUMN ultima_mensagem_em TEXT"),
+    ):
+        try:
+            cur.execute(ddl)
+        except Exception:
+            pass
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS material_chat_mensagens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            solicitacao_id INTEGER NOT NULL,
+            usuario_id TEXT,
+            usuario_nome TEXT,
+            perfil TEXT NOT NULL,
+            mensagem TEXT NOT NULL,
+            tipo TEXT NOT NULL DEFAULT 'USUARIO',
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            lida_operador INTEGER DEFAULT 0,
+            lida_almoxarifado INTEGER DEFAULT 0
+        )
+        """
+    )
     conn.commit()
 
 
@@ -434,20 +487,243 @@ def _infer_material_from_arquivo_nome(nome: str | None) -> str:
     return ""
 
 
+MATERIAL_STATUS_LABELS = {
+    "ABERTA": "Aguardando Almoxarifado",
+    "AGUARDANDO_ALMOXARIFADO": "Aguardando Almoxarifado",
+    "EM_SEPARACAO": "Em separacao",
+    "ENTREGUE": "Material Entregue",
+    "CANCELADA_SEM_MATERIAL": "Sem Material",
+    "CANCELADA": "Cancelada",
+}
+MATERIAL_PENDENTES = ("ABERTA", "AGUARDANDO_ALMOXARIFADO", "EM_SEPARACAO")
+
+
+def _material_status_norm(status: str | None) -> str:
+    st = (status or "AGUARDANDO_ALMOXARIFADO").upper().strip()
+    if st == "ABERTA":
+        return "AGUARDANDO_ALMOXARIFADO"
+    return st
+
+
+def _material_msg_to_dict(row):
+    return {
+        "id": row["id"],
+        "solicitacao_id": row["solicitacao_id"],
+        "usuario_id": row["usuario_id"],
+        "usuario_nome": row["usuario_nome"],
+        "perfil": row["perfil"],
+        "mensagem": row["mensagem"],
+        "tipo": row["tipo"],
+        "criado_em": row["criado_em"],
+        "lida_operador": bool(row["lida_operador"]),
+        "lida_almoxarifado": bool(row["lida_almoxarifado"]),
+    }
+
+
+def _material_row_to_dict(row):
+    status = _material_status_norm(row["status"])
+    return {
+        "id": row["id"],
+        "maquina_id": row["maquina_id"],
+        "maquina_nome": row["maquina_nome"] or row["maquina_id"],
+        "item_id": row["item_id"],
+        "arquivo_id": row["arquivo_id"],
+        "arquivo_nome": row["arquivo_nome"],
+        "op": row["op"],
+        "material": row["material"],
+        "quantidade": row["quantidade"],
+        "operador_id": row["operador_id"],
+        "operador_nome": row["operador_nome"],
+        "status": status,
+        "status_label": MATERIAL_STATUS_LABELS.get(status, status),
+        "criado_em": row["criado_em"],
+        "atualizado_em": row["atualizado_em"],
+        "atendido_em": row["atendido_em"],
+        "entregue_por": row["entregue_por"],
+        "entregue_por_nome": row["entregue_por_nome"],
+        "entregue_em": row["entregue_em"],
+        "cancelado_por": row["cancelado_por"],
+        "cancelado_por_nome": row["cancelado_por_nome"],
+        "cancelado_em": row["cancelado_em"],
+        "motivo_cancelamento": row["motivo_cancelamento"],
+        "visualizado_almoxarifado": bool(row["visualizado_almoxarifado"]),
+        "visualizado_operador": bool(row["visualizado_operador"]),
+        "ultima_mensagem": row["ultima_mensagem"],
+        "ultima_mensagem_em": row["ultima_mensagem_em"],
+    }
+
+
+def _material_add_message(
+    conn,
+    solicitacao_id: int,
+    usuario_id: str | None,
+    usuario_nome: str | None,
+    perfil: str,
+    mensagem: str,
+    tipo: str = "USUARIO",
+):
+    _ensure_material_solicitacoes_table(conn)
+    perfil_clean = (perfil or "OPERADOR").upper().strip()
+    tipo_clean = (tipo or "USUARIO").upper().strip()
+    texto = (mensagem or "").strip()
+    if not texto:
+        raise HTTPException(status_code=400, detail="mensagem obrigatoria")
+
+    lida_operador = 1 if perfil_clean == "OPERADOR" else 0
+    lida_almoxarifado = 1 if perfil_clean == "ALMOXARIFADO" else 0
+    if tipo_clean in ("SISTEMA", "STATUS"):
+        lida_operador = 0
+        lida_almoxarifado = 0
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO material_chat_mensagens
+        (solicitacao_id, usuario_id, usuario_nome, perfil, mensagem, tipo, criado_em, lida_operador, lida_almoxarifado)
+        VALUES (?, ?, ?, ?, ?, ?, datetime('now','localtime'), ?, ?)
+        """,
+        (solicitacao_id, usuario_id, usuario_nome, perfil_clean, texto, tipo_clean, lida_operador, lida_almoxarifado),
+    )
+    cur.execute(
+        """
+        UPDATE material_solicitacoes
+        SET ultima_mensagem = ?,
+            ultima_mensagem_em = datetime('now','localtime'),
+            atualizado_em = datetime('now','localtime'),
+            visualizado_operador = ?,
+            visualizado_almoxarifado = ?
+        WHERE id = ?
+        """,
+        (texto, lida_operador, lida_almoxarifado, solicitacao_id),
+    )
+    return cur.lastrowid
+
+
+def _criar_material_solicitacao_core(conn, req: MaterialSolicitacaoIn):
+    mid = (req.maquina_id or "").upper().strip()
+    if not mid:
+        raise HTTPException(status_code=400, detail="maquina_id obrigatorio")
+
+    arquivo_nome = (req.arquivo_nome or "").strip() or None
+    material = (req.material or "").strip() or _infer_material_from_arquivo_nome(arquivo_nome) or "material nao informado"
+    op = (req.op or "").strip() or None
+    operador_nome = (req.operador_nome or "").strip() or None
+
+    _ensure_material_solicitacoes_table(conn)
+    cur = conn.cursor()
+    dup = cur.execute(
+        """
+        SELECT id
+        FROM material_solicitacoes
+        WHERE maquina_id = ?
+          AND COALESCE(item_id, 0) = COALESCE(?, 0)
+          AND COALESCE(arquivo_nome, '') = COALESCE(?, '')
+          AND COALESCE(material, '') = COALESCE(?, '')
+          AND status IN ('ABERTA', 'AGUARDANDO_ALMOXARIFADO', 'EM_SEPARACAO')
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (mid, req.item_id, arquivo_nome, material),
+    ).fetchone()
+    if dup:
+        raise HTTPException(status_code=409, detail="Ja existe uma solicitacao pendente para este material.")
+
+    cur.execute(
+        """
+        INSERT INTO material_solicitacoes
+        (
+            maquina_id, maquina_nome, item_id, arquivo_id, arquivo_nome, op, material, quantidade,
+            operador_id, operador_nome, status, criado_em, atualizado_em,
+            visualizado_almoxarifado, visualizado_operador
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'AGUARDANDO_ALMOXARIFADO', datetime('now','localtime'), datetime('now','localtime'), 0, 1)
+        """,
+        (
+            mid,
+            mid,
+            req.item_id,
+            req.arquivo_id,
+            arquivo_nome,
+            op,
+            material,
+            (req.quantidade or "").strip() or None,
+            (req.operador_id or "").strip() or None,
+            operador_nome,
+        ),
+    )
+    solicitacao_id = cur.lastrowid
+    _material_add_message(
+        conn,
+        solicitacao_id,
+        req.operador_id,
+        operador_nome or "Operador",
+        "OPERADOR",
+        "Solicitacao de material enviada ao Almoxarifado.",
+        "SISTEMA",
+    )
+    cur.execute(
+        """
+        UPDATE material_chat_mensagens
+        SET lida_operador = 1
+        WHERE solicitacao_id = ?
+        """,
+        (solicitacao_id,),
+    )
+    cur.execute(
+        """
+        UPDATE material_solicitacoes
+        SET visualizado_operador = 1
+        WHERE id = ?
+        """,
+        (solicitacao_id,),
+    )
+    return solicitacao_id
+
+
 def _marcar_material_solicitacoes_entregues(conn, maquina_id: str, item_id: int, entregue_em: str):
     _ensure_material_solicitacoes_table(conn)
     cur = conn.cursor()
+    rows = cur.execute(
+        """
+        SELECT id
+        FROM material_solicitacoes
+        WHERE maquina_id = ?
+          AND item_id = ?
+          AND status IN ('ABERTA', 'AGUARDANDO_ALMOXARIFADO', 'EM_SEPARACAO')
+        """,
+        ((maquina_id or "").upper().strip(), item_id),
+    ).fetchall()
     cur.execute(
         """
         UPDATE material_solicitacoes
         SET status = 'ENTREGUE',
-            atendido_em = COALESCE(atendido_em, ?)
+            atendido_em = COALESCE(atendido_em, ?),
+            entregue_em = COALESCE(entregue_em, ?),
+            entregue_por_nome = COALESCE(entregue_por_nome, 'Almoxarifado'),
+            atualizado_em = ?,
+            visualizado_operador = 0
         WHERE maquina_id = ?
           AND item_id = ?
-          AND status = 'ABERTA'
+          AND status IN ('ABERTA', 'AGUARDANDO_ALMOXARIFADO', 'EM_SEPARACAO')
         """,
-        ((entregue_em or datetime.now().isoformat(timespec="seconds")), maquina_id.upper().strip(), item_id),
+        (
+            (entregue_em or datetime.now().isoformat(timespec="seconds")),
+            (entregue_em or datetime.now().isoformat(timespec="seconds")),
+            (entregue_em or datetime.now().isoformat(timespec="seconds")),
+            maquina_id.upper().strip(),
+            item_id,
+        ),
     )
+    for r in rows:
+        _material_add_message(
+            conn,
+            int(r["id"]),
+            None,
+            "Almoxarifado",
+            "ALMOXARIFADO",
+            "Material entregue pelo Almoxarifado.",
+            "STATUS",
+        )
     return cur.rowcount
 
 
@@ -460,7 +736,7 @@ def _get_material_solicitacao_aberta(conn, maquina_id: str, item_id: int):
         FROM material_solicitacoes
         WHERE maquina_id = ?
           AND item_id = ?
-          AND status = 'ABERTA'
+          AND status IN ('ABERTA', 'AGUARDANDO_ALMOXARIFADO', 'EM_SEPARACAO')
         ORDER BY id DESC
         LIMIT 1
         """,
@@ -3710,109 +3986,310 @@ def baixar_chat_imagem(mensagem_id: int):
 # =========================
 # ALMOXARIFADO
 # =========================
-@app.get("/almoxarifado/solicitacoes")
-def listar_material_solicitacoes(
+def _listar_material_solicitacoes_core(
     maquina_id: str | None = None,
-    status: str = "ABERTA",
+    status: str = "pendentes",
     limit: int = 100,
+    data_inicial: str | None = None,
+    data_final: str | None = None,
+    material: str | None = None,
+    operador: str | None = None,
+    arquivo: str | None = None,
 ):
     conn = get_conn()
     _ensure_material_solicitacoes_table(conn)
     cur = conn.cursor()
 
     lim = max(1, min(int(limit or 100), 500))
-    st = (status or "ABERTA").upper().strip()
+    st = (status or "pendentes").upper().strip()
     mid = (maquina_id or "").upper().strip()
-    filtrar_status = st not in ("TODAS", "TODOS", "ALL", "*")
+    where = []
+    params: list = []
 
-    if mid and filtrar_status:
-        rows = cur.execute(
+    if mid:
+        where.append("maquina_id = ?")
+        params.append(mid)
+
+    if st in ("ABERTA", "PENDENTE", "PENDENTES", "AGUARDANDO", "AGUARDANDO_ALMOXARIFADO"):
+        where.append("status IN ('ABERTA', 'AGUARDANDO_ALMOXARIFADO', 'EM_SEPARACAO')")
+    elif st in ("ENTREGUE", "ENTREGUES"):
+        where.append("status = 'ENTREGUE'")
+    elif st in ("SEM_MATERIAL", "CANCELADA_SEM_MATERIAL"):
+        where.append("status = 'CANCELADA_SEM_MATERIAL'")
+    elif st in ("CANCELADA", "CANCELADAS"):
+        where.append("status IN ('CANCELADA', 'CANCELADA_SEM_MATERIAL')")
+    elif st not in ("TODAS", "TODOS", "ALL", "*"):
+        where.append("status = ?")
+        params.append(st)
+
+    if data_inicial:
+        where.append("date(criado_em) >= date(?)")
+        params.append(data_inicial)
+    if data_final:
+        where.append("date(criado_em) <= date(?)")
+        params.append(data_final)
+    if material:
+        where.append("LOWER(COALESCE(material, '')) LIKE ?")
+        params.append(f"%{material.lower()}%")
+    if operador:
+        where.append("LOWER(COALESCE(operador_nome, '')) LIKE ?")
+        params.append(f"%{operador.lower()}%")
+    if arquivo:
+        where.append("LOWER(COALESCE(arquivo_nome, '')) LIKE ?")
+        params.append(f"%{arquivo.lower()}%")
+
+    sql_where = ("WHERE " + " AND ".join(where)) if where else ""
+    rows = cur.execute(
+        f"""
+        SELECT *
+        FROM material_solicitacoes
+        {sql_where}
+        ORDER BY
+          CASE WHEN status IN ('ABERTA', 'AGUARDANDO_ALMOXARIFADO', 'EM_SEPARACAO') THEN 0 ELSE 1 END,
+          COALESCE(ultima_mensagem_em, atualizado_em, criado_em) DESC,
+          id DESC
+        LIMIT ?
+        """,
+        (*params, lim),
+    ).fetchall()
+
+    out = []
+    for row in rows:
+        item = _material_row_to_dict(row)
+        unread_alm = cur.execute(
             """
-            SELECT id, maquina_id, item_id, arquivo_nome, material, status, criado_em, atendido_em
-            FROM material_solicitacoes
-            WHERE maquina_id = ? AND status = ?
-            ORDER BY id DESC
-            LIMIT ?
+            SELECT COUNT(*)
+            FROM material_chat_mensagens
+            WHERE solicitacao_id = ? AND lida_almoxarifado = 0
             """,
-            (mid, st, lim),
-        ).fetchall()
-    elif mid:
-        rows = cur.execute(
+            (row["id"],),
+        ).fetchone()[0]
+        unread_op = cur.execute(
             """
-            SELECT id, maquina_id, item_id, arquivo_nome, material, status, criado_em, atendido_em
-            FROM material_solicitacoes
-            WHERE maquina_id = ?
-            ORDER BY id DESC
-            LIMIT ?
+            SELECT COUNT(*)
+            FROM material_chat_mensagens
+            WHERE solicitacao_id = ? AND lida_operador = 0
             """,
-            (mid, lim),
-        ).fetchall()
-    elif filtrar_status:
-        rows = cur.execute(
-            """
-            SELECT id, maquina_id, item_id, arquivo_nome, material, status, criado_em, atendido_em
-            FROM material_solicitacoes
-            WHERE status = ?
-            ORDER BY id DESC
-            LIMIT ?
-            """,
-            (st, lim),
-        ).fetchall()
-    else:
-        rows = cur.execute(
-            """
-            SELECT id, maquina_id, item_id, arquivo_nome, material, status, criado_em, atendido_em
-            FROM material_solicitacoes
-            ORDER BY id DESC
-            LIMIT ?
-            """,
-            (lim,),
-        ).fetchall()
+            (row["id"],),
+        ).fetchone()[0]
+        item["nao_lidas_almoxarifado"] = unread_alm
+        item["nao_lidas_operador"] = unread_op
+        out.append(item)
 
     conn.close()
+    return out
 
-    return [
-        {
-            "id": r[0],
-            "maquina_id": r[1],
-            "item_id": r[2],
-            "arquivo_nome": r[3],
-            "material": r[4],
-            "status": r[5],
-            "criado_em": r[6],
-            "atendido_em": r[7],
-        }
-        for r in rows
-    ]
+
+@app.get("/api/material/solicitacoes")
+def api_listar_material_solicitacoes(
+    maquina_id: str | None = None,
+    status: str = "pendentes",
+    limit: int = 100,
+    data_inicial: str | None = None,
+    data_final: str | None = None,
+    material: str | None = None,
+    operador: str | None = None,
+    arquivo: str | None = None,
+):
+    return _listar_material_solicitacoes_core(
+        maquina_id=maquina_id,
+        status=status,
+        limit=limit,
+        data_inicial=data_inicial,
+        data_final=data_final,
+        material=material,
+        operador=operador,
+        arquivo=arquivo,
+    )
+
+
+@app.get("/api/material/solicitacoes/pendentes")
+def api_listar_material_solicitacoes_pendentes(limit: int = 100):
+    return _listar_material_solicitacoes_core(status="pendentes", limit=limit)
+
+
+@app.get("/almoxarifado/solicitacoes")
+def listar_material_solicitacoes(
+    maquina_id: str | None = None,
+    status: str = "ABERTA",
+    limit: int = 100,
+):
+    return _listar_material_solicitacoes_core(maquina_id=maquina_id, status=status, limit=limit)
+
+
+@app.post("/api/material/solicitacoes")
+def api_criar_material_solicitacao(req: MaterialSolicitacaoIn):
+    conn = get_conn()
+    item_id = _criar_material_solicitacao_core(conn, req)
+    conn.commit()
+    conn.close()
+    return {"ok": True, "id": item_id}
 
 
 @app.post("/almoxarifado/solicitacoes")
 def criar_material_solicitacao(req: MaterialSolicitacaoIn):
-    mid = (req.maquina_id or "").upper().strip()
-    if not mid:
-        raise HTTPException(status_code=400, detail="maquina_id obrigatorio")
+    return api_criar_material_solicitacao(req)
 
-    arquivo_nome = (req.arquivo_nome or "").strip() or None
-    material = (req.material or "").strip() or _infer_material_from_arquivo_nome(arquivo_nome) or "material nao informado"
 
+@app.get("/api/material/solicitacoes/{solicitacao_id}")
+def api_get_material_solicitacao(solicitacao_id: int):
     conn = get_conn()
     _ensure_material_solicitacoes_table(conn)
-    cur = conn.cursor()
-
-    cur.execute(
-        """
-        INSERT INTO material_solicitacoes
-        (maquina_id, item_id, arquivo_nome, material, status, criado_em)
-        VALUES (?, ?, ?, ?, 'ABERTA', datetime('now','localtime'))
-        """,
-        (mid, req.item_id, arquivo_nome, material),
-    )
-
-    conn.commit()
-    item_id = cur.lastrowid
+    row = conn.execute("SELECT * FROM material_solicitacoes WHERE id = ?", (solicitacao_id,)).fetchone()
     conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Solicitacao nao encontrada.")
+    return _material_row_to_dict(row)
 
-    return {"ok": True, "id": item_id}
+
+@app.get("/api/material/solicitacoes/{solicitacao_id}/mensagens")
+def api_listar_material_mensagens(solicitacao_id: int, limit: int = 200):
+    conn = get_conn()
+    _ensure_material_solicitacoes_table(conn)
+    lim = max(1, min(int(limit or 200), 500))
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM material_chat_mensagens
+        WHERE solicitacao_id = ?
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (solicitacao_id, lim),
+    ).fetchall()
+    conn.close()
+    return [_material_msg_to_dict(r) for r in reversed(rows)]
+
+
+@app.post("/api/material/solicitacoes/{solicitacao_id}/mensagens")
+def api_enviar_material_mensagem(solicitacao_id: int, msg: MaterialChatMensagemIn):
+    conn = get_conn()
+    _ensure_material_solicitacoes_table(conn)
+    row = conn.execute("SELECT id FROM material_solicitacoes WHERE id = ?", (solicitacao_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Solicitacao nao encontrada.")
+    msg_id = _material_add_message(
+        conn,
+        solicitacao_id,
+        msg.usuario_id,
+        msg.usuario_nome,
+        msg.perfil,
+        msg.mensagem,
+        "USUARIO",
+    )
+    conn.commit()
+    row_msg = conn.execute("SELECT * FROM material_chat_mensagens WHERE id = ?", (msg_id,)).fetchone()
+    conn.close()
+    return _material_msg_to_dict(row_msg)
+
+
+@app.patch("/api/material/solicitacoes/{solicitacao_id}/entregar")
+def api_entregar_material_solicitacao(solicitacao_id: int, msg: MaterialChatMensagemIn | None = None):
+    conn = get_conn()
+    _ensure_material_solicitacoes_table(conn)
+    row = conn.execute("SELECT id FROM material_solicitacoes WHERE id = ?", (solicitacao_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Solicitacao nao encontrada.")
+
+    usuario_id = msg.usuario_id if msg else None
+    usuario_nome = (msg.usuario_nome if msg else None) or "Almoxarifado"
+    conn.execute(
+        """
+        UPDATE material_solicitacoes
+        SET status = 'ENTREGUE',
+            atendido_em = COALESCE(atendido_em, datetime('now','localtime')),
+            entregue_por = ?,
+            entregue_por_nome = ?,
+            entregue_em = datetime('now','localtime'),
+            atualizado_em = datetime('now','localtime'),
+            visualizado_operador = 0
+        WHERE id = ?
+        """,
+        (usuario_id, usuario_nome, solicitacao_id),
+    )
+    _material_add_message(conn, solicitacao_id, usuario_id, usuario_nome, "ALMOXARIFADO", "Material entregue pelo Almoxarifado.", "STATUS")
+    conn.commit()
+    conn.close()
+    return {"ok": True, "status": "ENTREGUE"}
+
+
+@app.patch("/api/material/solicitacoes/{solicitacao_id}/sem-material")
+def api_sem_material_solicitacao(solicitacao_id: int, msg: MaterialChatMensagemIn | None = None):
+    conn = get_conn()
+    _ensure_material_solicitacoes_table(conn)
+    row = conn.execute("SELECT id FROM material_solicitacoes WHERE id = ?", (solicitacao_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Solicitacao nao encontrada.")
+
+    usuario_id = msg.usuario_id if msg else None
+    usuario_nome = (msg.usuario_nome if msg else None) or "Almoxarifado"
+    conn.execute(
+        """
+        UPDATE material_solicitacoes
+        SET status = 'CANCELADA_SEM_MATERIAL',
+            cancelado_por = ?,
+            cancelado_por_nome = ?,
+            cancelado_em = datetime('now','localtime'),
+            motivo_cancelamento = 'SEM MATERIAL',
+            atualizado_em = datetime('now','localtime'),
+            visualizado_operador = 0
+        WHERE id = ?
+        """,
+        (usuario_id, usuario_nome, solicitacao_id),
+    )
+    _material_add_message(
+        conn,
+        solicitacao_id,
+        usuario_id,
+        usuario_nome,
+        "ALMOXARIFADO",
+        "Almoxarifado marcou esta solicitacao como SEM MATERIAL. Solicitacao cancelada automaticamente.",
+        "STATUS",
+    )
+    conn.commit()
+    conn.close()
+    return {"ok": True, "status": "CANCELADA_SEM_MATERIAL"}
+
+
+@app.patch("/api/material/solicitacoes/{solicitacao_id}/visualizar-almoxarifado")
+def api_visualizar_material_almoxarifado(solicitacao_id: int):
+    conn = get_conn()
+    _ensure_material_solicitacoes_table(conn)
+    conn.execute("UPDATE material_chat_mensagens SET lida_almoxarifado = 1 WHERE solicitacao_id = ?", (solicitacao_id,))
+    conn.execute("UPDATE material_solicitacoes SET visualizado_almoxarifado = 1 WHERE id = ?", (solicitacao_id,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.patch("/api/material/solicitacoes/{solicitacao_id}/visualizar-operador")
+def api_visualizar_material_operador(solicitacao_id: int):
+    conn = get_conn()
+    _ensure_material_solicitacoes_table(conn)
+    conn.execute("UPDATE material_chat_mensagens SET lida_operador = 1 WHERE solicitacao_id = ?", (solicitacao_id,))
+    conn.execute("UPDATE material_solicitacoes SET visualizado_operador = 1 WHERE id = ?", (solicitacao_id,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.get("/api/material/notificacoes/almoxarifado")
+def api_notificacoes_almoxarifado():
+    rows = _listar_material_solicitacoes_core(status="TODAS", limit=500)
+    pendentes = [r for r in rows if r["status"] in MATERIAL_PENDENTES or r["status"] == "AGUARDANDO_ALMOXARIFADO"]
+    unread = sum(int(r.get("nao_lidas_almoxarifado") or 0) for r in rows)
+    return {"pendentes": len(pendentes), "nao_lidas": unread, "total": len(rows)}
+
+
+@app.get("/api/material/notificacoes/operador")
+def api_notificacoes_operador(maquina_id: str | None = None):
+    rows = _listar_material_solicitacoes_core(maquina_id=maquina_id, status="TODAS", limit=100)
+    unread = sum(int(r.get("nao_lidas_operador") or 0) for r in rows)
+    avisos = [r for r in rows if int(r.get("nao_lidas_operador") or 0) > 0]
+    return {"nao_lidas": unread, "avisos": avisos[:20]}
 
 
 @app.post("/almoxarifado/solicitacoes/entregar")
@@ -3843,6 +4320,7 @@ def react_fallback(full_path: str, request: Request):
         "historico",
         "chat",
         "almoxarifado",
+        "api",
         "agente",
         "dashboard/indicadores",
         "dashboard/manutencao",

@@ -814,6 +814,15 @@ export default function OperatorDashboard() {
   const [materialRequestingId, setMaterialRequestingId] = useState(null);
   const [materialSetupId, setMaterialSetupId] = useState(null);
   const [materialRequests, setMaterialRequests] = useState([]);
+  const [materialChatOpen, setMaterialChatOpen] = useState(false);
+  const [materialChatRequest, setMaterialChatRequest] = useState(null);
+  const [materialChatMessages, setMaterialChatMessages] = useState([]);
+  const [materialChatText, setMaterialChatText] = useState("");
+  const [materialChatLoading, setMaterialChatLoading] = useState(false);
+  const [materialChatSending, setMaterialChatSending] = useState(false);
+  const [materialToast, setMaterialToast] = useState("");
+  const materialNoticeBootRef = useRef(false);
+  const materialNoticeKeyRef = useRef("");
 
   useEffect(() => {
     if (cncId && !CNC_IDS.includes(cnc)) {
@@ -1005,6 +1014,101 @@ export default function OperatorDashboard() {
     }
   }
 
+  function materialStatusLabel(status) {
+    const st = String(status || "").toUpperCase();
+    if (st === "ENTREGUE") return "Material entregue pelo Almoxarifado.";
+    if (st === "CANCELADA_SEM_MATERIAL") return "SEM MATERIAL - Solicitacao cancelada pelo Almoxarifado.";
+    if (st === "EM_SEPARACAO") return "Em separacao no Almoxarifado.";
+    return "Aguardando Almoxarifado.";
+  }
+
+  function materialIsOpen(req) {
+    const st = String(req?.status || "").toUpperCase();
+    return ["ABERTA", "AGUARDANDO_ALMOXARIFADO", "EM_SEPARACAO"].includes(st);
+  }
+
+  async function fetchMaterialRequests(silent = false) {
+    try {
+      const res = await http.get("/api/material/solicitacoes", {
+        params: { maquina_id: cnc, status: "TODAS", limit: 100 },
+      });
+      const data = Array.isArray(res.data) ? res.data : [];
+      setMaterialRequests(data);
+
+      const firstUnread = data.find((item) => Number(item.nao_lidas_operador || 0) > 0);
+      const noticeKey = firstUnread
+        ? `${firstUnread.id}-${firstUnread.status}-${firstUnread.ultima_mensagem_em || ""}-${firstUnread.ultima_mensagem || ""}`
+        : "";
+      if (firstUnread && materialNoticeBootRef.current && materialNoticeKeyRef.current !== noticeKey) {
+        const st = String(firstUnread.status || "").toUpperCase();
+        if (st === "ENTREGUE") {
+          setMaterialToast("Material entregue pelo Almoxarifado.");
+        } else if (st === "CANCELADA_SEM_MATERIAL") {
+          setMaterialToast("Solicitacao cancelada pelo Almoxarifado. Motivo: SEM MATERIAL.");
+        } else {
+          setMaterialToast("Nova mensagem do Almoxarifado.");
+        }
+        window.setTimeout(() => setMaterialToast(""), 4500);
+      }
+      materialNoticeKeyRef.current = noticeKey;
+      materialNoticeBootRef.current = true;
+    } catch (e) {
+      console.error("fetchMaterialRequests erro:", e);
+      if (!silent) alert("Erro ao carregar solicitacoes de material: " + getErrMsg(e));
+    }
+  }
+
+  async function openMaterialChat(req = null) {
+    const target = req || materialRequests.find((item) => Number(item.nao_lidas_operador || 0) > 0) || materialRequests.find(materialIsOpen) || materialRequests[0];
+    if (!target?.id) {
+      alert("Nenhuma solicitacao de material encontrada para esta CNC.");
+      return;
+    }
+    setMaterialChatOpen(true);
+    setMaterialChatRequest(target);
+    await fetchMaterialChat(target.id);
+  }
+
+  async function fetchMaterialChat(id, silent = false) {
+    if (!id) return;
+    if (!silent) setMaterialChatLoading(true);
+    try {
+      const [detailRes, msgRes] = await Promise.all([
+        http.get(`/api/material/solicitacoes/${id}`),
+        http.get(`/api/material/solicitacoes/${id}/mensagens`),
+      ]);
+      setMaterialChatRequest(detailRes.data || null);
+      setMaterialChatMessages(Array.isArray(msgRes.data) ? msgRes.data : []);
+      await http.patch(`/api/material/solicitacoes/${id}/visualizar-operador`);
+      await fetchMaterialRequests(true);
+    } catch (e) {
+      console.error("fetchMaterialChat erro:", e);
+      if (!silent) alert("Erro ao abrir chat do almoxarifado: " + getErrMsg(e));
+    } finally {
+      if (!silent) setMaterialChatLoading(false);
+    }
+  }
+
+  async function sendMaterialChat() {
+    const mensagem = String(materialChatText || "").trim();
+    if (!materialChatRequest?.id || !mensagem || materialChatSending) return;
+    try {
+      setMaterialChatSending(true);
+      await http.post(`/api/material/solicitacoes/${materialChatRequest.id}/mensagens`, {
+        usuario_nome: operadorNome || "Operador",
+        perfil: "OPERADOR",
+        mensagem,
+      });
+      setMaterialChatText("");
+      await fetchMaterialChat(materialChatRequest.id, true);
+    } catch (e) {
+      console.error("sendMaterialChat erro:", e);
+      alert("Erro ao enviar mensagem: " + getErrMsg(e));
+    } finally {
+      setMaterialChatSending(false);
+    }
+  }
+
   async function carregarTudo(silent = false) {
     if (!silent) setLoading(true);
     try {
@@ -1012,7 +1116,7 @@ export default function OperatorDashboard() {
         http.get("/maquinas"),
         http.get(`/fila/${cnc}`, { params: { include_done: true } }),
         http.get(`/historico/${cnc}`),
-        http.get("/almoxarifado/solicitacoes", {
+        http.get("/api/material/solicitacoes", {
           params: { maquina_id: cnc, status: "TODAS", limit: 100 },
         }).catch(() => ({ data: [] })),
       ]);
@@ -1053,6 +1157,18 @@ export default function OperatorDashboard() {
 
     return () => clearInterval(t);
   }, [cnc]);
+
+  useEffect(() => {
+    fetchMaterialRequests(true);
+    const t = setInterval(() => fetchMaterialRequests(true), 5000);
+    return () => clearInterval(t);
+  }, [cnc]);
+
+  useEffect(() => {
+    if (!materialChatOpen || !materialChatRequest?.id) return;
+    const t = setInterval(() => fetchMaterialChat(materialChatRequest.id, true), 4000);
+    return () => clearInterval(t);
+  }, [materialChatOpen, materialChatRequest?.id]);
 
   useEffect(() => {
     const el = chatListRef.current;
@@ -1299,11 +1415,13 @@ export default function OperatorDashboard() {
 
     try {
       setMaterialRequestingId(item.id);
-      await http.post("/almoxarifado/solicitacoes", {
+      await http.post("/api/material/solicitacoes", {
         maquina_id: cnc,
         item_id: item.id,
         arquivo_nome: arquivo,
         material,
+        op: item.op || item.OP || "",
+        operador_nome: operadorNome || "",
       });
 
       await http.post(`/maquinas/${cnc}/status`, {
@@ -1313,7 +1431,7 @@ export default function OperatorDashboard() {
       setStatusMaquina("AGUAR.EMPILHADEIRA");
       setMenuOpenId(null);
       await carregarTudo();
-      alert("Solicitacao de material enviada ao almoxarifado.");
+      alert("Solicitacao enviada ao Almoxarifado.");
     } catch (e) {
       console.error("solicitarMaterial erro:", e);
       alert("Erro ao solicitar material: " + getErrMsg(e));
@@ -1511,7 +1629,7 @@ export default function OperatorDashboard() {
       (materialRequests || []).find(
         (req) =>
           Number(req?.item_id) === Number(item.id) &&
-          String(req?.status || "").toUpperCase() === "ABERTA"
+          ["ABERTA", "AGUARDANDO_ALMOXARIFADO", "EM_SEPARACAO"].includes(String(req?.status || "").toUpperCase())
       ) || null
     );
   }
@@ -1574,12 +1692,26 @@ export default function OperatorDashboard() {
     return progressoItem(executando);
   }, [executando, maquinaAtual?.status, statusMaquina, fila, tick]);
 
+  const materialUnreadTotal = useMemo(
+    () => (materialRequests || []).reduce((sum, req) => sum + Number(req?.nao_lidas_operador || 0), 0),
+    [materialRequests]
+  );
+
+  const materialCurrentNotice = useMemo(() => {
+    return (
+      (materialRequests || []).find((req) => Number(req?.nao_lidas_operador || 0) > 0) ||
+      (materialRequests || []).find((req) => ["ENTREGUE", "CANCELADA_SEM_MATERIAL"].includes(String(req?.status || "").toUpperCase())) ||
+      null
+    );
+  }, [materialRequests]);
+
   return (
     <Shell>
       <Topbar
         onRefresh={async () => {
           await carregarTudo();
           await fetchChat();
+          await fetchMaterialRequests(true);
         }}
       />
 
@@ -1717,6 +1849,38 @@ export default function OperatorDashboard() {
                   >
                     Cortado
                   </button>
+                </div>
+
+                <div className="mt-3">
+                  <button
+                    className="relative w-full h-12 px-4 rounded-xl bg-[#2f377d] hover:bg-[#3f4aa0] text-sm font-semibold text-white transition inline-flex items-center justify-center gap-2"
+                    onClick={() => openMaterialChat()}
+                  >
+                    <MessageSquare size={16} />
+                    Material / Almoxarifado
+                    {materialUnreadTotal > 0 ? (
+                      <span className="absolute -right-2 -top-2 min-w-6 h-6 px-2 rounded-full bg-red-600 text-white text-[11px] font-black inline-flex items-center justify-center">
+                        {materialUnreadTotal}
+                      </span>
+                    ) : null}
+                  </button>
+
+                  {materialCurrentNotice ? (
+                    <button
+                      type="button"
+                      onClick={() => openMaterialChat(materialCurrentNotice)}
+                      className={cn(
+                        "mt-2 w-full rounded-xl border px-3 py-2 text-left text-xs font-bold",
+                        String(materialCurrentNotice.status || "").toUpperCase() === "CANCELADA_SEM_MATERIAL"
+                          ? "border-red-200 bg-red-50 text-red-700"
+                          : String(materialCurrentNotice.status || "").toUpperCase() === "ENTREGUE"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-sky-200 bg-sky-50 text-sky-700"
+                      )}
+                    >
+                      {materialStatusLabel(materialCurrentNotice.status)}
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </Card>
@@ -2074,6 +2238,120 @@ export default function OperatorDashboard() {
           </div>
         </div>
       </div>
+
+      {materialToast ? (
+        <button
+          type="button"
+          onClick={() => openMaterialChat()}
+          className="fixed right-5 top-24 z-[120] max-w-[360px] rounded-2xl border border-[rgba(47,55,125,.14)] bg-white px-4 py-3 text-left text-sm font-bold text-[#2f377d] shadow-[0_20px_50px_-30px_rgba(32,37,61,.55)]"
+        >
+          {materialToast}
+        </button>
+      ) : null}
+
+      {materialChatOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-[95] bg-black/55"
+            onClick={() => setMaterialChatOpen(false)}
+          />
+          <div
+            className="fixed z-[100] left-1/2 top-1/2 w-[min(94vw,760px)] max-h-[88vh] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-3xl border border-[rgba(47,55,125,.12)] bg-white shadow-[0_25px_80px_-35px_rgba(32,37,61,.55)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-[rgba(47,55,125,.10)] p-4">
+              <div className="min-w-0">
+                <div className="text-[10px] tracking-[0.30em] text-slate-500 font-black uppercase">
+                  Material / Almoxarifado
+                </div>
+                <div className="mt-1 text-lg font-black text-[#2f377d]">
+                  {materialChatRequest?.maquina_id || cnc}
+                </div>
+                <div className="mt-1 text-sm font-bold text-slate-700 truncate">
+                  {materialChatRequest?.material || "Material nao informado"}
+                </div>
+                <div className="mt-1 text-xs font-semibold text-slate-400 truncate">
+                  {materialChatRequest?.arquivo_nome || materialChatRequest?.op || "Sem arquivo/OP"} - {materialStatusLabel(materialChatRequest?.status)}
+                </div>
+              </div>
+              <button
+                className="h-10 w-10 shrink-0 rounded-xl border border-[rgba(47,55,125,.12)] bg-white text-[#2f377d] hover:bg-slate-50 inline-flex items-center justify-center"
+                onClick={() => setMaterialChatOpen(false)}
+                title="Fechar"
+              >
+                <X size={17} />
+              </button>
+            </div>
+
+            <div className="h-[min(52vh,430px)] overflow-auto bg-slate-50/80 p-4 space-y-3">
+              {materialChatLoading ? (
+                <div className="h-full flex items-center justify-center text-sm text-slate-400">
+                  Carregando chat...
+                </div>
+              ) : materialChatMessages.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-sm text-slate-400">
+                  Nenhuma mensagem ainda.
+                </div>
+              ) : (
+                materialChatMessages.map((msg) => {
+                  const mine = String(msg.perfil || "").toUpperCase() === "OPERADOR";
+                  const system = String(msg.tipo || "").toUpperCase() !== "USUARIO";
+                  return (
+                    <div
+                      key={msg.id}
+                      className={cn("flex w-full", system ? "justify-center" : mine ? "justify-end" : "justify-start")}
+                    >
+                      <div
+                        className={cn(
+                          "w-fit max-w-[84%] rounded-2xl border px-3 py-2",
+                          system
+                            ? "bg-amber-50 border-amber-200"
+                            : mine
+                            ? "bg-sky-100 border-sky-200"
+                            : "bg-white border-[rgba(47,55,125,.10)]"
+                        )}
+                      >
+                        <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                          <strong className="text-[#2f377d]">{msg.usuario_nome || msg.perfil || "Sistema"}</strong>
+                          <span>{msg.perfil}</span>
+                          <span>{fmtDate(msg.criado_em)}</span>
+                        </div>
+                        <div className="text-sm font-semibold text-slate-800 whitespace-pre-wrap break-words">
+                          {msg.mensagem}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 border-t border-[rgba(47,55,125,.10)] p-4">
+              <input
+                className="min-w-0 flex-1 h-11 rounded-xl border border-[rgba(47,55,125,.12)] bg-white px-3 text-sm text-slate-800 outline-none"
+                value={materialChatText}
+                onChange={(e) => setMaterialChatText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    sendMaterialChat();
+                  }
+                }}
+                placeholder="Digite uma mensagem para o Almoxarifado..."
+                disabled={materialChatSending}
+              />
+              <button
+                className="h-11 shrink-0 rounded-xl bg-[#2f377d] px-4 text-sm font-bold text-white disabled:opacity-50 inline-flex items-center gap-2"
+                onClick={sendMaterialChat}
+                disabled={materialChatSending || !String(materialChatText || "").trim()}
+              >
+                <Send size={15} />
+                {materialChatSending ? "Enviando..." : "Enviar"}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {menuOpenId && (
         <>
