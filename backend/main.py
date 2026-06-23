@@ -427,6 +427,9 @@ def _ensure_material_solicitacoes_table(conn):
         ("operador_id", "ALTER TABLE material_solicitacoes ADD COLUMN operador_id TEXT"),
         ("operador_nome", "ALTER TABLE material_solicitacoes ADD COLUMN operador_nome TEXT"),
         ("atualizado_em", "ALTER TABLE material_solicitacoes ADD COLUMN atualizado_em TEXT"),
+        ("em_separacao_por", "ALTER TABLE material_solicitacoes ADD COLUMN em_separacao_por TEXT"),
+        ("em_separacao_por_nome", "ALTER TABLE material_solicitacoes ADD COLUMN em_separacao_por_nome TEXT"),
+        ("em_separacao_em", "ALTER TABLE material_solicitacoes ADD COLUMN em_separacao_em TEXT"),
         ("entregue_por", "ALTER TABLE material_solicitacoes ADD COLUMN entregue_por TEXT"),
         ("entregue_por_nome", "ALTER TABLE material_solicitacoes ADD COLUMN entregue_por_nome TEXT"),
         ("entregue_em", "ALTER TABLE material_solicitacoes ADD COLUMN entregue_em TEXT"),
@@ -539,6 +542,9 @@ def _material_row_to_dict(row):
         "criado_em": row["criado_em"],
         "atualizado_em": row["atualizado_em"],
         "atendido_em": row["atendido_em"],
+        "em_separacao_por": row["em_separacao_por"],
+        "em_separacao_por_nome": row["em_separacao_por_nome"],
+        "em_separacao_em": row["em_separacao_em"],
         "entregue_por": row["entregue_por"],
         "entregue_por_nome": row["entregue_por_nome"],
         "entregue_em": row["entregue_em"],
@@ -751,8 +757,8 @@ def _material_setup_bloqueio_detail(conn, maquina_id: str, item_id: int):
 
     material = req["material"] or "material solicitado"
     return (
-        "Material solicitado ainda nao teve setup confirmado. "
-        f"Confirme o Setup de material antes de colocar em USINANDO ({material})."
+        "Material solicitado ainda nao foi marcado como entregue pelo Almoxarifado. "
+        f"Aguarde a entrega antes de colocar em USINANDO ({material})."
     )
 
 
@@ -4108,6 +4114,26 @@ def api_listar_material_solicitacoes_pendentes(limit: int = 100):
     return _listar_material_solicitacoes_core(status="pendentes", limit=limit)
 
 
+@app.get("/api/material/chat-geral")
+def api_material_chat_geral(limit: int = 300):
+    return _listar_material_solicitacoes_core(status="TODAS", limit=limit)
+
+
+@app.get("/api/material/solicitacoes/cards")
+def api_material_solicitacoes_cards(limit: int = 500):
+    return _listar_material_solicitacoes_core(status="TODAS", limit=limit)
+
+
+@app.get("/api/material/solicitacoes/tv")
+def api_material_solicitacoes_tv(limit: int = 500):
+    return _listar_material_solicitacoes_core(status="TODAS", limit=limit)
+
+
+@app.get("/api/material/solicitacoes/minha-cnc")
+def api_material_solicitacoes_minha_cnc(maquina_id: str, limit: int = 100):
+    return _listar_material_solicitacoes_core(maquina_id=maquina_id, status="TODAS", limit=limit)
+
+
 @app.get("/almoxarifado/solicitacoes")
 def listar_material_solicitacoes(
     maquina_id: str | None = None,
@@ -4165,10 +4191,13 @@ def api_listar_material_mensagens(solicitacao_id: int, limit: int = 200):
 def api_enviar_material_mensagem(solicitacao_id: int, msg: MaterialChatMensagemIn):
     conn = get_conn()
     _ensure_material_solicitacoes_table(conn)
-    row = conn.execute("SELECT id FROM material_solicitacoes WHERE id = ?", (solicitacao_id,)).fetchone()
+    row = conn.execute("SELECT id, status FROM material_solicitacoes WHERE id = ?", (solicitacao_id,)).fetchone()
     if not row:
         conn.close()
         raise HTTPException(status_code=404, detail="Solicitacao nao encontrada.")
+    if _material_status_norm(row["status"]) not in MATERIAL_PENDENTES:
+        conn.close()
+        raise HTTPException(status_code=409, detail="Solicitacao ja finalizada.")
     msg_id = _material_add_message(
         conn,
         solicitacao_id,
@@ -4184,14 +4213,60 @@ def api_enviar_material_mensagem(solicitacao_id: int, msg: MaterialChatMensagemI
     return _material_msg_to_dict(row_msg)
 
 
+@app.patch("/api/material/solicitacoes/{solicitacao_id}/em-separacao")
+def api_em_separacao_material_solicitacao(solicitacao_id: int, msg: MaterialChatMensagemIn | None = None):
+    conn = get_conn()
+    _ensure_material_solicitacoes_table(conn)
+    row = conn.execute("SELECT id, status FROM material_solicitacoes WHERE id = ?", (solicitacao_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Solicitacao nao encontrada.")
+
+    status_atual = _material_status_norm(row["status"])
+    if status_atual not in MATERIAL_PENDENTES:
+        conn.close()
+        raise HTTPException(status_code=409, detail="Solicitacao ja finalizada.")
+
+    usuario_id = msg.usuario_id if msg else None
+    usuario_nome = (msg.usuario_nome if msg else None) or "Almoxarifado"
+    conn.execute(
+        """
+        UPDATE material_solicitacoes
+        SET status = 'EM_SEPARACAO',
+            em_separacao_por = ?,
+            em_separacao_por_nome = ?,
+            em_separacao_em = COALESCE(em_separacao_em, datetime('now','localtime')),
+            atualizado_em = datetime('now','localtime'),
+            visualizado_operador = 0
+        WHERE id = ?
+        """,
+        (usuario_id, usuario_nome, solicitacao_id),
+    )
+    _material_add_message(
+        conn,
+        solicitacao_id,
+        usuario_id,
+        usuario_nome,
+        "ALMOXARIFADO",
+        "Almoxarifado iniciou a separacao do material.",
+        "STATUS",
+    )
+    conn.commit()
+    conn.close()
+    return {"ok": True, "status": "EM_SEPARACAO"}
+
+
 @app.patch("/api/material/solicitacoes/{solicitacao_id}/entregar")
 def api_entregar_material_solicitacao(solicitacao_id: int, msg: MaterialChatMensagemIn | None = None):
     conn = get_conn()
     _ensure_material_solicitacoes_table(conn)
-    row = conn.execute("SELECT id FROM material_solicitacoes WHERE id = ?", (solicitacao_id,)).fetchone()
+    row = conn.execute("SELECT id, status FROM material_solicitacoes WHERE id = ?", (solicitacao_id,)).fetchone()
     if not row:
         conn.close()
         raise HTTPException(status_code=404, detail="Solicitacao nao encontrada.")
+    if _material_status_norm(row["status"]) not in MATERIAL_PENDENTES:
+        conn.close()
+        raise HTTPException(status_code=409, detail="Solicitacao ja finalizada.")
 
     usuario_id = msg.usuario_id if msg else None
     usuario_nome = (msg.usuario_nome if msg else None) or "Almoxarifado"
@@ -4319,7 +4394,6 @@ def react_fallback(full_path: str, request: Request):
         "fila_fs",
         "historico",
         "chat",
-        "almoxarifado",
         "api",
         "agente",
         "dashboard/indicadores",

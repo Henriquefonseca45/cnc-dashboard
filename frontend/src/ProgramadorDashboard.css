@@ -451,6 +451,11 @@ body::after{
   background:rgba(16,185,129,.14);
   border-color:rgba(16,185,129,.30);
 }
+.pgMaterialStatusPill.canceled{
+  color:#b91c1c;
+  background:rgba(239,68,68,.14);
+  border-color:rgba(239,68,68,.30);
+}
 .pgMaterialHistoryFilters{
   margin-top:14px;
   margin-bottom:12px;
@@ -1272,9 +1277,19 @@ body::after{
   border-color: rgba(249,115,22,.34);
 }
 
+.pgCardMaterialItem.open{
+  background: rgba(255,247,237,.92);
+  border-color: rgba(249,115,22,.34);
+}
+
 .pgCardMaterialItem.delivered{
   background: rgba(255,255,255,.78);
   border-color: rgba(2,132,199,.24);
+}
+
+.pgCardMaterialItem.canceled{
+  background: rgba(254,242,242,.94);
+  border-color: rgba(239,68,68,.38);
 }
 
 .pgCardMaterialItemTop{
@@ -1310,6 +1325,12 @@ body::after{
   color:#155e75;
   background: rgba(6,182,212,.14);
   border-color: rgba(6,182,212,.28);
+}
+
+.pgCardMaterialItem.canceled .pgCardMaterialStatus{
+  color:#b91c1c;
+  background: rgba(239,68,68,.14);
+  border-color: rgba(239,68,68,.32);
 }
 
 .pgCardMaterialFile,

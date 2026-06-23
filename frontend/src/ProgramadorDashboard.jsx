@@ -1783,7 +1783,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const [draggingId, setDraggingId] = useState(null);
 
   const [view, setView] = useState("dashboard");
- const [visualTab, setVisualTab] = useState("almox");
+ const [visualTab, setVisualTab] = useState("producao");
 
   const [historicoAll, setHistoricoAll] = useState([]);
   const [histLoading, setHistLoading] = useState(false);
@@ -2574,7 +2574,6 @@ async function exportarPDF() {
       for (const machineId of ids) {
         next[machineId] = data
           .filter((req) => String(req.maquina_id || "").toUpperCase() === machineId)
-          .slice(0, 3)
           .map((req) => ({
             id: req.id,
             material: req.material || "material nao informado",
@@ -2582,7 +2581,21 @@ async function exportarPDF() {
             status: req.status || "ABERTA",
             criado_em: req.criado_em,
             atendido_em: req.atendido_em,
-          }));
+            atualizado_em: req.atualizado_em,
+            entregue_em: req.entregue_em,
+            cancelado_em: req.cancelado_em,
+            motivo_cancelamento: req.motivo_cancelamento,
+          }))
+          .sort((a, b) => {
+            const aOpen = ["ABERTA", "AGUARDANDO_ALMOXARIFADO", "EM_SEPARACAO"].includes(U(a.status));
+            const bOpen = ["ABERTA", "AGUARDANDO_ALMOXARIFADO", "EM_SEPARACAO"].includes(U(b.status));
+            if (aOpen !== bOpen) return aOpen ? -1 : 1;
+
+            const aTime = Date.parse(aOpen ? a.criado_em : a.cancelado_em || a.entregue_em || a.atendido_em || a.atualizado_em || a.criado_em || "") || 0;
+            const bTime = Date.parse(bOpen ? b.criado_em : b.cancelado_em || b.entregue_em || b.atendido_em || b.atualizado_em || b.criado_em || "") || 0;
+            return aOpen ? aTime - bTime : bTime - aTime;
+          })
+          .slice(0, 3);
       }
 
       setMaterialRequestsByMachine(next);
@@ -2593,6 +2606,27 @@ async function exportarPDF() {
       }
       setMaterialRequestsByMachine(next);
     }
+  }
+
+  function materialStatusMeta(status) {
+    const st = U(status);
+    if (st === "ENTREGUE") return { label: "ENTREGUE", className: "delivered", dateLabel: "Entregue" };
+    if (st === "CANCELADA_SEM_MATERIAL") return { label: "CANCELADA", className: "canceled", dateLabel: "Cancelada" };
+    if (st === "CANCELADA") return { label: "CANCELADA", className: "canceled", dateLabel: "Cancelada" };
+    if (st === "EM_SEPARACAO") return { label: "EM SEPARACAO", className: "open", dateLabel: "" };
+    return { label: "ABERTA", className: "open", dateLabel: "" };
+  }
+
+  function materialStatusDate(req) {
+    const meta = materialStatusMeta(req?.status);
+    if (meta.className === "delivered") {
+      return `${meta.dateLabel}: ${fmtDate(req.entregue_em || req.atendido_em)}`;
+    }
+    if (meta.className === "canceled") {
+      const motivo = req.motivo_cancelamento ? ` - ${req.motivo_cancelamento}` : "";
+      return `${meta.dateLabel}: ${fmtDate(req.cancelado_em || req.atualizado_em)}${motivo}`;
+    }
+    return fmtDate(req?.criado_em);
   }
 
   function clearChatImage() {
@@ -4353,10 +4387,12 @@ const limparLista = (lista) =>
     {isVisual && (
       <div className="pgVisualTabs">
         <button
-          className={`pgVisualTabBtn ${visualTab === "almox" ? "active" : ""}`}
-          onClick={() => setVisualTab("almox")}
+          className="pgVisualTabBtn"
+          onClick={() => {
+            window.location.href = "/almoxarifado";
+          }}
         >
-          Almoxarifado
+          Abrir Almoxarifado
         </button>
 
         <button
@@ -5090,28 +5126,28 @@ const limparLista = (lista) =>
                         <div className="pgCardMaterialEmpty">Sem solicitacoes</div>
                       ) : (
                         <ul className="pgCardMaterialList">
-                          {materialRequests.map((req) => (
-                            <li
-                              key={req.id}
-                              className={`pgCardMaterialItem ${
-                                U(req.status) === "ENTREGUE" ? "delivered" : ""
-                              }`}
-                              title={req.arquivo}
-                            >
-                              <div className="pgCardMaterialItemTop">
-                                <div className="pgCardMaterialName">{req.material}</div>
-                                <div className="pgCardMaterialStatus">
-                                  {U(req.status) === "ENTREGUE" ? "ENTREGUE" : "ABERTA"}
+                          {materialRequests.map((req) => {
+                            const statusMeta = materialStatusMeta(req.status);
+
+                            return (
+                              <li
+                                key={req.id}
+                                className={`pgCardMaterialItem ${statusMeta.className}`}
+                                title={req.arquivo}
+                              >
+                                <div className="pgCardMaterialItemTop">
+                                  <div className="pgCardMaterialName">{req.material}</div>
+                                  <div className="pgCardMaterialStatus">
+                                    {statusMeta.label}
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="pgCardMaterialFile">{req.arquivo}</div>
-                              <div className="pgCardMaterialDate">
-                                {U(req.status) === "ENTREGUE"
-                                  ? `Entregue: ${fmtDate(req.atendido_em)}`
-                                  : fmtDate(req.criado_em)}
-                              </div>
-                            </li>
-                          ))}
+                                <div className="pgCardMaterialFile">{req.arquivo}</div>
+                                <div className="pgCardMaterialDate">
+                                  {materialStatusDate(req)}
+                                </div>
+                              </li>
+                            );
+                          })}
                         </ul>
                       )}
                     </div>
@@ -6243,7 +6279,7 @@ const limparLista = (lista) =>
 
                   <tbody>
                     {materialHistoryFiltered.map((req) => {
-                      const entregue = U(req.status) === "ENTREGUE";
+                      const statusMeta = materialStatusMeta(req.status);
 
                       return (
                         <tr key={req.id} className="pgRow">
@@ -6251,15 +6287,15 @@ const limparLista = (lista) =>
                           <td style={{ padding: "10px", fontWeight: 800 }}>{req.material || "-"}</td>
                           <td style={{ padding: "10px" }}>{req.arquivo_nome || "-"}</td>
                           <td style={{ padding: "10px" }}>
-                            <span className={`pgMaterialStatusPill ${entregue ? "delivered" : "open"}`}>
-                              {entregue ? "ENTREGUE" : "ABERTA"}
+                            <span className={`pgMaterialStatusPill ${statusMeta.className}`}>
+                              {statusMeta.label}
                             </span>
                           </td>
                           <td style={{ padding: "10px" }} className="pgMono">
                             {fmtDate(req.criado_em)}
                           </td>
                           <td style={{ padding: "10px" }} className="pgMono">
-                            {req.atendido_em ? fmtDate(req.atendido_em) : "-"}
+                            {req.cancelado_em ? fmtDate(req.cancelado_em) : req.entregue_em || req.atendido_em ? fmtDate(req.entregue_em || req.atendido_em) : "-"}
                           </td>
                         </tr>
                       );
@@ -6318,7 +6354,7 @@ const limparLista = (lista) =>
 
                   <tbody>
                     {materialHistory.map((req) => {
-                      const entregue = U(req.status) === "ENTREGUE";
+                      const statusMeta = materialStatusMeta(req.status);
 
                       return (
                         <tr key={req.id} className="pgRow">
@@ -6326,15 +6362,15 @@ const limparLista = (lista) =>
                           <td style={{ padding: "10px", fontWeight: 800 }}>{req.material || "-"}</td>
                           <td style={{ padding: "10px" }}>{req.arquivo_nome || "-"}</td>
                           <td style={{ padding: "10px" }}>
-                            <span className={`pgMaterialStatusPill ${entregue ? "delivered" : "open"}`}>
-                              {entregue ? "ENTREGUE" : "ABERTA"}
+                            <span className={`pgMaterialStatusPill ${statusMeta.className}`}>
+                              {statusMeta.label}
                             </span>
                           </td>
                           <td style={{ padding: "10px" }} className="pgMono">
                             {fmtDate(req.criado_em)}
                           </td>
                           <td style={{ padding: "10px" }} className="pgMono">
-                            {req.atendido_em ? fmtDate(req.atendido_em) : "-"}
+                            {req.cancelado_em ? fmtDate(req.cancelado_em) : req.entregue_em || req.atendido_em ? fmtDate(req.entregue_em || req.atendido_em) : "-"}
                           </td>
                         </tr>
                       );

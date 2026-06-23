@@ -1018,7 +1018,7 @@ export default function OperatorDashboard() {
     const st = String(status || "").toUpperCase();
     if (st === "ENTREGUE") return "Material entregue pelo Almoxarifado.";
     if (st === "CANCELADA_SEM_MATERIAL") return "SEM MATERIAL - Solicitacao cancelada pelo Almoxarifado.";
-    if (st === "EM_SEPARACAO") return "Em separacao no Almoxarifado.";
+    if (st === "EM_SEPARACAO") return "Almoxarifado iniciou a separacao do material.";
     return "Aguardando Almoxarifado.";
   }
 
@@ -1045,6 +1045,8 @@ export default function OperatorDashboard() {
           setMaterialToast("Material entregue pelo Almoxarifado.");
         } else if (st === "CANCELADA_SEM_MATERIAL") {
           setMaterialToast("Solicitacao cancelada pelo Almoxarifado. Motivo: SEM MATERIAL.");
+        } else if (st === "EM_SEPARACAO") {
+          setMaterialToast("Almoxarifado iniciou a separacao do material.");
         } else {
           setMaterialToast("Nova mensagem do Almoxarifado.");
         }
@@ -1408,10 +1410,16 @@ export default function OperatorDashboard() {
     if (!item?.id || materialRequestingId) return;
 
     const arquivo = item.arquivo_nome || item.nome || `Arquivo #${item.id}`;
-    const material =
+    let material =
       String(item.material || "").trim() ||
-      inferMaterialFromFileName(arquivo) ||
-      "material nao informado";
+      inferMaterialFromFileName(arquivo);
+
+    if (!material) {
+      material = window.prompt("Informe o material solicitado:", "")?.trim() || "";
+      if (!material) return;
+    } else if (!window.confirm(`Confirmar solicitacao deste material?\n\n${material}`)) {
+      return;
+    }
 
     try {
       setMaterialRequestingId(item.id);
@@ -1441,29 +1449,7 @@ export default function OperatorDashboard() {
   }
 
   async function setupMaterial(item) {
-    if (!item?.id || materialSetupId) return;
-
-    try {
-      setMaterialSetupId(item.id);
-
-      await http.post(`/maquinas/${cnc}/status`, {
-        status: "SETUP",
-      });
-
-      await http.post("/almoxarifado/solicitacoes/entregar", {
-        maquina_id: cnc,
-        item_id: item.id,
-      });
-
-      setStatusMaquina("SETUP");
-      setMenuOpenId(null);
-      await carregarTudo();
-    } catch (e) {
-      console.error("setupMaterial erro:", e);
-      alert("Erro ao iniciar setup de material: " + getErrMsg(e));
-    } finally {
-      setMaterialSetupId(null);
-    }
+    await solicitarMaterial(item);
   }
 
   async function setItemStatus(item, novoStatus, extraPayload = {}) {
@@ -1639,7 +1625,7 @@ export default function OperatorDashboard() {
     if (!req) return "";
 
     const material = req.material || "material solicitado";
-    return `Existe solicitacao de material aberta para este arquivo:\n\n${material}\n\nConfirme o Setup de material antes de colocar em USINANDO.`;
+    return `Existe solicitacao de material pendente para este arquivo:\n\n${material}\n\nAguarde o Almoxarifado marcar como entregue antes de colocar em USINANDO.`;
   }
 
   function getDownloadBloqueio(item) {
@@ -2402,7 +2388,7 @@ export default function OperatorDashboard() {
 
             <button
               onClick={() => setupMaterial(menuItem)}
-              disabled={materialSetupId === menuItem?.id}
+              disabled={materialRequestingId === menuItem?.id}
               className="w-full px-3 py-2 rounded-xl hover:bg-[rgba(47,55,125,.05)] disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-3 text-sm text-slate-800"
             >
               <Wrench size={16} className="text-amber-600" />

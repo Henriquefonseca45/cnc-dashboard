@@ -1,0 +1,390 @@
+.almoxPage {
+  min-height: 100vh;
+  padding: 76px 18px 24px;
+  color: #24284a;
+}
+
+.almoxPageHeader,
+.almoxCardsHeader,
+.almoxCardHeader,
+.almoxMaterialsTitle,
+.almoxMaterialItem,
+.almoxTabs {
+  display: flex;
+  align-items: center;
+}
+
+.almoxPageHeader {
+  max-width: 1500px;
+  margin: 0 auto 16px;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(47, 55, 125, 0.1);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 22px 70px -48px rgba(32, 37, 61, 0.34);
+}
+
+.almoxPageHeader p {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #626783;
+}
+
+.almoxPageHeader h1,
+.almoxCardsHeader h1,
+.almoxTvHeader h1 {
+  margin: 0;
+  color: #38327c;
+  line-height: 1.08;
+}
+
+.almoxPageHeader h1 {
+  font-size: 30px;
+}
+
+.almoxTabs {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.almoxTabs button,
+.almoxCardsHeader button {
+  min-height: 42px;
+  border-radius: 14px;
+  border: 1px solid rgba(47, 55, 125, 0.12);
+  background: #fff;
+  color: #38327c;
+  font-weight: 900;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+}
+
+.almoxTabs button.active {
+  background: #38327c;
+  color: #fff;
+}
+
+.almoxCardsPage {
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+.almoxCardsHeader {
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(47, 55, 125, 0.1);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.almoxCardsHeader h1 {
+  font-size: 24px;
+}
+
+.almoxCardsHeader span,
+.almoxTvHeader span {
+  display: block;
+  margin-top: 5px;
+  color: #626783;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.almoxCardsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+  gap: 14px;
+}
+
+.almoxCncCard,
+.almoxTvCard {
+  min-width: 0;
+  border-radius: 20px;
+  border: 1px solid rgba(47, 55, 125, 0.1);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 20px 55px -42px rgba(32, 37, 61, 0.34);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.almoxCardHeader {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.almoxCardHeader strong {
+  display: block;
+  color: #38327c;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.almoxCardHeader small {
+  display: block;
+  margin-top: 2px;
+  color: #626783;
+  font-weight: 700;
+}
+
+.almoxCardHeader > span {
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #e0f2fe;
+  color: #075985;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.almoxCardBlock {
+  border-radius: 14px;
+  border: 1px solid rgba(47, 55, 125, 0.1);
+  background: rgba(248, 250, 252, 0.86);
+  padding: 10px;
+  min-width: 0;
+}
+
+.almoxCardBlock b,
+.almoxMaterialsTitle b {
+  display: block;
+  margin-bottom: 6px;
+  color: #626783;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.almoxCardBlock p {
+  margin: 4px 0 0;
+  color: #1f2540;
+  font-size: 13px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.almoxMaterials {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.almoxMaterialsTitle {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.almoxMaterialsTitle span {
+  min-width: 28px;
+  height: 24px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.almoxMaterialItem {
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(47, 55, 125, 0.1);
+  background: #fff;
+  padding: 8px;
+  min-width: 0;
+}
+
+.almoxMaterialItem > div {
+  min-width: 0;
+}
+
+.almoxMaterialItem strong,
+.almoxMaterialItem p,
+.almoxMaterialItem small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.almoxMaterialItem strong {
+  color: #1f2540;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.almoxMaterialItem p,
+.almoxMaterialItem small {
+  margin: 3px 0 0;
+  color: #626783;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.almoxMaterialItem > span {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.almoxMaterialItem.open {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.almoxMaterialItem.open > span {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.almoxMaterialItem.separating {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.almoxMaterialItem.separating > span {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.almoxMaterialItem.delivered {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.almoxMaterialItem.delivered > span {
+  color: #047857;
+  background: #d1fae5;
+}
+
+.almoxMaterialItem.noMaterial,
+.almoxMaterialItem.canceled {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.almoxMaterialItem.noMaterial > span,
+.almoxMaterialItem.canceled > span {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.almoxEmptyMaterial,
+.almoxCardsError {
+  border-radius: 12px;
+  padding: 10px;
+  color: #626783;
+  background: rgba(248, 250, 252, 0.86);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.almoxCardsError {
+  margin-bottom: 12px;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.almoxTvPage {
+  height: 100vh;
+  overflow: hidden;
+  background: #eef6ff;
+  color: #24284a;
+}
+
+.almoxTvHeader {
+  height: 84px;
+  padding: 14px 18px 10px;
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.94);
+  border-bottom: 1px solid rgba(47, 55, 125, 0.1);
+}
+
+.almoxTvHeader h1 {
+  font-size: 30px;
+}
+
+.almoxTvHeader span {
+  font-size: 15px;
+}
+
+.almoxTvGrid {
+  height: calc(100vh - 84px);
+  padding: 12px 18px 18px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  overflow: hidden;
+}
+
+.almoxTvCard {
+  min-height: 0;
+  padding: 12px;
+  gap: 8px;
+}
+
+.almoxTvCard .almoxCardHeader strong {
+  font-size: 23px;
+}
+
+.almoxTvCard .almoxCardBlock {
+  padding: 8px;
+}
+
+.almoxTvCard .almoxCardBlock p {
+  font-size: 13px;
+}
+
+.almoxTvCard .almoxMaterialItem {
+  padding: 7px;
+}
+
+.almoxTvCard .almoxMaterialItem strong {
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .almoxPage {
+    padding: 66px 10px 16px;
+  }
+
+  .almoxPageHeader,
+  .almoxCardsHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .almoxTabs,
+  .almoxTabs button {
+    width: 100%;
+  }
+
+  .almoxCardsGrid {
+    grid-template-columns: 1fr;
+  }
+}

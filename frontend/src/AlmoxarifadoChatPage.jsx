@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { MessageSquare, PackageCheck, RefreshCw, Search, Send, XCircle } from "lucide-react";
+import { MessageSquare, PackageCheck, RefreshCw, Search, Send, Truck, XCircle } from "lucide-react";
 import { http } from "./http";
 import { getErrMsg } from "./api";
 import "./AlmoxarifadoChatPage.css";
@@ -30,7 +30,7 @@ function statusClass(status) {
   return "info";
 }
 
-export default function AlmoxarifadoChatPage() {
+export default function AlmoxarifadoChatPage({ embedded = false, basePath = "/almoxarifado-chat" }) {
   const { solicitacaoId } = useParams();
   const navigate = useNavigate();
   const listRef = useRef([]);
@@ -122,8 +122,8 @@ export default function AlmoxarifadoChatPage() {
   useEffect(() => {
     if (!selectedId) return;
     loadChat(selectedId);
-    navigate(`/almoxarifado-chat/${selectedId}`, { replace: true });
-  }, [selectedId]);
+    if (!embedded) navigate(`${basePath}/${selectedId}`, { replace: true });
+  }, [selectedId, embedded, basePath]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -158,14 +158,17 @@ export default function AlmoxarifadoChatPage() {
   async function finishRequest(type, requestId = selectedId) {
     if (!requestId || acting) return;
     const isDelivered = type === "entregar";
-    const question = isDelivered
-      ? "Confirmar entrega deste material?"
-      : "Tem certeza que deseja cancelar esta solicitacao por falta de material?";
-    if (!window.confirm(question)) return;
+    const isSeparating = type === "em-separacao";
+    if (!isSeparating) {
+      const question = isDelivered
+        ? "Confirmar entrega deste material?"
+        : "Tem certeza que deseja marcar esta solicitacao como SEM MATERIAL?";
+      if (!window.confirm(question)) return;
+    }
 
     try {
       setActing(`${type}-${requestId}`);
-      await http.patch(`/api/material/solicitacoes/${requestId}/${isDelivered ? "entregar" : "sem-material"}`, {
+      await http.patch(`/api/material/solicitacoes/${requestId}/${type}`, {
         usuario_nome: "Almoxarifado",
         perfil: "ALMOXARIFADO",
         mensagem: "",
@@ -187,7 +190,7 @@ export default function AlmoxarifadoChatPage() {
   }
 
   return (
-    <main className="almPage">
+    <main className={embedded ? "almPage almPageEmbedded" : "almPage"}>
       <section className="almShell">
         <header className="almHeader">
           <div>
@@ -257,6 +260,14 @@ export default function AlmoxarifadoChatPage() {
 
                     {isPendingRequest(item) ? (
                       <div className="almCardActions" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          className="separating"
+                          onClick={() => finishRequest("em-separacao", item.id)}
+                          disabled={Boolean(acting) || String(item.status || "").toUpperCase() === "EM_SEPARACAO"}
+                        >
+                          <Truck size={15} />
+                          Estou separando
+                        </button>
                         <button
                           className="deliver"
                           onClick={() => finishRequest("entregar", item.id)}

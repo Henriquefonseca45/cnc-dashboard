@@ -1,7 +1,9 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import OperatorDashboard from "./OperatorDashboard.jsx";
 import ProgramadorDashboard from "./ProgramadorDashboard.jsx";
 import AlmoxarifadoChatPage from "./AlmoxarifadoChatPage.jsx";
+import AlmoxarifadoPage from "./AlmoxarifadoPage.jsx";
+import AlmoxarifadoTvPage from "./AlmoxarifadoTvPage.jsx";
 import "./FestaJunina.css";
 
 const FESTA_FLAGS = [
@@ -28,9 +30,12 @@ function FestaJuninaDecor() {
 }
 
 export default function App() {
+  const location = useLocation();
+  const hideDecor = location.pathname === "/almoxarifado-tv";
+
   return (
     <div className="festaJuninaApp">
-      <FestaJuninaDecor />
+      {!hideDecor && <FestaJuninaDecor />}
       <Routes>
         <Route path="/" element={<Navigate to="/operador" replace />} />
         <Route path="/operador" element={<OperatorDashboard />} />
@@ -38,6 +43,8 @@ export default function App() {
         <Route path="/programador" element={<ProgramadorDashboard />} />
         <Route path="/facilitador" element={<ProgramadorDashboard mode="facilitador" />} />
         <Route path="/visual" element={<ProgramadorDashboard />} />
+        <Route path="/almoxarifado" element={<AlmoxarifadoPage />} />
+        <Route path="/almoxarifado-tv" element={<AlmoxarifadoTvPage />} />
         <Route path="/almoxarifado-chat" element={<AlmoxarifadoChatPage />} />
         <Route path="/almoxarifado-chat/:solicitacaoId" element={<AlmoxarifadoChatPage />} />
       </Routes>

@@ -4,6 +4,11 @@
   color: #24284a;
 }
 
+.almPageEmbedded {
+  min-height: 0;
+  padding: 0;
+}
+
 .almShell {
   max-width: 1500px;
   margin: 0 auto;
@@ -236,6 +241,10 @@
 
 .almCardActions .deliver {
   background: #059669;
+}
+
+.almCardActions .separating {
+  background: #f59e0b;
 }
 
 .almCardActions .noMaterial {
