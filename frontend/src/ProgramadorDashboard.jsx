@@ -4240,26 +4240,6 @@ const limparLista = (lista) =>
             </button>
 
             <button
-              className="pgNavItem"
-              onClick={() => {
-                window.location.href = "/admin/status-apontamentos";
-              }}
-            >
-              <span className="pgNavDot" />
-              Apontamentos de Status
-            </button>
-
-            <button
-              className="pgNavItem"
-              onClick={() => {
-                window.location.href = "/admin/rotas";
-              }}
-            >
-              <span className="pgNavDot" />
-              Central Admin
-            </button>
-
-            <button
               className={`pgNavItem ${view === "chat" ? "pgNavActive" : ""}`}
               onClick={() => openChatMachine(selectedId)}
             >
@@ -4406,15 +4386,6 @@ const limparLista = (lista) =>
 
     {isVisual && (
       <div className="pgVisualTabs">
-        <button
-          className="pgVisualTabBtn"
-          onClick={() => {
-            window.location.href = "/almoxarifado";
-          }}
-        >
-          Abrir Almoxarifado
-        </button>
-
         <button
           className={`pgVisualTabBtn ${visualTab === "producao" ? "active" : ""}`}
           onClick={() => setVisualTab("producao")}
