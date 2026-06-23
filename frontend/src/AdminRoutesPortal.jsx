@@ -47,6 +47,7 @@ function canSeeRoute(item, role) {
 }
 
 function routeUrl(path) {
+  if (/^https?:\/\//i.test(path)) return path;
   return `${window.location.origin}${path}`;
 }
 
@@ -103,10 +104,10 @@ export default function AdminRoutesPortal() {
     if (!item.ativo) return;
     registerRecent(item);
     if (newTab) {
-      window.open(item.rota, "_blank", "noopener,noreferrer");
+      window.open(routeUrl(item.rota), "_blank", "noopener,noreferrer");
       return;
     }
-    window.location.href = item.rota;
+    window.location.href = routeUrl(item.rota);
   }
 
   async function copyRoute(item) {
