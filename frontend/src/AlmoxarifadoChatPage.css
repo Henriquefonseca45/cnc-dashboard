@@ -21,6 +21,7 @@
 .almChatHead,
 .almChatTitle,
 .almActions,
+.almCardActions,
 .almInput,
 .almMsgMeta {
   display: flex;
@@ -58,7 +59,8 @@
 
 .almRefresh,
 .almInput button,
-.almActions button {
+.almActions button,
+.almCardActions button {
   border: 0;
   border-radius: 14px;
   font-weight: 900;
@@ -171,6 +173,7 @@
 .almLast,
 .almChatTitle,
 .almActions,
+.almCardActions,
 .almInput,
 .almMsgMeta {
   gap: 8px;
@@ -211,6 +214,32 @@
   background: #ef4444;
   color: #fff;
   font-size: 11px;
+}
+
+.almCardActions {
+  margin-top: 11px;
+  align-items: stretch;
+}
+
+.almCardActions button {
+  min-height: 40px;
+  flex: 1;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+.almCardActions .deliver {
+  background: #059669;
+}
+
+.almCardActions .noMaterial {
+  background: #dc2626;
 }
 
 .almStatus {
@@ -289,6 +318,7 @@
 }
 
 .almActions button:disabled,
+.almCardActions button:disabled,
 .almInput button:disabled,
 .almRefresh:disabled {
   opacity: 0.45;
@@ -436,6 +466,10 @@
 
   .almActions {
     width: 100%;
+  }
+
+  .almCardActions {
+    flex-direction: column;
   }
 
   .almActions button {

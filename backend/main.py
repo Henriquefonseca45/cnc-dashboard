@@ -4046,8 +4046,8 @@ def _listar_material_solicitacoes_core(
         {sql_where}
         ORDER BY
           CASE WHEN status IN ('ABERTA', 'AGUARDANDO_ALMOXARIFADO', 'EM_SEPARACAO') THEN 0 ELSE 1 END,
-          COALESCE(ultima_mensagem_em, atualizado_em, criado_em) DESC,
-          id DESC
+          criado_em ASC,
+          id ASC
         LIMIT ?
         """,
         (*params, lim),

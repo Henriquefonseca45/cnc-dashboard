@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { CheckCircle2, MessageSquare, PackageCheck, RefreshCw, Search, Send, XCircle } from "lucide-react";
+import { MessageSquare, PackageCheck, RefreshCw, Search, Send, XCircle } from "lucide-react";
 import { http } from "./http";
 import { getErrMsg } from "./api";
 import "./AlmoxarifadoChatPage.css";
@@ -155,8 +155,8 @@ export default function AlmoxarifadoChatPage() {
     }
   }
 
-  async function finishRequest(type) {
-    if (!selectedId || acting) return;
+  async function finishRequest(type, requestId = selectedId) {
+    if (!requestId || acting) return;
     const isDelivered = type === "entregar";
     const question = isDelivered
       ? "Confirmar entrega deste material?"
@@ -164,13 +164,17 @@ export default function AlmoxarifadoChatPage() {
     if (!window.confirm(question)) return;
 
     try {
-      setActing(type);
-      await http.patch(`/api/material/solicitacoes/${selectedId}/${isDelivered ? "entregar" : "sem-material"}`, {
+      setActing(`${type}-${requestId}`);
+      await http.patch(`/api/material/solicitacoes/${requestId}/${isDelivered ? "entregar" : "sem-material"}`, {
         usuario_nome: "Almoxarifado",
         perfil: "ALMOXARIFADO",
         mensagem: "",
       });
-      await Promise.all([loadChat(selectedId, true), loadRequests(true)]);
+      if (Number(requestId) === Number(selectedId)) {
+        await Promise.all([loadChat(requestId, true), loadRequests(true)]);
+      } else {
+        await loadRequests(true);
+      }
     } catch (err) {
       alert("Erro ao atualizar solicitacao: " + getErrMsg(err));
     } finally {
@@ -178,7 +182,9 @@ export default function AlmoxarifadoChatPage() {
     }
   }
 
-  const pendingSelected = selected && ["AGUARDANDO_ALMOXARIFADO", "ABERTA", "EM_SEPARACAO"].includes(String(selected.status || "").toUpperCase());
+  function isPendingRequest(item) {
+    return ["AGUARDANDO_ALMOXARIFADO", "ABERTA", "EM_SEPARACAO"].includes(String(item?.status || "").toUpperCase());
+  }
 
   return (
     <main className="almPage">
@@ -224,10 +230,18 @@ export default function AlmoxarifadoChatPage() {
                 const unread = Number(item.nao_lidas_almoxarifado || 0);
                 const active = Number(item.id) === Number(selectedId);
                 return (
-                  <button
+                  <div
                     key={item.id}
+                    role="button"
+                    tabIndex={0}
                     className={`almRequest ${active ? "active" : ""}`}
                     onClick={() => setSelectedId(Number(item.id))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedId(Number(item.id));
+                      }
+                    }}
                   >
                     <div className="almRequestTop">
                       <strong>{item.maquina_id || "CNC"}</strong>
@@ -240,7 +254,28 @@ export default function AlmoxarifadoChatPage() {
                       {unread > 0 ? <b>{unread}</b> : null}
                     </div>
                     <small>{fmtDate(item.ultima_mensagem_em || item.criado_em)}</small>
-                  </button>
+
+                    {isPendingRequest(item) ? (
+                      <div className="almCardActions" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          className="deliver"
+                          onClick={() => finishRequest("entregar", item.id)}
+                          disabled={Boolean(acting)}
+                        >
+                          <PackageCheck size={15} />
+                          Material entregue
+                        </button>
+                        <button
+                          className="noMaterial"
+                          onClick={() => finishRequest("sem-material", item.id)}
+                          disabled={Boolean(acting)}
+                        >
+                          <XCircle size={15} />
+                          Sem material
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 );
               })
             )}
@@ -262,16 +297,6 @@ export default function AlmoxarifadoChatPage() {
                     </div>
                     <p>{selected.material || "Material não informado"}</p>
                     <small>{selected.arquivo_nome || selected.op || "Sem arquivo/OP"} · {selected.operador_nome || "Operador"}</small>
-                  </div>
-                  <div className="almActions">
-                    <button className="deliver" onClick={() => finishRequest("entregar")} disabled={!pendingSelected || Boolean(acting)}>
-                      <PackageCheck size={16} />
-                      MATERIAL ENTREGUE
-                    </button>
-                    <button className="noMaterial" onClick={() => finishRequest("sem-material")} disabled={!pendingSelected || Boolean(acting)}>
-                      <XCircle size={16} />
-                      SEM MATERIAL
-                    </button>
                   </div>
                 </div>
 
