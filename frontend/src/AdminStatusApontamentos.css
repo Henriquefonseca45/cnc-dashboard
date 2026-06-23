@@ -1,0 +1,305 @@
+.adminStatusPage {
+  min-height: 100vh;
+  padding: 76px 18px 24px;
+  color: #24284a;
+}
+
+.adminStatusShell {
+  max-width: 1700px;
+  margin: 0 auto;
+  border-radius: 24px;
+  border: 1px solid rgba(47, 55, 125, 0.1);
+  background: rgba(255, 255, 255, 0.93);
+  box-shadow: 0 22px 70px -48px rgba(32, 37, 61, 0.34);
+  padding: 20px;
+}
+
+.adminStatusHeader,
+.adminStatusFilters,
+.adminStatusModalActions {
+  display: flex;
+  align-items: center;
+}
+
+.adminStatusHeader {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.adminStatusHeader p {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #626783;
+}
+
+.adminStatusHeader h1 {
+  margin: 0;
+  font-size: 32px;
+  line-height: 1.08;
+  color: #38327c;
+}
+
+.adminStatusHeader span {
+  display: block;
+  margin-top: 6px;
+  color: #626783;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.adminStatusHeader button,
+.adminStatusSearch,
+.adminStatusInvalidate,
+.adminStatusModalActions button {
+  min-height: 40px;
+  border-radius: 13px;
+  border: 1px solid rgba(47, 55, 125, 0.12);
+  background: #fff;
+  color: #38327c;
+  font-weight: 900;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+}
+
+.adminStatusFilters {
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0;
+  padding: 14px;
+  border-radius: 18px;
+  background: #f8fafc;
+  border: 1px solid rgba(47, 55, 125, 0.1);
+}
+
+.adminStatusFilters label,
+.adminStatusModal label {
+  display: grid;
+  gap: 6px;
+  color: #626783;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.adminStatusFilters input,
+.adminStatusFilters select,
+.adminStatusModal textarea {
+  min-height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(47, 55, 125, 0.14);
+  background: #fff;
+  color: #1f2540;
+  font-weight: 800;
+  outline: 0;
+  padding: 0 11px;
+}
+
+.adminStatusModal textarea {
+  min-height: 110px;
+  padding: 10px 11px;
+  resize: vertical;
+}
+
+.adminStatusSearch {
+  color: #fff;
+  background: #38327c;
+}
+
+.adminStatusAlert {
+  margin-bottom: 12px;
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-weight: 900;
+}
+
+.adminStatusAlert.error {
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.adminStatusAlert.success {
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+.adminStatusTableWrap {
+  overflow: auto;
+  border-radius: 18px;
+  border: 1px solid rgba(47, 55, 125, 0.1);
+}
+
+.adminStatusTable {
+  width: 100%;
+  min-width: 1280px;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.adminStatusTable th,
+.adminStatusTable td {
+  padding: 11px 10px;
+  border-bottom: 1px solid rgba(47, 55, 125, 0.08);
+  text-align: left;
+  font-size: 12px;
+  vertical-align: top;
+}
+
+.adminStatusTable th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  color: #626783;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.adminStatusTable tr.invalidated td {
+  color: #7c8498;
+  background: #f1f5f9;
+}
+
+.adminStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 78px;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.adminStatusBadge.ok {
+  color: #047857;
+  background: #d1fae5;
+}
+
+.adminStatusBadge.bad {
+  color: #475569;
+  background: #e2e8f0;
+}
+
+.adminStatusInvalidate {
+  color: #fff;
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.adminStatusMuted {
+  color: #64748b;
+  font-weight: 900;
+}
+
+.adminStatusEmpty {
+  text-align: center;
+  color: #626783;
+  font-weight: 900;
+  padding: 34px 10px !important;
+}
+
+.adminStatusModalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.adminStatusModal {
+  position: relative;
+  width: min(94vw, 560px);
+  border-radius: 24px;
+  border: 1px solid rgba(47, 55, 125, 0.12);
+  background: #fff;
+  box-shadow: 0 30px 90px -34px rgba(15, 23, 42, 0.6);
+  padding: 24px;
+}
+
+.adminStatusClose {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(47, 55, 125, 0.12);
+  background: #fff;
+  color: #38327c;
+  cursor: pointer;
+}
+
+.adminStatusModalIcon {
+  color: #dc2626;
+}
+
+.adminStatusModal h2 {
+  margin: 10px 0 8px;
+  color: #38327c;
+}
+
+.adminStatusModal p {
+  margin: 0 0 12px;
+  color: #475569;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.adminStatusModalSummary {
+  margin-bottom: 12px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid rgba(47, 55, 125, 0.1);
+  padding: 10px 12px;
+  color: #1f2540;
+  font-weight: 900;
+}
+
+.adminStatusModalActions {
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.adminStatusModalActions .danger {
+  color: #fff;
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+@media (max-width: 780px) {
+  .adminStatusPage {
+    padding: 66px 10px 16px;
+  }
+
+  .adminStatusShell {
+    padding: 14px;
+  }
+
+  .adminStatusHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .adminStatusFilters {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .adminStatusSearch {
+    width: 100%;
+  }
+}

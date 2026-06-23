@@ -10,7 +10,7 @@ import json
 import re
 import unicodedata
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -179,6 +179,10 @@ class MaterialChatMensagemIn(BaseModel):
     usuario_nome: str | None = None
     perfil: str = "OPERADOR"
     mensagem: str
+
+
+class InvalidarApontamentoIn(BaseModel):
+    motivo: str
 
 
 class CortadoRequest(BaseModel):
@@ -981,6 +985,24 @@ def _ensure_maquina_status_log_table(conn):
         )
         """
     )
+    for _col, ddl in (
+        ("operador_nome", "ALTER TABLE maquina_status_log ADD COLUMN operador_nome TEXT"),
+        ("invalidado", "ALTER TABLE maquina_status_log ADD COLUMN invalidado INTEGER DEFAULT 0"),
+        ("invalidado_por", "ALTER TABLE maquina_status_log ADD COLUMN invalidado_por TEXT"),
+        ("invalidado_em", "ALTER TABLE maquina_status_log ADD COLUMN invalidado_em TEXT"),
+        ("motivo_invalidacao", "ALTER TABLE maquina_status_log ADD COLUMN motivo_invalidacao TEXT"),
+    ):
+        try:
+            cur.execute(ddl)
+        except Exception:
+            pass
+
+
+def _require_admin_or_supervisor(x_user_role: str | None = Header(default=None), x_user_name: str | None = Header(default=None)):
+    role = (x_user_role or "ADMIN").strip().upper()
+    if role not in {"ADMIN", "SUPERVISOR"}:
+        raise HTTPException(status_code=403, detail="Acesso permitido somente para Admin ou Supervisor.")
+    return (x_user_name or role).strip() or role
 
 
 def _infer_motivo_from_status(status: str) -> str | None:
@@ -1102,14 +1124,15 @@ def _close_open_status_log(conn, maquina_id: str, fim_iso: str):
 
 def _open_status_log(conn, maquina_id: str, status: str, motivo: str | None, inicio_iso: str):
     _ensure_maquina_status_log_table(conn)
+    operador_nome = _get_operador_nome_for_machine(conn, maquina_id)
     cur = conn.cursor()
     cur.execute(
         """
         INSERT INTO maquina_status_log
-        (maquina_id, status, motivo, inicio_em, fim_em, criado_em)
-        VALUES (?, ?, ?, ?, NULL, ?)
+        (maquina_id, status, motivo, operador_nome, inicio_em, fim_em, criado_em, invalidado)
+        VALUES (?, ?, ?, ?, ?, NULL, ?, 0)
         """,
-        (maquina_id, status, motivo, inicio_iso, inicio_iso),
+        (maquina_id, status, motivo, operador_nome, inicio_iso, inicio_iso),
     )
 
 
@@ -1311,6 +1334,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
             COALESCE(fim_em, ?) < ?
             OR inicio_em > ?
         )
+          AND COALESCE(invalidado, 0) = 0
         ORDER BY maquina_id, inicio_em
         """,
         (
@@ -1708,6 +1732,150 @@ def health():
 # =========================
 # MÁQUINAS
 # =========================
+# =========================
+# ADMIN
+# =========================
+@app.get("/api/admin/status-apontamentos")
+def admin_listar_status_apontamentos(
+    request: Request,
+    data_inicio: str | None = None,
+    data_fim: str | None = None,
+    cnc: str | None = None,
+    operador: str | None = None,
+    status: str | None = None,
+    situacao: str = "todos",
+    limit: int = 500,
+):
+    _require_admin_or_supervisor(
+        request.headers.get("x-user-role"),
+        request.headers.get("x-user-name"),
+    )
+
+    conn = get_conn()
+    _ensure_maquina_status_log_table(conn)
+    _ensure_maquinas_cols(conn)
+    cur = conn.cursor()
+
+    where = []
+    params: list = []
+    if data_inicio:
+        where.append("date(l.inicio_em) >= date(?)")
+        params.append(data_inicio)
+    if data_fim:
+        where.append("date(l.inicio_em) <= date(?)")
+        params.append(data_fim)
+    if cnc:
+        where.append("UPPER(l.maquina_id) = ?")
+        params.append(cnc.upper().strip())
+    if operador:
+        where.append("LOWER(COALESCE(l.operador_nome, m.operador_nome, '')) LIKE ?")
+        params.append(f"%{operador.lower().strip()}%")
+    if status:
+        where.append("LOWER(COALESCE(l.status, '')) LIKE ?")
+        params.append(f"%{status.lower().strip()}%")
+
+    sit = (situacao or "todos").lower().strip()
+    if sit == "validos":
+        where.append("COALESCE(l.invalidado, 0) = 0")
+    elif sit == "invalidados":
+        where.append("COALESCE(l.invalidado, 0) = 1")
+
+    sql_where = ("WHERE " + " AND ".join(where)) if where else ""
+    lim = max(1, min(int(limit or 500), 1000))
+    rows = cur.execute(
+        f"""
+        SELECT
+          l.id,
+          l.maquina_id,
+          COALESCE(l.operador_nome, m.operador_nome, '') AS operador_nome,
+          l.status,
+          l.motivo,
+          l.inicio_em,
+          l.fim_em,
+          l.criado_em,
+          COALESCE(l.invalidado, 0) AS invalidado,
+          l.invalidado_por,
+          l.invalidado_em,
+          l.motivo_invalidacao
+        FROM maquina_status_log l
+        LEFT JOIN maquinas m ON m.id = l.maquina_id
+        {sql_where}
+        ORDER BY l.inicio_em DESC, l.id DESC
+        LIMIT ?
+        """,
+        (*params, lim),
+    ).fetchall()
+    conn.close()
+
+    out = []
+    now_iso = datetime.now().isoformat(timespec="seconds")
+    for r in rows:
+        inicio = r["inicio_em"]
+        fim = r["fim_em"] or now_iso
+        duracao_seg = 0
+        try:
+            duracao_seg = max(0, int((datetime.fromisoformat(fim) - datetime.fromisoformat(inicio)).total_seconds()))
+        except Exception:
+            pass
+        out.append({
+            "id": r["id"],
+            "cnc": r["maquina_id"],
+            "operador": r["operador_nome"],
+            "status": r["status"],
+            "observacao": r["motivo"] or "",
+            "inicio_em": r["inicio_em"],
+            "fim_em": r["fim_em"],
+            "duracao_seg": duracao_seg,
+            "invalidado": bool(r["invalidado"]),
+            "situacao": "Invalidado" if r["invalidado"] else "Valido",
+            "invalidado_por": r["invalidado_por"],
+            "invalidado_em": r["invalidado_em"],
+            "motivo_invalidacao": r["motivo_invalidacao"],
+        })
+    return out
+
+
+@app.post("/api/admin/status-apontamentos/{apontamento_id}/invalidar")
+def admin_invalidar_status_apontamento(apontamento_id: int, body: InvalidarApontamentoIn, request: Request):
+    admin_user = _require_admin_or_supervisor(
+        request.headers.get("x-user-role"),
+        request.headers.get("x-user-name"),
+    )
+    motivo = (body.motivo or "").strip()
+    if not motivo:
+        raise HTTPException(status_code=400, detail="Motivo da invalidacao obrigatorio.")
+
+    conn = get_conn()
+    _ensure_maquina_status_log_table(conn)
+    row = conn.execute(
+        "SELECT id, invalidado FROM maquina_status_log WHERE id = ?",
+        (apontamento_id,),
+    ).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Apontamento nao encontrado.")
+    if int(row["invalidado"] or 0) == 1:
+        conn.close()
+        raise HTTPException(status_code=409, detail="Apontamento ja esta invalidado.")
+
+    conn.execute(
+        """
+        UPDATE maquina_status_log
+        SET invalidado = 1,
+            invalidado_por = ?,
+            invalidado_em = datetime('now','localtime'),
+            motivo_invalidacao = ?
+        WHERE id = ?
+        """,
+        (admin_user, motivo, apontamento_id),
+    )
+    _ensure_dashboard_snapshot_daily_table(conn)
+    conn.execute("DELETE FROM dashboard_snapshot_daily")
+    conn.commit()
+    conn.close()
+    return {"ok": True, "message": "Apontamento invalidado com sucesso."}
+
+
 @app.get("/maquinas")
 def listar_maquinas():
     conn = get_conn()
@@ -2096,6 +2264,7 @@ def dashboard_manutencao(
             COALESCE(fim_em, ?) <= ?
             OR inicio_em >= ?
         )
+          AND COALESCE(invalidado, 0) = 0
         ORDER BY inicio_em
         """,
         (

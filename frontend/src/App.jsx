@@ -4,6 +4,7 @@ import ProgramadorDashboard from "./ProgramadorDashboard.jsx";
 import AlmoxarifadoChatPage from "./AlmoxarifadoChatPage.jsx";
 import AlmoxarifadoPage from "./AlmoxarifadoPage.jsx";
 import AlmoxarifadoTvPage from "./AlmoxarifadoTvPage.jsx";
+import AdminStatusApontamentos from "./AdminStatusApontamentos.jsx";
 import "./FestaJunina.css";
 
 const FESTA_FLAGS = [
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/almoxarifado-tv" element={<AlmoxarifadoTvPage />} />
         <Route path="/almoxarifado-chat" element={<AlmoxarifadoChatPage />} />
         <Route path="/almoxarifado-chat/:solicitacaoId" element={<AlmoxarifadoChatPage />} />
+        <Route path="/admin/status-apontamentos" element={<AdminStatusApontamentos />} />
       </Routes>
     </div>
   );
