@@ -68,15 +68,33 @@ def load_config() -> dict:
     return config
 
 
+def _launcher_score(path_text: str) -> int:
+    name = Path(path_text).name.lower()
+    score = 0
+    if "vcarve" in name:
+        score += 100
+    if "pro" in name:
+        score += 20
+    if name.endswith(".exe"):
+        score += 15
+    if name.endswith(".lnk"):
+        score += 5
+    if any(bad in name for bad in ["getting", "started", "pdf", "manual", "help", "uninstall"]):
+        score -= 200
+    return score
+
+
 def _expand_launcher_candidate(candidate: str) -> list[str]:
     try:
         path = Path(candidate)
         if path.is_dir():
             found = []
-            found.extend(str(p) for p in path.glob("*.lnk"))
+            lnk_candidates = [str(p) for p in path.glob("*.lnk")]
+            good_lnk = [p for p in lnk_candidates if _launcher_score(p) > 0]
+            found.extend(good_lnk)
             found.extend(str(p) for p in path.rglob("VCarvePro.exe"))
             found.extend(str(p) for p in path.rglob("VCarve.exe"))
-            return found
+            return sorted(found, key=_launcher_score, reverse=True)
     except Exception:
         pass
     return [candidate]
@@ -134,12 +152,25 @@ def set_clipboard_text(text: str) -> None:
     cf_unicode_text = 13
     gmem_moveable = 0x0002
 
+    kernel32.GlobalAlloc.argtypes = [ctypes.c_uint, ctypes.c_size_t]
+    kernel32.GlobalAlloc.restype = ctypes.c_void_p
+    kernel32.GlobalLock.argtypes = [ctypes.c_void_p]
+    kernel32.GlobalLock.restype = ctypes.c_void_p
+    kernel32.GlobalUnlock.argtypes = [ctypes.c_void_p]
+    kernel32.GlobalUnlock.restype = ctypes.c_bool
+    user32.OpenClipboard.argtypes = [ctypes.c_void_p]
+    user32.OpenClipboard.restype = ctypes.c_bool
+    user32.SetClipboardData.argtypes = [ctypes.c_uint, ctypes.c_void_p]
+    user32.SetClipboardData.restype = ctypes.c_void_p
+
     data = text.encode("utf-16le") + b"\x00\x00"
     handle = kernel32.GlobalAlloc(gmem_moveable, len(data))
     if not handle:
         raise RuntimeError("Nao consegui alocar memoria para o clipboard.")
 
     locked = kernel32.GlobalLock(handle)
+    if not locked:
+        raise RuntimeError("Nao consegui travar memoria para o clipboard.")
     ctypes.memmove(locked, data, len(data))
     kernel32.GlobalUnlock(handle)
 
@@ -386,6 +417,7 @@ class VCarveHandler(BaseHTTPRequestHandler):
                     "mensagem": "Agente VCarve ativo.",
                     "vcarve_encontrado": bool(vcarve_launcher),
                     "vcarve_exe": vcarve_launcher,
+                    "open_method": self.config.get("open_method"),
                     "download_dir": str(download_dir),
                     "download_dir_existe": download_dir.exists(),
                     "allowed_download_hosts": self.config["allowed_download_hosts"],
@@ -432,6 +464,7 @@ class VCarveHandler(BaseHTTPRequestHandler):
             )
         except Exception as exc:
             LAST_RESULT["ultimo_erro"] = str(exc)
+            print(f"[VCARVE] ERRO: {exc}")
             self._send_json(400, {"ok": False, "detail": str(exc)})
 
     def log_message(self, fmt: str, *args) -> None:
