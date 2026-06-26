@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import glob
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -17,9 +18,14 @@ DEFAULT_CONFIG = {
     "host": "127.0.0.1",
     "port": 8765,
     "download_dir": str(Path(tempfile.gettempdir()) / "cnc_vcarve_agent"),
-    "vcarve_exe": r"C:\Program Files\VCarve Pro 12.0\x64\VCarvePro.exe",
+    "vcarve_exe": r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\VCarve Pro 7.5",
     "allowed_download_hosts": ["192.168.17.39", "localhost", "127.0.0.1"],
     "timeout_seconds": 60,
+}
+LAST_RESULT = {
+    "ultimo_arquivo": "",
+    "ultimo_download_url": "",
+    "ultimo_erro": "",
 }
 
 
@@ -51,6 +57,63 @@ def load_config() -> dict:
     return config
 
 
+def _expand_launcher_candidate(candidate: str) -> list[str]:
+    try:
+        path = Path(candidate)
+        if path.is_dir():
+            found = []
+            found.extend(str(p) for p in path.glob("*.lnk"))
+            found.extend(str(p) for p in path.rglob("VCarvePro.exe"))
+            found.extend(str(p) for p in path.rglob("VCarve.exe"))
+            return found
+    except Exception:
+        pass
+    return [candidate]
+
+
+def find_vcarve_launcher(config: dict) -> str:
+    candidates = []
+    configured = str(config.get("vcarve_exe") or "").strip()
+    env_path = os.getenv("VCARVE_EXE", "").strip()
+    if configured:
+        candidates.append(configured)
+    if env_path:
+        candidates.append(env_path)
+
+    program_roots = [
+        os.environ.get("ProgramFiles", r"C:\Program Files"),
+        os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+    ]
+    patterns = []
+    for root in program_roots:
+        if not root:
+            continue
+        patterns.extend(
+            [
+                str(Path(root) / "VCarve*" / "**" / "VCarvePro.exe"),
+                str(Path(root) / "VCarve*" / "**" / "VCarve.exe"),
+                str(Path(root) / "Vectric" / "**" / "VCarvePro.exe"),
+                str(Path(root) / "Vectric" / "**" / "VCarve.exe"),
+            ]
+        )
+
+    for pattern in patterns:
+        candidates.extend(glob.glob(pattern, recursive=True))
+
+    expanded_candidates = []
+    for candidate in candidates:
+        expanded_candidates.extend(_expand_launcher_candidate(candidate))
+
+    for candidate in expanded_candidates:
+        try:
+            path = Path(candidate)
+            if path.exists() and path.is_file() and path.suffix.lower() in {".exe", ".lnk"}:
+                return str(path)
+        except Exception:
+            continue
+    return ""
+
+
 def safe_filename(name: str) -> str:
     name = Path(str(name or "")).name.strip()
     name = "".join(c if c.isalnum() or c in " ._-()[]" else "_" for c in name)
@@ -66,6 +129,29 @@ def validate_download_url(url: str, allowed_hosts: list[str]) -> None:
     hostname = (parsed.hostname or "").lower()
     if allowed_hosts and hostname not in allowed_hosts:
         raise ValueError(f"Host de download nao permitido: {hostname}")
+
+
+def validate_downloaded_file(path: Path) -> None:
+    if not path.exists() or path.stat().st_size <= 0:
+        raise ValueError("Arquivo baixado vazio.")
+
+    head = path.read_bytes()[:4096].lstrip()
+    lower_head = head[:512].lower()
+    if lower_head.startswith(b"<!doctype") or lower_head.startswith(b"<html") or lower_head.startswith(b"{"):
+        raise ValueError(
+            "O servidor retornou uma pagina/JSON em vez do arquivo DXF. "
+            f"Arquivo salvo para conferencia: {path}"
+        )
+
+    suffix = path.suffix.lower()
+    if suffix == ".dxf":
+        text_head = head.decode("latin-1", errors="ignore").upper()
+        looks_like_dxf = "SECTION" in text_head or "HEADER" in text_head or "ENTITIES" in text_head
+        if not looks_like_dxf:
+            raise ValueError(
+                "O arquivo baixado nao parece um DXF valido. "
+                f"Arquivo salvo para conferencia: {path}"
+            )
 
 
 def download_file(url: str, filename: str, config: dict) -> Path:
@@ -93,6 +179,7 @@ def download_file(url: str, filename: str, config: dict) -> Path:
                     break
                 fh.write(chunk)
 
+    validate_downloaded_file(dest)
     return dest
 
 
@@ -100,11 +187,17 @@ def open_in_vcarve(path: Path, config: dict) -> None:
     if os.name != "nt":
         raise RuntimeError("Este agente precisa rodar no Windows onde o VCarve esta instalado.")
 
-    vcarve_exe = config.get("vcarve_exe") or os.getenv("VCARVE_EXE", "")
-    if vcarve_exe and Path(vcarve_exe).exists():
-        subprocess.Popen([vcarve_exe, str(path)], shell=False)
+    launcher = find_vcarve_launcher(config)
+    if launcher:
+        print(f"[VCARVE] Abrindo com: {launcher}")
+        print(f"[VCARVE] Arquivo: {path}")
+        if Path(launcher).suffix.lower() == ".lnk":
+            subprocess.Popen(["cmd.exe", "/c", "start", "", launcher, str(path)], shell=False)
+        else:
+            subprocess.Popen([launcher, str(path)], shell=False)
         return
 
+    print("[VCARVE] VCarvePro.exe nao encontrado. Tentando abrir pelo programa padrao do Windows.")
     os.startfile(str(path))
 
 
@@ -130,6 +223,25 @@ class VCarveHandler(BaseHTTPRequestHandler):
         if self.path.rstrip("/") in {"", "/"}:
             self._send_json(200, {"ok": True, "mensagem": "Agente VCarve ativo."})
             return
+        if self.path.rstrip("/") == "/status":
+            vcarve_launcher = find_vcarve_launcher(self.config)
+            download_dir = Path(self.config["download_dir"])
+            self._send_json(
+                200,
+                {
+                    "ok": True,
+                    "mensagem": "Agente VCarve ativo.",
+                    "vcarve_encontrado": bool(vcarve_launcher),
+                    "vcarve_exe": vcarve_launcher,
+                    "download_dir": str(download_dir),
+                    "download_dir_existe": download_dir.exists(),
+                    "allowed_download_hosts": self.config["allowed_download_hosts"],
+                    "ultimo_arquivo": LAST_RESULT["ultimo_arquivo"],
+                    "ultimo_download_url": LAST_RESULT["ultimo_download_url"],
+                    "ultimo_erro": LAST_RESULT["ultimo_erro"],
+                },
+            )
+            return
         self._send_json(404, {"ok": False, "detail": "Rota nao encontrada."})
 
     def do_POST(self):
@@ -148,7 +260,11 @@ class VCarveHandler(BaseHTTPRequestHandler):
             if not arquivo_nome:
                 arquivo_nome = "arquivo_vcarve.dxf"
 
+            LAST_RESULT["ultimo_download_url"] = download_url
+            LAST_RESULT["ultimo_erro"] = ""
             arquivo = download_file(download_url, arquivo_nome, self.config)
+            LAST_RESULT["ultimo_arquivo"] = str(arquivo)
+            print(f"[VCARVE] Arquivo baixado: {arquivo}")
             open_in_vcarve(arquivo, self.config)
 
             self._send_json(
@@ -160,6 +276,7 @@ class VCarveHandler(BaseHTTPRequestHandler):
                 },
             )
         except Exception as exc:
+            LAST_RESULT["ultimo_erro"] = str(exc)
             self._send_json(400, {"ok": False, "detail": str(exc)})
 
     def log_message(self, fmt: str, *args) -> None:
