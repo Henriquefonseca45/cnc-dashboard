@@ -6,6 +6,8 @@ import subprocess
 import sys
 import tempfile
 import glob
+import ctypes
+import time
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -21,6 +23,9 @@ DEFAULT_CONFIG = {
     "vcarve_exe": r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\VCarve Pro 7.5",
     "allowed_download_hosts": ["192.168.17.39", "localhost", "127.0.0.1"],
     "timeout_seconds": 60,
+    "open_method": "dialog",
+    "vcarve_start_wait_seconds": 6,
+    "dialog_wait_seconds": 1,
 }
 LAST_RESULT = {
     "ultimo_arquivo": "",
@@ -50,6 +55,11 @@ def load_config() -> dict:
     config["download_dir"] = str(config.get("download_dir") or DEFAULT_CONFIG["download_dir"]).strip()
     config["vcarve_exe"] = str(config.get("vcarve_exe") or "").strip()
     config["timeout_seconds"] = int(config.get("timeout_seconds") or DEFAULT_CONFIG["timeout_seconds"])
+    config["open_method"] = str(config.get("open_method") or DEFAULT_CONFIG["open_method"]).strip().lower()
+    config["vcarve_start_wait_seconds"] = float(
+        config.get("vcarve_start_wait_seconds") or DEFAULT_CONFIG["vcarve_start_wait_seconds"]
+    )
+    config["dialog_wait_seconds"] = float(config.get("dialog_wait_seconds") or DEFAULT_CONFIG["dialog_wait_seconds"])
     config["allowed_download_hosts"] = [
         str(host).lower().strip()
         for host in (config.get("allowed_download_hosts") or [])
@@ -113,6 +123,87 @@ def find_vcarve_launcher(config: dict) -> str:
         except Exception:
             continue
     return ""
+
+
+def set_clipboard_text(text: str) -> None:
+    if os.name != "nt":
+        raise RuntimeError("Clipboard automatico disponivel somente no Windows.")
+
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
+    cf_unicode_text = 13
+    gmem_moveable = 0x0002
+
+    data = text.encode("utf-16le") + b"\x00\x00"
+    handle = kernel32.GlobalAlloc(gmem_moveable, len(data))
+    if not handle:
+        raise RuntimeError("Nao consegui alocar memoria para o clipboard.")
+
+    locked = kernel32.GlobalLock(handle)
+    ctypes.memmove(locked, data, len(data))
+    kernel32.GlobalUnlock(handle)
+
+    if not user32.OpenClipboard(None):
+        raise RuntimeError("Nao consegui abrir o clipboard do Windows.")
+    try:
+        user32.EmptyClipboard()
+        if not user32.SetClipboardData(cf_unicode_text, handle):
+            raise RuntimeError("Nao consegui gravar o caminho no clipboard.")
+        handle = None
+    finally:
+        user32.CloseClipboard()
+
+
+def send_key(vk: int) -> None:
+    user32 = ctypes.windll.user32
+    keyeventf_keyup = 0x0002
+    user32.keybd_event(vk, 0, 0, 0)
+    time.sleep(0.05)
+    user32.keybd_event(vk, 0, keyeventf_keyup, 0)
+
+
+def send_ctrl_key(vk: int) -> None:
+    user32 = ctypes.windll.user32
+    keyeventf_keyup = 0x0002
+    vk_control = 0x11
+    user32.keybd_event(vk_control, 0, 0, 0)
+    time.sleep(0.05)
+    user32.keybd_event(vk, 0, 0, 0)
+    time.sleep(0.05)
+    user32.keybd_event(vk, 0, keyeventf_keyup, 0)
+    user32.keybd_event(vk_control, 0, keyeventf_keyup, 0)
+
+
+def focus_vcarve_window() -> bool:
+    if os.name != "nt":
+        return False
+
+    user32 = ctypes.windll.user32
+    matches = []
+
+    enum_proc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+
+    def callback(hwnd, _lparam):
+        if not user32.IsWindowVisible(hwnd):
+            return True
+        length = user32.GetWindowTextLengthW(hwnd)
+        if length <= 0:
+            return True
+        buffer = ctypes.create_unicode_buffer(length + 1)
+        user32.GetWindowTextW(hwnd, buffer, length + 1)
+        title = buffer.value or ""
+        if "vcarve" in title.lower():
+            matches.append(hwnd)
+        return True
+
+    user32.EnumWindows(enum_proc(callback), 0)
+    if not matches:
+        return False
+
+    hwnd = matches[0]
+    user32.ShowWindow(hwnd, 9)
+    user32.SetForegroundWindow(hwnd)
+    return True
 
 
 def safe_filename(name: str) -> str:
@@ -222,17 +313,45 @@ def open_in_vcarve(path: Path, config: dict) -> None:
         raise RuntimeError("Este agente precisa rodar no Windows onde o VCarve esta instalado.")
 
     launcher = find_vcarve_launcher(config)
-    if launcher:
-        print(f"[VCARVE] Abrindo com: {launcher}")
-        print(f"[VCARVE] Arquivo: {path}")
-        if Path(launcher).suffix.lower() == ".lnk":
-            subprocess.Popen(["cmd.exe", "/c", "start", "", launcher, str(path)], shell=False)
-        else:
-            subprocess.Popen([launcher, str(path)], shell=False)
+    open_method = str(config.get("open_method") or "dialog").lower()
+
+    if open_method == "direct":
+        if launcher:
+            print(f"[VCARVE] Abrindo direto com: {launcher}")
+            print(f"[VCARVE] Arquivo: {path}")
+            if Path(launcher).suffix.lower() == ".lnk":
+                subprocess.Popen(["cmd.exe", "/c", "start", "", launcher, str(path)], shell=False)
+            else:
+                subprocess.Popen([launcher, str(path)], shell=False)
+            return
+
+        print("[VCARVE] VCarvePro.exe nao encontrado. Tentando abrir pelo programa padrao do Windows.")
+        os.startfile(str(path))
         return
 
-    print("[VCARVE] VCarvePro.exe nao encontrado. Tentando abrir pelo programa padrao do Windows.")
-    os.startfile(str(path))
+    if not launcher:
+        raise RuntimeError("Nao encontrei o atalho ou executavel do VCarve para abrir a janela.")
+
+    print(f"[VCARVE] Abrindo VCarve para usar dialogo: {launcher}")
+    if Path(launcher).suffix.lower() == ".lnk":
+        subprocess.Popen(["cmd.exe", "/c", "start", "", launcher], shell=False)
+    else:
+        subprocess.Popen([launcher], shell=False)
+
+    time.sleep(float(config.get("vcarve_start_wait_seconds") or 6))
+    if not focus_vcarve_window():
+        raise RuntimeError("VCarve aberto, mas nao consegui localizar/focar a janela para enviar Ctrl+O.")
+
+    print(f"[VCARVE] Enviando Ctrl+O e caminho do arquivo: {path}")
+    set_clipboard_text(str(path))
+    send_ctrl_key(0x4F)  # O
+    time.sleep(float(config.get("dialog_wait_seconds") or 1))
+    set_clipboard_text(str(path))
+    send_ctrl_key(0x56)  # V
+    time.sleep(0.2)
+    send_key(0x0D)  # Enter
+    return
+
 
 
 class VCarveHandler(BaseHTTPRequestHandler):

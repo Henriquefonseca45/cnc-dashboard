@@ -8,5 +8,8 @@
     "localhost",
     "127.0.0.1"
   ],
-  "timeout_seconds": 60
+  "timeout_seconds": 60,
+  "open_method": "dialog",
+  "vcarve_start_wait_seconds": 6,
+  "dialog_wait_seconds": 1
 }
