@@ -26,6 +26,7 @@ LAST_RESULT = {
     "ultimo_arquivo": "",
     "ultimo_download_url": "",
     "ultimo_erro": "",
+    "ultimo_dxf": {},
 }
 
 
@@ -154,6 +155,38 @@ def validate_downloaded_file(path: Path) -> None:
             )
 
 
+def inspect_dxf(path: Path) -> dict:
+    info = {
+        "arquivo": str(path),
+        "tamanho_bytes": 0,
+        "linhas": 0,
+        "acadver": "",
+        "aviso": "",
+    }
+    try:
+        info["tamanho_bytes"] = path.stat().st_size
+        acadver_next = False
+        with path.open("r", encoding="latin-1", errors="ignore") as fh:
+            for idx, line in enumerate(fh, start=1):
+                text = line.strip()
+                if acadver_next and text:
+                    info["acadver"] = text
+                    acadver_next = False
+                elif text.upper() == "$ACADVER":
+                    acadver_next = True
+            info["linhas"] = idx if "idx" in locals() else 0
+
+        newer_versions = {"AC1018", "AC1021", "AC1024", "AC1027", "AC1032"}
+        if info["acadver"] in newer_versions:
+            info["aviso"] = (
+                "DXF em versao nova. O VCarve Pro 7.5 pode travar. "
+                "Salve/exporte o DXF como AutoCAD R12, R14 ou 2000 antes de abrir."
+            )
+    except Exception as exc:
+        info["aviso"] = f"Nao consegui inspecionar o DXF: {exc}"
+    return info
+
+
 def download_file(url: str, filename: str, config: dict) -> Path:
     validate_download_url(url, config["allowed_download_hosts"])
 
@@ -180,6 +213,7 @@ def download_file(url: str, filename: str, config: dict) -> Path:
                 fh.write(chunk)
 
     validate_downloaded_file(dest)
+    LAST_RESULT["ultimo_dxf"] = inspect_dxf(dest)
     return dest
 
 
@@ -239,6 +273,7 @@ class VCarveHandler(BaseHTTPRequestHandler):
                     "ultimo_arquivo": LAST_RESULT["ultimo_arquivo"],
                     "ultimo_download_url": LAST_RESULT["ultimo_download_url"],
                     "ultimo_erro": LAST_RESULT["ultimo_erro"],
+                    "ultimo_dxf": LAST_RESULT["ultimo_dxf"],
                 },
             )
             return
@@ -265,6 +300,7 @@ class VCarveHandler(BaseHTTPRequestHandler):
             arquivo = download_file(download_url, arquivo_nome, self.config)
             LAST_RESULT["ultimo_arquivo"] = str(arquivo)
             print(f"[VCARVE] Arquivo baixado: {arquivo}")
+            print(f"[VCARVE] Diagnostico DXF: {LAST_RESULT['ultimo_dxf']}")
             open_in_vcarve(arquivo, self.config)
 
             self._send_json(
