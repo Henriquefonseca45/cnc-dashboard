@@ -116,12 +116,31 @@
 }
 
 .almoxRequestHistoryTitle {
-  margin-bottom: 10px;
   color: #626783;
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.almoxRequestHistoryTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.almoxRequestHistoryTop button {
+  min-height: 32px;
+  border: 1px solid rgba(47, 55, 125, 0.12);
+  border-radius: 10px;
+  background: #fff;
+  color: #38327c;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  padding: 0 10px;
 }
 
 .almoxRequestHistoryGrid {
@@ -142,6 +161,7 @@
   padding: 0 10px;
   font-size: 13px;
   font-weight: 900;
+  cursor: pointer;
 }
 
 .almoxRequestChip strong {
@@ -154,6 +174,115 @@
   background: #e0e7ff;
   color: #2f377d;
   font-size: 12px;
+}
+
+.almoxRequestChip.active {
+  border-color: rgba(47, 55, 125, 0.45);
+  background: #eef2ff;
+  box-shadow: inset 0 0 0 1px rgba(47, 55, 125, 0.16);
+}
+
+.almoxHistoryList {
+  display: grid;
+  gap: 9px;
+}
+
+.almoxHistoryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(47, 55, 125, 0.1);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 11px 12px;
+}
+
+.almoxHistoryRow.open {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.almoxHistoryRow.separating {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.almoxHistoryRow.delivered {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+}
+
+.almoxHistoryRow.noMaterial,
+.almoxHistoryRow.canceled {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.almoxHistoryMain {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.almoxHistoryMain strong,
+.almoxHistoryMain span,
+.almoxHistoryMain small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.almoxHistoryMain strong {
+  color: #1f2540;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.almoxHistoryMain span,
+.almoxHistoryMain small {
+  color: #626783;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.almoxHistoryMeta {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #38327c;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.almoxHistoryStatus {
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.almoxHistoryStatus.open {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.almoxHistoryStatus.separating {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.almoxHistoryStatus.delivered {
+  color: #047857;
+  background: #d1fae5;
+}
+
+.almoxHistoryStatus.noMaterial,
+.almoxHistoryStatus.canceled {
+  color: #b91c1c;
+  background: #fee2e2;
 }
 
 .almoxCncCard,

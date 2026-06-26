@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { MessageSquare, Monitor, RefreshCw } from "lucide-react";
+import { History, MessageSquare, Monitor, RefreshCw } from "lucide-react";
 import { http } from "./http";
 import { getErrMsg } from "./api";
 import AlmoxarifadoChatPage from "./AlmoxarifadoChatPage.jsx";
@@ -168,8 +168,6 @@ export function AlmoxarifadoCardsView({ tv = false }) {
     return grouped;
   }, [requests]);
 
-  const requestSummary = useMemo(() => buildRequestSummary(requests), [requests]);
-
   const cardMachines = machines.length ? machines : CNC_IDS.map((id) => ({ id, nome: id, status: "-" }));
 
   return (
@@ -190,20 +188,6 @@ export function AlmoxarifadoCardsView({ tv = false }) {
       </header>
 
       {error && !tv ? <div className="almoxCardsError">{error}</div> : null}
-
-      {!tv && requestSummary.length > 0 ? (
-        <div className="almoxRequestHistory">
-          <div className="almoxRequestHistoryTitle">Histórico de solicitações</div>
-          <div className="almoxRequestHistoryGrid">
-            {requestSummary.map((item) => (
-              <div key={item.label} className="almoxRequestChip">
-                <span>{item.label}</span>
-                <strong>{item.count}</strong>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
 
       <div className={tv ? "almoxTvGrid" : "almoxCardsGrid"}>
         {cardMachines.map((machine) => {
@@ -266,6 +250,112 @@ export function AlmoxarifadoCardsView({ tv = false }) {
   );
 }
 
+function AlmoxarifadoHistoryView() {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [selectedLabel, setSelectedLabel] = useState("");
+
+  async function loadHistory() {
+    setLoading(true);
+    try {
+      const res = await http.get("/api/material/solicitacoes/cards", {
+        params: { limit: 1000 },
+      });
+      setRequests(Array.isArray(res.data) ? res.data : []);
+      setError("");
+    } catch (err) {
+      setError(getErrMsg(err));
+      setRequests([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  const requestSummary = useMemo(() => buildRequestSummary(requests), [requests]);
+  const filteredRequests = useMemo(() => {
+    const base = selectedLabel
+      ? requests.filter((req) => extractEspessuraLabel(`${req.material || ""} ${req.arquivo_nome || ""}`) === selectedLabel)
+      : requests;
+
+    return base.slice().sort((a, b) => {
+      const at = Date.parse(a.criado_em || "") || 0;
+      const bt = Date.parse(b.criado_em || "") || 0;
+      return bt - at;
+    });
+  }, [requests, selectedLabel]);
+
+  return (
+    <section className="almoxCardsPage">
+      <header className="almoxCardsHeader">
+        <div>
+          <h1>Histórico de solicitações</h1>
+          <span>
+            {selectedLabel ? `Exibindo chapas da espessura ${selectedLabel}` : "Clique em uma espessura para ver todas as chapas solicitadas."}
+          </span>
+        </div>
+        <button onClick={loadHistory} disabled={loading}>
+          <RefreshCw size={16} />
+          {loading ? "Atualizando..." : "Atualizar"}
+        </button>
+      </header>
+
+      {error ? <div className="almoxCardsError">{error}</div> : null}
+
+      <div className="almoxRequestHistory">
+        <div className="almoxRequestHistoryTop">
+          <div className="almoxRequestHistoryTitle">Solicitações por espessura</div>
+          {selectedLabel ? (
+            <button onClick={() => setSelectedLabel("")}>Mostrar todas</button>
+          ) : null}
+        </div>
+        <div className="almoxRequestHistoryGrid">
+          {requestSummary.length === 0 ? (
+            <div className="almoxEmptyMaterial">Nenhuma solicitação registrada.</div>
+          ) : (
+            requestSummary.map((item) => (
+              <button
+                key={item.label}
+                className={`almoxRequestChip ${selectedLabel === item.label ? "active" : ""}`}
+                onClick={() => setSelectedLabel(item.label)}
+              >
+                <span>{item.label}</span>
+                <strong>{item.count}</strong>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="almoxHistoryList">
+        {filteredRequests.length === 0 ? (
+          <div className="almoxEmptyMaterial">
+            {loading ? "Carregando solicitações..." : "Nenhuma chapa encontrada para esse filtro."}
+          </div>
+        ) : (
+          filteredRequests.map((req) => (
+            <div key={req.id} className={`almoxHistoryRow ${statusClass(req.status)}`}>
+              <div className="almoxHistoryMain">
+                <strong>{req.material || "Material não informado"}</strong>
+                <span>{req.arquivo_nome || "Arquivo não informado"}</span>
+                <small>{materialDate(req)}</small>
+              </div>
+              <div className="almoxHistoryMeta">
+                <span>{req.maquina_id || "-"}</span>
+                <span className={`almoxHistoryStatus ${statusClass(req.status)}`}>{statusLabel(req.status)}</span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default function AlmoxarifadoPage() {
   const [tab, setTab] = useState("chat");
 
@@ -285,10 +375,20 @@ export default function AlmoxarifadoPage() {
             <MessageSquare size={16} />
             Chat Solicitações
           </button>
+          <button className={tab === "historico" ? "active" : ""} onClick={() => setTab("historico")}>
+            <History size={16} />
+            Histórico
+          </button>
         </div>
       </header>
 
-      {tab === "cards" ? <AlmoxarifadoCardsView /> : <AlmoxarifadoChatPage embedded basePath="/almoxarifado" />}
+      {tab === "cards" ? (
+        <AlmoxarifadoCardsView />
+      ) : tab === "historico" ? (
+        <AlmoxarifadoHistoryView />
+      ) : (
+        <AlmoxarifadoChatPage embedded basePath="/almoxarifado" />
+      )}
     </main>
   );
 }
