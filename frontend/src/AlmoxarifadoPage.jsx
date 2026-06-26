@@ -41,6 +41,44 @@ function machineCardClass(status) {
   return "";
 }
 
+function extractEspessuraLabel(text = "") {
+  const raw = String(text || "");
+  const numberedSpecialMatch = /\b(\d+(?:[,.]\d+)?\s*(?:EX|MDF))\b/i.exec(raw);
+  if (numberedSpecialMatch) return numberedSpecialMatch[1].replace(/\s+/g, "").toUpperCase();
+
+  const namedMatch = /\b(EX|MDF|RNC|DETALHE)\b/i.exec(raw);
+  if (namedMatch) return namedMatch[1].toUpperCase();
+
+  const codeMatch = /\b(\d+(?:[,.]\d+)?\s*(?:TX|KP|AD))\b/i.exec(raw);
+  if (codeMatch) return codeMatch[1].replace(/\s+/g, "").toUpperCase();
+
+  const mmMatch = /(\d+(?:[,.]\d+)?)\s*mm\b/i.exec(raw);
+  if (mmMatch) return `${mmMatch[1].replace(",", ".")}mm`;
+
+  return "Sem espessura";
+}
+
+function buildRequestSummary(items = []) {
+  const map = new Map();
+
+  for (const item of items || []) {
+    const label = extractEspessuraLabel(`${item.material || ""} ${item.arquivo_nome || ""}`);
+    map.set(label, (map.get(label) || 0) + 1);
+  }
+
+  return Array.from(map.entries())
+    .map(([label, count]) => ({
+      label,
+      count,
+      sort: label === "Sem espessura" ? Number.MAX_SAFE_INTEGER : Number.parseFloat(label),
+    }))
+    .sort((a, b) => {
+      const aSort = Number.isFinite(a.sort) ? a.sort : 900000;
+      const bSort = Number.isFinite(b.sort) ? b.sort : 900000;
+      return aSort - bSort || a.label.localeCompare(b.label);
+    });
+}
+
 function materialDate(req) {
   const st = String(req?.status || "").toUpperCase();
   if (st === "ENTREGUE") return `Entregue: ${fmtDate(req.entregue_em || req.atendido_em)}`;
@@ -130,6 +168,8 @@ export function AlmoxarifadoCardsView({ tv = false }) {
     return grouped;
   }, [requests]);
 
+  const requestSummary = useMemo(() => buildRequestSummary(requests), [requests]);
+
   const cardMachines = machines.length ? machines : CNC_IDS.map((id) => ({ id, nome: id, status: "-" }));
 
   return (
@@ -150,6 +190,20 @@ export function AlmoxarifadoCardsView({ tv = false }) {
       </header>
 
       {error && !tv ? <div className="almoxCardsError">{error}</div> : null}
+
+      {!tv && requestSummary.length > 0 ? (
+        <div className="almoxRequestHistory">
+          <div className="almoxRequestHistoryTitle">Histórico de solicitações</div>
+          <div className="almoxRequestHistoryGrid">
+            {requestSummary.map((item) => (
+              <div key={item.label} className="almoxRequestChip">
+                <span>{item.label}</span>
+                <strong>{item.count}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className={tv ? "almoxTvGrid" : "almoxCardsGrid"}>
         {cardMachines.map((machine) => {
