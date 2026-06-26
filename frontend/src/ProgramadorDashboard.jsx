@@ -2312,7 +2312,6 @@ async function exportarPDF() {
     } catch (e) {
       const message = getErrMsg(e) || "Erro ao abrir arquivo no VCarve.";
       setErr(message);
-      alert(message);
     } finally {
       setVcarveOpeningId(null);
     }

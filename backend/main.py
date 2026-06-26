@@ -379,6 +379,27 @@ def _is_path_inside(path: Path, base: Path) -> bool:
         return False
 
 
+def _is_wsl_environment() -> bool:
+    if platform.system().lower() != "linux":
+        return False
+    try:
+        version = Path("/proc/version").read_text(encoding="utf-8", errors="ignore").lower()
+        return "microsoft" in version or "wsl" in version
+    except Exception:
+        return False
+
+
+def _wsl_to_windows_path(path: Path) -> str:
+    try:
+        out = subprocess.check_output(["wslpath", "-w", str(path)], text=True, stderr=subprocess.DEVNULL)
+        converted = out.strip()
+        if converted:
+            return converted
+    except Exception:
+        pass
+    return str(path)
+
+
 def _resolve_arquivo_cnc_path(row) -> Path:
     arquivo_path = (row["path"] or "").strip()
     arquivo_nome = (row["nome"] or "").strip()
@@ -411,24 +432,38 @@ def _resolve_arquivo_cnc_path(row) -> Path:
 
 
 def _abrir_arquivo_no_vcarve(caminho_arquivo: Path):
-    if platform.system().lower() != "windows":
-        raise RuntimeError(
-            "Não foi possível abrir o VCarve neste ambiente. "
-            "Para abrir no computador do facilitador, será necessário um agente local instalado no Windows."
-        )
+    sistema = platform.system().lower()
 
-    vcarve_exe = os.getenv("VCARVE_EXE", "").strip()
-    if vcarve_exe and Path(vcarve_exe).exists():
-        subprocess.Popen([vcarve_exe, str(caminho_arquivo)], shell=False)
+    if sistema == "windows":
+        vcarve_exe = os.getenv("VCARVE_EXE", "").strip()
+        if vcarve_exe and Path(vcarve_exe).exists():
+            subprocess.Popen([vcarve_exe, str(caminho_arquivo)], shell=False)
+            return
+
+        startfile = getattr(os, "startfile", None)
+        if not startfile:
+            raise RuntimeError(
+                "Não foi possível abrir o VCarve neste ambiente. "
+                "O backend não está rodando em Windows com interface gráfica."
+            )
+        startfile(str(caminho_arquivo))
         return
 
-    startfile = getattr(os, "startfile", None)
-    if not startfile:
+    if _is_wsl_environment() and shutil.which("cmd.exe"):
+        caminho_windows = _wsl_to_windows_path(caminho_arquivo)
+        vcarve_exe = os.getenv("VCARVE_EXE", "").strip()
+        if vcarve_exe:
+            subprocess.Popen(["cmd.exe", "/c", "start", "", vcarve_exe, caminho_windows], shell=False)
+        else:
+            subprocess.Popen(["cmd.exe", "/c", "start", "", caminho_windows], shell=False)
+        return
+
+    if sistema != "windows":
         raise RuntimeError(
             "Não foi possível abrir o VCarve neste ambiente. "
-            "O backend não está rodando em Windows com interface gráfica."
+            f"O backend está rodando em {platform.system()}, então ele não consegue abrir o VCarve instalado no PC do navegador. "
+            "Execute o backend no Windows onde o VCarve está instalado ou use um agente local nesse computador."
         )
-    startfile(str(caminho_arquivo))
 
 
 def _ensure_maquinas_cols(conn):
