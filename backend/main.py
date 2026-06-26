@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import List
 import shutil
 import os
+import platform
+import subprocess
 import sqlite3
 import json
 import re
@@ -21,6 +23,7 @@ from openpyxl import Workbook
 
 from backend.db import get_conn
 from backend.config_maquinas import MAQUINAS
+from backend.audit import log_action
 
 # =========================
 # APP
@@ -115,6 +118,12 @@ class StatusRequest(BaseModel):
 
 class AddFilaRequest(BaseModel):
     arquivo_id: int
+
+
+class AbrirVCarveRequest(BaseModel):
+    arquivo_id: int | None = None
+    item_id: int | None = None
+    maquina_id: str | None = None
 
 
 class ReorderFilaRequest(BaseModel):
@@ -357,6 +366,69 @@ def _ensure_arquivos_cols(conn):
         cur.execute("ALTER TABLE arquivos_dxf ADD COLUMN deleted_em TEXT")
     except Exception:
         pass
+
+
+VCARVE_EXTENSOES_PERMITIDAS = {".dxf", ".dwg", ".crv", ".crv3d"}
+
+
+def _is_path_inside(path: Path, base: Path) -> bool:
+    try:
+        path.relative_to(base)
+        return True
+    except ValueError:
+        return False
+
+
+def _resolve_arquivo_cnc_path(row) -> Path:
+    arquivo_path = (row["path"] or "").strip()
+    arquivo_nome = (row["nome"] or "").strip()
+    base_config = os.getenv("ARQUIVOS_CNC_BASE", "").strip()
+
+    if arquivo_path:
+        raw_path = Path(arquivo_path)
+    elif arquivo_nome:
+        raw_path = Path(arquivo_nome)
+    else:
+        raise FileNotFoundError("Arquivo sem caminho cadastrado.")
+
+    if base_config:
+        base = Path(base_config).resolve(strict=False)
+        caminho = raw_path if raw_path.is_absolute() else base / raw_path
+        caminho = caminho.resolve(strict=False)
+        if not _is_path_inside(caminho, base):
+            raise PermissionError("Arquivo fora da pasta base permitida para CNC.")
+    else:
+        caminho = raw_path if raw_path.is_absolute() else DXF_DIR / raw_path
+        caminho = caminho.resolve(strict=False)
+
+    if caminho.suffix.lower() not in VCARVE_EXTENSOES_PERMITIDAS:
+        raise ValueError("Tipo de arquivo não permitido para abrir no VCarve.")
+
+    if not caminho.exists():
+        raise FileNotFoundError("Arquivo físico não encontrado no servidor.")
+
+    return caminho
+
+
+def _abrir_arquivo_no_vcarve(caminho_arquivo: Path):
+    if platform.system().lower() != "windows":
+        raise RuntimeError(
+            "Não foi possível abrir o VCarve neste ambiente. "
+            "Para abrir no computador do facilitador, será necessário um agente local instalado no Windows."
+        )
+
+    vcarve_exe = os.getenv("VCARVE_EXE", "").strip()
+    if vcarve_exe and Path(vcarve_exe).exists():
+        subprocess.Popen([vcarve_exe, str(caminho_arquivo)], shell=False)
+        return
+
+    startfile = getattr(os, "startfile", None)
+    if not startfile:
+        raise RuntimeError(
+            "Não foi possível abrir o VCarve neste ambiente. "
+            "O backend não está rodando em Windows com interface gráfica."
+        )
+    startfile(str(caminho_arquivo))
 
 
 def _ensure_maquinas_cols(conn):
@@ -2625,6 +2697,92 @@ def download_arquivo_pool(arquivo_id: int):
         filename=arquivo_nome,
         media_type="application/dxf",
     )
+
+
+@app.post("/api/facilitador/abrir-vcarve")
+def facilitador_abrir_vcarve(req: AbrirVCarveRequest, request: Request):
+    if not req.arquivo_id and not req.item_id:
+        raise HTTPException(status_code=400, detail="Informe o item da fila ou o arquivo para abrir no VCarve.")
+
+    conn = get_conn()
+    _ensure_arquivos_cols(conn)
+    _ensure_fila_itens_cols(conn)
+    cur = conn.cursor()
+
+    try:
+        if req.item_id:
+            params = [req.item_id]
+            maquina_filter = ""
+            if req.maquina_id:
+                maquina_filter = " AND fi.maquina_id = ?"
+                params.append(req.maquina_id)
+
+            row = cur.execute(
+                f"""
+                SELECT a.id, a.nome, a.path, a.status,
+                       fi.id AS fila_item_id, fi.maquina_id
+                FROM fila_itens fi
+                JOIN arquivos_dxf a ON a.id = fi.arquivo_id
+                WHERE fi.id = ?{maquina_filter}
+                """,
+                tuple(params),
+            ).fetchone()
+        else:
+            row = cur.execute(
+                """
+                SELECT id, nome, path, status,
+                       NULL AS fila_item_id, NULL AS maquina_id
+                FROM arquivos_dxf
+                WHERE id = ?
+                """,
+                (req.arquivo_id,),
+            ).fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Arquivo ou item da fila não encontrado.")
+
+        status = (row["status"] or "").upper().strip()
+        if status == "EXCLUIDO":
+            raise HTTPException(status_code=404, detail="Arquivo excluído.")
+
+        try:
+            caminho = _resolve_arquivo_cnc_path(row)
+            _abrir_arquivo_no_vcarve(caminho)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(status_code=500, detail=f"Não foi possível abrir o arquivo no VCarve: {exc}") from exc
+
+        usuario_header = request.headers.get("x-user-id") or request.headers.get("x-usuario-id")
+        try:
+            usuario_id = int(usuario_header) if usuario_header else None
+        except Exception:
+            usuario_id = None
+
+        log_action(
+            usuario_id=usuario_id,
+            acao="ABRIR_VCARVE",
+            maquina_id=row["maquina_id"],
+            arquivo_id=row["id"],
+            extra=json.dumps(
+                {
+                    "fila_item_id": row["fila_item_id"],
+                    "arquivo_nome": row["nome"],
+                    "path": str(caminho),
+                },
+                ensure_ascii=False,
+            ),
+        )
+
+        return {"ok": True, "mensagem": "Arquivo enviado para abertura no VCarve."}
+    finally:
+        conn.close()
 
 
 @app.delete("/arquivos/{arquivo_id}")

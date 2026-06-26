@@ -910,6 +910,9 @@ body::after{
   margin-top: 4px;
   display:flex;
   align-items:center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   padding-left: 0;
 }
 

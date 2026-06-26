@@ -1821,6 +1821,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const [previewItem, setPreviewItem] = useState(null);
   const [previewMachineId, setPreviewMachineId] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [vcarveOpeningId, setVcarveOpeningId] = useState(null);
   const [previewData, setPreviewData] = useState(null);
   const [previewViewBox, setPreviewViewBox] = useState("0 0 100 100");
   const [previewShowText, setPreviewShowText] = useState(true);
@@ -2293,6 +2294,27 @@ async function exportarPDF() {
       setPreviewSelected(null);
     } finally {
       setPreviewLoading(false);
+    }
+  }
+
+  async function abrirNoVCarve(item, maquinaId = selectedId) {
+    const openingId = item?.id || item?.arquivo_id;
+    if (!openingId || vcarveOpeningId) return;
+
+    try {
+      setVcarveOpeningId(openingId);
+      const res = await api.post("/api/facilitador/abrir-vcarve", {
+        item_id: item?.id,
+        arquivo_id: item?.arquivo_id,
+        maquina_id: maquinaId,
+      });
+      setMsg(res?.data?.mensagem || "Arquivo enviado para abertura no VCarve.");
+    } catch (e) {
+      const message = getErrMsg(e) || "Erro ao abrir arquivo no VCarve.";
+      setErr(message);
+      alert(message);
+    } finally {
+      setVcarveOpeningId(null);
     }
   }
 
@@ -4734,6 +4756,21 @@ const limparLista = (lista) =>
                                   title="Visualizar DXF"
                                 >
                                   Visualizar
+                                </button>
+                              )}
+                              {isFacilitador && (
+                                <button
+                                  type="button"
+                                  className="pgBtn pgBtnGhost"
+                                  style={{ height: 30, padding: "0 10px", fontSize: 11 }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    abrirNoVCarve(it, selectedId);
+                                  }}
+                                  disabled={Boolean(vcarveOpeningId)}
+                                  title="Abrir arquivo no VCarve"
+                                >
+                                  {vcarveOpeningId === (it.id || it.arquivo_id) ? "Abrindo..." : "Visualizar no VCarve"}
                                 </button>
                               )}
                               <span className={operPillClass(it.status)}>{normOperStatus(it.status)}</span>
