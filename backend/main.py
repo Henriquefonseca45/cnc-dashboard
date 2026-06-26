@@ -2734,6 +2734,25 @@ def download_arquivo_pool(arquivo_id: int):
     )
 
 
+def _buscar_arquivo_fila_para_vcarve(cur, item_id: int, maquina_id: str | None = None):
+    params = [item_id]
+    maquina_filter = ""
+    if maquina_id:
+        maquina_filter = " AND fi.maquina_id = ?"
+        params.append(maquina_id)
+
+    return cur.execute(
+        f"""
+        SELECT a.id, a.nome, a.path, a.status,
+               fi.id AS fila_item_id, fi.maquina_id
+        FROM fila_itens fi
+        JOIN arquivos_dxf a ON a.id = fi.arquivo_id
+        WHERE fi.id = ?{maquina_filter}
+        """,
+        tuple(params),
+    ).fetchone()
+
+
 @app.post("/api/facilitador/abrir-vcarve")
 def facilitador_abrir_vcarve(req: AbrirVCarveRequest, request: Request):
     if not req.arquivo_id and not req.item_id:
@@ -2746,22 +2765,7 @@ def facilitador_abrir_vcarve(req: AbrirVCarveRequest, request: Request):
 
     try:
         if req.item_id:
-            params = [req.item_id]
-            maquina_filter = ""
-            if req.maquina_id:
-                maquina_filter = " AND fi.maquina_id = ?"
-                params.append(req.maquina_id)
-
-            row = cur.execute(
-                f"""
-                SELECT a.id, a.nome, a.path, a.status,
-                       fi.id AS fila_item_id, fi.maquina_id
-                FROM fila_itens fi
-                JOIN arquivos_dxf a ON a.id = fi.arquivo_id
-                WHERE fi.id = ?{maquina_filter}
-                """,
-                tuple(params),
-            ).fetchone()
+            row = _buscar_arquivo_fila_para_vcarve(cur, req.item_id, req.maquina_id)
         else:
             row = cur.execute(
                 """
@@ -2782,17 +2786,12 @@ def facilitador_abrir_vcarve(req: AbrirVCarveRequest, request: Request):
 
         try:
             caminho = _resolve_arquivo_cnc_path(row)
-            _abrir_arquivo_no_vcarve(caminho)
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
-        except RuntimeError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-        except OSError as exc:
-            raise HTTPException(status_code=500, detail=f"Não foi possível abrir o arquivo no VCarve: {exc}") from exc
 
         usuario_header = request.headers.get("x-user-id") or request.headers.get("x-usuario-id")
         try:
@@ -2815,9 +2814,62 @@ def facilitador_abrir_vcarve(req: AbrirVCarveRequest, request: Request):
             ),
         )
 
-        return {"ok": True, "mensagem": "Arquivo enviado para abertura no VCarve."}
+        download_url = None
+        if row["fila_item_id"] and row["maquina_id"]:
+            download_url = str(
+                request.url_for(
+                    "facilitador_vcarve_download",
+                    maquina_id=row["maquina_id"],
+                    fila_item_id=row["fila_item_id"],
+                )
+            )
+
+        return {
+            "ok": True,
+            "modo": "AGENTE_LOCAL",
+            "mensagem": "Arquivo liberado para abertura pelo agente local do VCarve.",
+            "agent_url": "http://127.0.0.1:8765/abrir-vcarve",
+            "download_url": download_url,
+            "arquivo_nome": row["nome"],
+            "arquivo_id": row["id"],
+            "fila_item_id": row["fila_item_id"],
+            "maquina_id": row["maquina_id"],
+        }
     finally:
         conn.close()
+
+
+@app.get("/api/facilitador/vcarve-download/{maquina_id}/{fila_item_id}", name="facilitador_vcarve_download")
+def facilitador_vcarve_download(maquina_id: str, fila_item_id: int):
+    conn = get_conn()
+    _ensure_arquivos_cols(conn)
+    _ensure_fila_itens_cols(conn)
+    cur = conn.cursor()
+
+    row = _buscar_arquivo_fila_para_vcarve(cur, fila_item_id, maquina_id)
+    conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Arquivo ou item da fila não encontrado.")
+
+    status = (row["status"] or "").upper().strip()
+    if status == "EXCLUIDO":
+        raise HTTPException(status_code=404, detail="Arquivo excluído.")
+
+    try:
+        caminho = _resolve_arquivo_cnc_path(row)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    return FileResponse(
+        path=str(caminho),
+        filename=row["nome"],
+        media_type="application/octet-stream",
+    )
 
 
 @app.delete("/arquivos/{arquivo_id}")

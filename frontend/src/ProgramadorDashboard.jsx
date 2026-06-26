@@ -7,6 +7,7 @@ import jsPDF from "jspdf";
 import { ImagePlus } from "lucide-react";
 
 const CHAT_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+const VCARVE_AGENT_URL = "http://127.0.0.1:8765/abrir-vcarve";
 
 function apiAssetUrl(path) {
   if (!path) return "";
@@ -2308,9 +2309,36 @@ async function exportarPDF() {
         arquivo_id: item?.arquivo_id,
         maquina_id: maquinaId,
       });
-      setMsg(res?.data?.mensagem || "Arquivo enviado para abertura no VCarve.");
+      const payload = res?.data || {};
+      if (!payload.download_url) {
+        throw new Error("Servidor não retornou o link do arquivo para abrir no VCarve.");
+      }
+
+      const agentRes = await fetch(VCARVE_AGENT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          download_url: payload.download_url,
+          arquivo_nome: payload.arquivo_nome || item?.arquivo_nome,
+          arquivo_id: payload.arquivo_id || item?.arquivo_id,
+          fila_item_id: payload.fila_item_id || item?.id,
+          maquina_id: payload.maquina_id || maquinaId,
+        }),
+      });
+
+      const agentData = await agentRes.json().catch(() => ({}));
+      if (!agentRes.ok) {
+        throw new Error(agentData.detail || agentData.message || "Agente local do VCarve não conseguiu abrir o arquivo.");
+      }
+
+      setMsg(agentData.mensagem || "Arquivo enviado para abertura no VCarve.");
     } catch (e) {
-      const message = getErrMsg(e) || "Erro ao abrir arquivo no VCarve.";
+      let message = getErrMsg(e) || "Erro ao abrir arquivo no VCarve.";
+      if (String(message).includes("Failed to fetch") || String(message).includes("NetworkError")) {
+        message = "Agente local do VCarve não encontrado. Abra o agente no PC do facilitador e tente novamente.";
+      }
       setErr(message);
     } finally {
       setVcarveOpeningId(null);

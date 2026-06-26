@@ -1,0 +1,12 @@
+{
+  "host": "127.0.0.1",
+  "port": 8765,
+  "download_dir": "C:\\CNC\\VCarvePreview",
+  "vcarve_exe": "C:\\Program Files\\VCarve Pro 12.0\\x64\\VCarvePro.exe",
+  "allowed_download_hosts": [
+    "192.168.17.39",
+    "localhost",
+    "127.0.0.1"
+  ],
+  "timeout_seconds": 60
+}
