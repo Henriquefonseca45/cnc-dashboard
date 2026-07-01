@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import OperatorDashboard from "./OperatorDashboard.jsx";
 import ProgramadorDashboard from "./ProgramadorDashboard.jsx";
 import AlmoxarifadoChatPage from "./AlmoxarifadoChatPage.jsx";
@@ -6,38 +6,10 @@ import AlmoxarifadoPage from "./AlmoxarifadoPage.jsx";
 import AlmoxarifadoTvPage from "./AlmoxarifadoTvPage.jsx";
 import AdminStatusApontamentos from "./AdminStatusApontamentos.jsx";
 import AdminRoutesPortal from "./AdminRoutesPortal.jsx";
-import "./FestaJunina.css";
-
-const FESTA_FLAGS = [
-  "red", "yellow", "blue", "green", "orange", "purple",
-  "red", "blue", "yellow", "green", "orange", "purple",
-  "blue", "red", "yellow", "green", "orange", "purple",
-];
-
-function FestaJuninaDecor() {
-  return (
-    <div className="festaDecor" aria-hidden="true">
-      <div className="festaCord">
-        {FESTA_FLAGS.map((color, index) => (
-          <span
-            key={`${color}-${index}`}
-            className={`festaFlag festaFlag-${color}`}
-            style={{ "--festa-delay": `${index * -0.08}s` }}
-          />
-        ))}
-      </div>
-      <div className="festaRibbon">ARRAIA CNC</div>
-    </div>
-  );
-}
 
 export default function App() {
-  const location = useLocation();
-  const hideDecor = location.pathname === "/almoxarifado-tv";
-
   return (
-    <div className="festaJuninaApp">
-      {!hideDecor && <FestaJuninaDecor />}
+    <>
       <Routes>
         <Route path="/" element={<Navigate to="/operador" replace />} />
         <Route path="/operador" element={<OperatorDashboard />} />
@@ -52,6 +24,6 @@ export default function App() {
         <Route path="/admin/rotas" element={<AdminRoutesPortal />} />
         <Route path="/admin/status-apontamentos" element={<AdminStatusApontamentos />} />
       </Routes>
-    </div>
+    </>
   );
 }
