@@ -24,12 +24,6 @@ function fmtHHMMSS(totalSec) {
   return `${hh}:${mm}:${ss}`;
 }
 
-function statusElapsed(statusDesde, nowMs) {
-  const start = Date.parse(statusDesde || "");
-  if (!Number.isFinite(start)) return "--:--:--";
-  return fmtHHMMSS((nowMs - start) / 1000);
-}
-
 function statusLabel(status) {
   const st = String(status || "").toUpperCase();
   if (st === "ENTREGUE") return "ENTREGUE";
@@ -53,6 +47,37 @@ function machineCardClass(status) {
   if (st.includes("USINANDO")) return "machineRunning";
   if (st.includes("EMPILHADEIRA")) return "machineMaterialWait";
   return "";
+}
+
+function isUsinandoMachineStatus(status = "") {
+  const st = String(status || "").toUpperCase();
+  return (
+    st.includes("USIN") ||
+    st.includes("CORT") ||
+    st.includes("DETALHE CNC") ||
+    st === "RNC" ||
+    (st.includes("ABERTURA") && st.includes("MATERIAL"))
+  );
+}
+
+function calcTempoRestanteArquivo(item, machineStatus, nowMs) {
+  const total = Number(item?.tempo_estimado_seg || 0);
+  if (!total || total <= 0) return null;
+
+  const startMs = Date.parse(item?.tempo_inicio_em || "");
+  if (!startMs) return null;
+
+  const pausedAccum = Math.max(0, Number(item?.tempo_pausado_seg || 0));
+  const pauseStartMs = Date.parse(item?.tempo_pausa_inicio_em || "");
+  let effectiveNow = nowMs;
+
+  if (!isUsinandoMachineStatus(machineStatus)) {
+    effectiveNow = item?.tempo_pausa_inicio_em && pauseStartMs ? pauseStartMs : startMs + pausedAccum * 1000;
+  }
+
+  const elapsed = Math.floor((effectiveNow - startMs) / 1000);
+  const effectiveElapsed = Math.max(0, elapsed - pausedAccum);
+  return Math.max(0, total - effectiveElapsed);
 }
 
 function extractEspessuraLabel(text = "") {
@@ -217,13 +242,14 @@ export function AlmoxarifadoCardsView({ tv = false }) {
           const materialList = (requestsByMachine[machine.id] || []).slice(0, 2);
           const totalMaterials = (requestsByMachine[machine.id] || []).length;
           const toneClass = machineCardClass(machine.status);
+          const tempoRestante = calcTempoRestanteArquivo(current, machine.status, nowTick);
 
           return (
             <article key={machine.id} className={`${tv ? "almoxTvCard" : "almoxCncCard"} ${toneClass}`}>
               <div className="almoxCardHeader">
                 <div>
                   <strong>{machine.id}</strong>
-                  <em>{statusElapsed(machine.status_desde, nowTick)}</em>
+                  <em>{tempoRestante == null ? "--:--:--" : fmtHHMMSS(tempoRestante)}</em>
                   <small>{machine.nome || machine.id}</small>
                 </div>
                 <span>{machine.status || "-"}</span>
