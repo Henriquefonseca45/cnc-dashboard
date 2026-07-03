@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { MessageSquare, PackageCheck, RefreshCw, Search, Send, XCircle } from "lucide-react";
+import { MessageSquare, RefreshCw, Search, Send, XCircle } from "lucide-react";
 import { http } from "./http";
 import { getErrMsg } from "./api";
 import "./AlmoxarifadoChatPage.css";
@@ -257,14 +257,6 @@ export default function AlmoxarifadoChatPage({ embedded = false, basePath = "/al
 
                     {isPendingRequest(item) ? (
                       <div className="almCardActions" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          className="deliver"
-                          onClick={() => finishRequest("entregar", item.id)}
-                          disabled={Boolean(acting)}
-                        >
-                          <PackageCheck size={15} />
-                          Material entregue
-                        </button>
                         <button
                           className="noMaterial"
                           onClick={() => finishRequest("sem-material", item.id)}
