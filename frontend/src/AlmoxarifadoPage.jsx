@@ -193,8 +193,8 @@ export function AlmoxarifadoCardsView({ tv = false }) {
         {cardMachines.map((machine) => {
           const queue = queues[machine.id] || [];
           const current = queue.find((item) => String(item.status || "").toUpperCase() === "EM_EXECUCAO");
-          const next = queue.filter((item) => String(item.status || "").toUpperCase() !== "EM_EXECUCAO").slice(0, tv ? 2 : 3);
-          const materialList = (requestsByMachine[machine.id] || []).slice(0, 3);
+          const next = queue.filter((item) => String(item.status || "").toUpperCase() !== "EM_EXECUCAO").slice(0, 2);
+          const materialList = (requestsByMachine[machine.id] || []).slice(0, 2);
           const totalMaterials = (requestsByMachine[machine.id] || []).length;
           const toneClass = machineCardClass(machine.status);
 

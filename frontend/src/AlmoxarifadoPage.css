@@ -1,6 +1,6 @@
 .almoxPage {
   min-height: 100vh;
-  padding: 76px 18px 24px;
+  padding: 18px 14px 18px;
   color: #24284a;
 }
 
@@ -15,20 +15,20 @@
 }
 
 .almoxPageHeader {
-  max-width: 1500px;
-  margin: 0 auto 16px;
+  max-width: 100%;
+  margin: 0 auto 10px;
   justify-content: space-between;
-  gap: 16px;
-  padding: 18px 20px;
-  border-radius: 22px;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
   border: 1px solid rgba(47, 55, 125, 0.1);
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 22px 70px -48px rgba(32, 37, 61, 0.34);
 }
 
 .almoxPageHeader p {
-  margin: 0 0 4px;
-  font-size: 11px;
+  margin: 0 0 2px;
+  font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -44,7 +44,7 @@
 }
 
 .almoxPageHeader h1 {
-  font-size: 30px;
+  font-size: 24px;
 }
 
 .almoxTabs {
@@ -54,8 +54,8 @@
 
 .almoxTabs button,
 .almoxCardsHeader button {
-  min-height: 42px;
-  border-radius: 14px;
+  min-height: 36px;
+  border-radius: 12px;
   border: 1px solid rgba(47, 55, 125, 0.12);
   background: #fff;
   color: #38327c;
@@ -65,7 +65,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 0 14px;
+  padding: 0 12px;
 }
 
 .almoxTabs button.active {
@@ -74,37 +74,38 @@
 }
 
 .almoxCardsPage {
-  max-width: 1500px;
+  max-width: 100%;
   margin: 0 auto;
 }
 
 .almoxCardsHeader {
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
-  padding: 16px 18px;
-  border-radius: 20px;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
   border: 1px solid rgba(47, 55, 125, 0.1);
   background: rgba(255, 255, 255, 0.92);
 }
 
 .almoxCardsHeader h1 {
-  font-size: 24px;
+  font-size: 20px;
 }
 
 .almoxCardsHeader span,
 .almoxTvHeader span {
   display: block;
-  margin-top: 5px;
+  margin-top: 3px;
   color: #626783;
   font-weight: 800;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .almoxCardsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(245px, 1fr));
+  gap: 10px;
+  align-items: start;
 }
 
 .almoxRequestHistory {
@@ -288,15 +289,20 @@
 .almoxCncCard,
 .almoxTvCard {
   min-width: 0;
-  border-radius: 20px;
+  border-radius: 15px;
   border: 1px solid rgba(47, 55, 125, 0.1);
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 20px 55px -42px rgba(32, 37, 61, 0.34);
-  padding: 14px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 7px;
   overflow: hidden;
+}
+
+.almoxCncCard {
+  min-height: 0;
+  max-height: calc((100vh - 154px) / 2);
 }
 
 .almoxCncCard.machineRunning,
@@ -315,29 +321,30 @@
 
 .almoxCardHeader {
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
 }
 
 .almoxCardHeader strong {
   display: block;
   color: #38327c;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 900;
 }
 
 .almoxCardHeader small {
   display: block;
-  margin-top: 2px;
+  margin-top: 1px;
   color: #626783;
+  font-size: 10px;
   font-weight: 700;
 }
 
 .almoxCardHeader > span {
   border-radius: 999px;
-  padding: 6px 10px;
+  padding: 5px 8px;
   background: #e0f2fe;
   color: #075985;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 900;
   white-space: nowrap;
 }
@@ -355,10 +362,10 @@
 }
 
 .almoxCardBlock {
-  border-radius: 14px;
+  border-radius: 11px;
   border: 1px solid rgba(47, 55, 125, 0.1);
   background: rgba(248, 250, 252, 0.86);
-  padding: 10px;
+  padding: 7px 8px;
   min-width: 0;
 }
 
@@ -370,18 +377,18 @@
 .almoxCardBlock b,
 .almoxMaterialsTitle b {
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   color: #626783;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
 .almoxCardBlock p {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   color: #1f2540;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 800;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -391,7 +398,7 @@
 .almoxMaterials {
   min-width: 0;
   display: grid;
-  gap: 7px;
+  gap: 5px;
 }
 
 .almoxMaterialsTitle {
@@ -400,25 +407,25 @@
 }
 
 .almoxMaterialsTitle span {
-  min-width: 28px;
-  height: 24px;
+  min-width: 24px;
+  height: 21px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: #dbeafe;
   color: #1d4ed8;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 900;
 }
 
 .almoxMaterialItem {
   justify-content: space-between;
-  gap: 8px;
-  border-radius: 12px;
+  gap: 6px;
+  border-radius: 10px;
   border: 1px solid rgba(47, 55, 125, 0.1);
   background: #fff;
-  padding: 8px;
+  padding: 6px 7px;
   min-width: 0;
 }
 
@@ -437,23 +444,23 @@
 
 .almoxMaterialItem strong {
   color: #1f2540;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 900;
 }
 
 .almoxMaterialItem p,
 .almoxMaterialItem small {
-  margin: 3px 0 0;
+  margin: 2px 0 0;
   color: #626783;
-  font-size: 11px;
+  font-size: 9.5px;
   font-weight: 700;
 }
 
 .almoxMaterialItem > span {
   flex: 0 0 auto;
   border-radius: 999px;
-  padding: 5px 8px;
-  font-size: 10px;
+  padding: 4px 7px;
+  font-size: 9px;
   font-weight: 900;
   white-space: nowrap;
 }
@@ -502,11 +509,11 @@
 
 .almoxEmptyMaterial,
 .almoxCardsError {
-  border-radius: 12px;
-  padding: 10px;
+  border-radius: 10px;
+  padding: 8px;
   color: #626783;
   background: rgba(248, 250, 252, 0.86);
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 800;
 }
 
@@ -579,7 +586,7 @@
 
 @media (max-width: 900px) {
   .almoxPage {
-    padding: 66px 10px 16px;
+    padding: 12px 10px 16px;
   }
 
   .almoxPageHeader,
