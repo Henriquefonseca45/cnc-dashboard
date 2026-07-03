@@ -635,6 +635,17 @@
   padding: 7px;
 }
 
+.almoxTvCard .almoxMaterialItem.open {
+  background: #fee2e2;
+  border-color: #dc2626;
+  box-shadow: inset 4px 0 0 #dc2626;
+}
+
+.almoxTvCard .almoxMaterialItem.open > span {
+  background: #dc2626;
+  color: #fff;
+}
+
 .almoxTvCard .almoxMaterialItem strong {
   font-size: 13px;
 }
