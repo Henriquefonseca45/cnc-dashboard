@@ -268,7 +268,7 @@ export function AlmoxarifadoCardsView({ tv = false }) {
             ) : (
               priorityRequests.map((req, index) => (
                 <div key={req.id} className="almoxTvPriorityItem">
-                  <div className="almoxTvPriorityRank">{index + 1}º</div>
+                  <div className="almoxTvPriorityRank">{index + 1}</div>
                   <div className="almoxTvPriorityInfo">
                     <strong>{req.maquina_id || "-"}</strong>
                     <b>{req.material || "Material não informado"}</b>

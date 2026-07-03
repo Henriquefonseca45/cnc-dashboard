@@ -633,9 +633,9 @@
 .almoxTvPriorityItem {
   min-height: 0;
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) auto;
+  grid-template-columns: 52px minmax(0, 1fr) max-content;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   border: 2px solid #f87171;
   border-radius: 12px;
   background: #fff7f7;
@@ -655,7 +655,9 @@
 .almoxTvPriorityInfo {
   min-width: 0;
   display: grid;
-  gap: 2px;
+  gap: 3px;
+  align-self: stretch;
+  align-content: center;
 }
 
 .almoxTvPriorityInfo strong,
@@ -687,15 +689,15 @@
 }
 
 .almoxTvPriorityItem em {
-  margin-right: 10px;
+  margin-right: 8px;
   border: 1px solid #fca5a5;
   border-radius: 999px;
   background: #fee2e2;
   color: #ef1f1f;
   font-style: normal;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 950;
-  padding: 4px 8px;
+  padding: 4px 7px;
   white-space: nowrap;
 }
 
