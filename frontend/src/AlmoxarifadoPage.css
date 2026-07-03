@@ -554,12 +554,12 @@
 }
 
 .almoxTvGrid {
-  height: calc(100vh - 84px);
-  padding: 12px 18px 18px;
+  height: 100vh;
+  padding: 10px 12px;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
   overflow: hidden;
 }
 

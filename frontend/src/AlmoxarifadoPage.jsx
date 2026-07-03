@@ -172,20 +172,20 @@ export function AlmoxarifadoCardsView({ tv = false }) {
 
   return (
     <section className={tv ? "almoxTvPage" : "almoxCardsPage"}>
-      <header className={tv ? "almoxTvHeader" : "almoxCardsHeader"}>
+      {!tv ? (
+        <header className="almoxCardsHeader">
         <div>
           <h1>Painel Almoxarifado - Solicitações de Material</h1>
           <span>
             Pendentes: {counts.pendentes} | Em separação: {counts.separacao} | Sem material: {counts.semMaterial} | Última atualização: {updatedAt.toLocaleTimeString("pt-BR")}
           </span>
         </div>
-        {!tv ? (
           <button onClick={() => loadData()} disabled={loading}>
             <RefreshCw size={16} />
             {loading ? "Atualizando..." : "Atualizar"}
           </button>
-        ) : null}
-      </header>
+        </header>
+      ) : null}
 
       {error && !tv ? <div className="almoxCardsError">{error}</div> : null}
 
