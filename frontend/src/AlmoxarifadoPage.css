@@ -755,7 +755,10 @@
 }
 
 .almoxTvCard .almoxCardBlock p {
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.35;
+  color: #020617;
+  font-weight: 950;
 }
 
 .almoxTvCard .almoxMaterialItem {
