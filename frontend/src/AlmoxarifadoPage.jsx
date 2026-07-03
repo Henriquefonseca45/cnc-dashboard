@@ -131,6 +131,16 @@ function materialDate(req) {
   return `Solicitado: ${fmtDate(req.criado_em)}`;
 }
 
+function requestAgeLabel(req, nowMs) {
+  const start = Date.parse(req?.criado_em || "");
+  if (!start) return "-- min";
+  const min = Math.max(0, Math.floor((nowMs - start) / 60000));
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m ? `${h}h ${m}min` : `${h}h`;
+}
+
 function isActiveMaterial(req) {
   return ["ABERTA", "AGUARDANDO_ALMOXARIFADO", "EM_SEPARACAO"].includes(String(req?.status || "").toUpperCase());
 }
@@ -218,6 +228,17 @@ export function AlmoxarifadoCardsView({ tv = false }) {
   }, [requests]);
 
   const cardMachines = machines.length ? machines : CNC_IDS.map((id) => ({ id, nome: id, status: "-" }));
+  const priorityRequests = useMemo(() => {
+    return requests
+      .filter(isActiveMaterial)
+      .slice()
+      .sort((a, b) => {
+        const at = Date.parse(a.criado_em || "") || 0;
+        const bt = Date.parse(b.criado_em || "") || 0;
+        return at - bt || Number(a.id || 0) - Number(b.id || 0);
+      })
+      .slice(0, 3);
+  }, [requests]);
 
   return (
     <section className={tv ? "almoxTvPage" : "almoxCardsPage"}>
@@ -239,7 +260,28 @@ export function AlmoxarifadoCardsView({ tv = false }) {
       {error && !tv ? <div className="almoxCardsError">{error}</div> : null}
 
       <div className={tv ? "almoxTvGrid" : "almoxCardsGrid"}>
-        {tv ? <div className="almoxTvSpacer" aria-hidden="true" /> : null}
+        {tv ? (
+          <div className="almoxTvPriorityCard">
+            <div className="almoxTvPriorityTitle">Ordem de prioridade</div>
+            {priorityRequests.length === 0 ? (
+              <div className="almoxTvPriorityEmpty">Nenhuma solicitação aberta.</div>
+            ) : (
+              priorityRequests.map((req, index) => (
+                <div key={req.id} className="almoxTvPriorityItem">
+                  <div className="almoxTvPriorityRank">{index + 1}º</div>
+                  <div className="almoxTvPriorityInfo">
+                    <strong>{req.maquina_id || "-"}</strong>
+                    <b>{req.material || "Material não informado"}</b>
+                    <span>
+                      Solicitação #{req.id} · {fmtDate(req.criado_em)}
+                    </span>
+                  </div>
+                  <em>{requestAgeLabel(req, nowTick)}</em>
+                </div>
+              ))
+            )}
+          </div>
+        ) : null}
         {cardMachines.map((machine) => {
           const queue = queues[machine.id] || [];
           const current = queue.find((item) => String(item.status || "").toUpperCase() === "EM_EXECUCAO");

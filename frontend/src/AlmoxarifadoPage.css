@@ -609,27 +609,104 @@
   overflow: hidden;
 }
 
-.almoxTvSpacer {
+.almoxTvPriorityCard {
   min-height: 0;
   border-radius: 15px;
-  border: 1px solid rgba(47, 55, 125, 0.08);
-  background:
-    radial-gradient(circle at 50% 48%, rgba(47, 55, 125, 0.08), transparent 34%),
-    rgba(255, 255, 255, 0.34);
-  position: relative;
+  border: 1px solid rgba(47, 55, 125, 0.1);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 20px 55px -42px rgba(32, 37, 61, 0.34);
+  padding: 12px;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.almoxTvPriorityTitle {
+  color: #626783;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.almoxTvPriorityItem {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 2px solid #f87171;
+  border-radius: 12px;
+  background: #fff7f7;
   overflow: hidden;
 }
 
-.almoxTvSpacer::after {
-  content: "RVB";
-  position: absolute;
-  inset: 0;
+.almoxTvPriorityRank {
+  align-self: stretch;
   display: grid;
   place-items: center;
-  color: rgba(47, 55, 125, 0.08);
-  font-size: clamp(58px, 8vw, 128px);
+  background: #ef1f1f;
+  color: #fff;
+  font-size: 26px;
   font-weight: 950;
-  letter-spacing: -0.06em;
+}
+
+.almoxTvPriorityInfo {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.almoxTvPriorityInfo strong,
+.almoxTvPriorityInfo b,
+.almoxTvPriorityInfo span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.almoxTvPriorityInfo strong {
+  color: #1f2540;
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.almoxTvPriorityInfo b {
+  color: #1f2540;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.almoxTvPriorityInfo span {
+  color: #626783;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.almoxTvPriorityItem em {
+  margin-right: 10px;
+  border: 1px solid #fca5a5;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #ef1f1f;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 950;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.almoxTvPriorityEmpty {
+  grid-row: 2 / -1;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1px dashed rgba(47, 55, 125, 0.18);
+  color: #626783;
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .almoxTvCard {
