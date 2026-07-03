@@ -16,6 +16,10 @@ function fmtDate(value) {
   }
 }
 
+function todayValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function fmtHHMMSS(totalSec) {
   const sec = Math.max(0, Math.floor(Number(totalSec) || 0));
   const hh = String(Math.floor(sec / 3600)).padStart(2, "0");
@@ -302,12 +306,19 @@ function AlmoxarifadoHistoryView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedLabel, setSelectedLabel] = useState("");
+  const [dateStart, setDateStart] = useState(todayValue);
+  const [dateEnd, setDateEnd] = useState(todayValue);
 
   async function loadHistory() {
     setLoading(true);
     try {
-      const res = await http.get("/api/material/solicitacoes/cards", {
-        params: { limit: 1000 },
+      const res = await http.get("/api/material/solicitacoes", {
+        params: {
+          status: "ENTREGUE",
+          data_inicial: dateStart || undefined,
+          data_final: dateEnd || dateStart || undefined,
+          limit: 5000,
+        },
       });
       setRequests(Array.isArray(res.data) ? res.data : []);
       setError("");
@@ -330,8 +341,8 @@ function AlmoxarifadoHistoryView() {
       : requests;
 
     return base.slice().sort((a, b) => {
-      const at = Date.parse(a.criado_em || "") || 0;
-      const bt = Date.parse(b.criado_em || "") || 0;
+      const at = Date.parse(a.entregue_em || a.atendido_em || a.atualizado_em || a.criado_em || "") || 0;
+      const bt = Date.parse(b.entregue_em || b.atendido_em || b.atualizado_em || b.criado_em || "") || 0;
       return bt - at;
     });
   }, [requests, selectedLabel]);
@@ -342,13 +353,23 @@ function AlmoxarifadoHistoryView() {
         <div>
           <h1>Histórico de solicitações</h1>
           <span>
-            {selectedLabel ? `Exibindo chapas da espessura ${selectedLabel}` : "Clique em uma espessura para ver todas as chapas solicitadas."}
+            {selectedLabel ? `Entregues da espessura ${selectedLabel}` : "Use o período para ver tudo que foi entregue naquela data."}
           </span>
         </div>
-        <button onClick={loadHistory} disabled={loading}>
-          <RefreshCw size={16} />
-          {loading ? "Atualizando..." : "Atualizar"}
-        </button>
+        <div className="almoxHistoryFilters">
+          <label>
+            Início
+            <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} />
+          </label>
+          <label>
+            Fim
+            <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} />
+          </label>
+          <button onClick={loadHistory} disabled={loading}>
+            <RefreshCw size={16} />
+            {loading ? "Buscando..." : "Buscar entregues"}
+          </button>
+        </div>
       </header>
 
       {error ? <div className="almoxCardsError">{error}</div> : null}

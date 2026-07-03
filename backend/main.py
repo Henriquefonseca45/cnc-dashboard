@@ -4420,11 +4420,12 @@ def _listar_material_solicitacoes_core(
     _ensure_material_solicitacoes_table(conn)
     cur = conn.cursor()
 
-    lim = max(1, min(int(limit or 100), 500))
+    lim = max(1, min(int(limit or 100), 5000))
     st = (status or "pendentes").upper().strip()
     mid = (maquina_id or "").upper().strip()
     where = []
     params: list = []
+    date_column = "criado_em"
 
     if mid:
         where.append("maquina_id = ?")
@@ -4434,19 +4435,22 @@ def _listar_material_solicitacoes_core(
         where.append("status IN ('ABERTA', 'AGUARDANDO_ALMOXARIFADO', 'EM_SEPARACAO')")
     elif st in ("ENTREGUE", "ENTREGUES"):
         where.append("status = 'ENTREGUE'")
+        date_column = "COALESCE(entregue_em, atendido_em, atualizado_em, criado_em)"
     elif st in ("SEM_MATERIAL", "CANCELADA_SEM_MATERIAL"):
         where.append("status = 'CANCELADA_SEM_MATERIAL'")
+        date_column = "COALESCE(cancelado_em, atualizado_em, criado_em)"
     elif st in ("CANCELADA", "CANCELADAS"):
         where.append("status IN ('CANCELADA', 'CANCELADA_SEM_MATERIAL')")
+        date_column = "COALESCE(cancelado_em, atualizado_em, criado_em)"
     elif st not in ("TODAS", "TODOS", "ALL", "*"):
         where.append("status = ?")
         params.append(st)
 
     if data_inicial:
-        where.append("date(criado_em) >= date(?)")
+        where.append(f"date({date_column}) >= date(?)")
         params.append(data_inicial)
     if data_final:
-        where.append("date(criado_em) <= date(?)")
+        where.append(f"date({date_column}) <= date(?)")
         params.append(data_final)
     if material:
         where.append("LOWER(COALESCE(material, '')) LIKE ?")
@@ -4466,7 +4470,7 @@ def _listar_material_solicitacoes_core(
         {sql_where}
         ORDER BY
           CASE WHEN status IN ('ABERTA', 'AGUARDANDO_ALMOXARIFADO', 'EM_SEPARACAO') THEN 0 ELSE 1 END,
-          criado_em ASC,
+          {date_column} DESC,
           id ASC
         LIMIT ?
         """,
