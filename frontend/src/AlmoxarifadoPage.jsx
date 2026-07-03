@@ -239,6 +239,7 @@ export function AlmoxarifadoCardsView({ tv = false }) {
       {error && !tv ? <div className="almoxCardsError">{error}</div> : null}
 
       <div className={tv ? "almoxTvGrid" : "almoxCardsGrid"}>
+        {tv ? <div className="almoxTvSpacer" aria-hidden="true" /> : null}
         {cardMachines.map((machine) => {
           const queue = queues[machine.id] || [];
           const current = queue.find((item) => String(item.status || "").toUpperCase() === "EM_EXECUCAO");
