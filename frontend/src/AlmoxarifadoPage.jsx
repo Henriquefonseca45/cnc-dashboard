@@ -16,6 +16,20 @@ function fmtDate(value) {
   }
 }
 
+function fmtHHMMSS(totalSec) {
+  const sec = Math.max(0, Math.floor(Number(totalSec) || 0));
+  const hh = String(Math.floor(sec / 3600)).padStart(2, "0");
+  const mm = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
+  const ss = String(sec % 60).padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
+}
+
+function statusElapsed(statusDesde, nowMs) {
+  const start = Date.parse(statusDesde || "");
+  if (!Number.isFinite(start)) return "--:--:--";
+  return fmtHHMMSS((nowMs - start) / 1000);
+}
+
 function statusLabel(status) {
   const st = String(status || "").toUpperCase();
   if (st === "ENTREGUE") return "ENTREGUE";
@@ -99,6 +113,7 @@ export function AlmoxarifadoCardsView({ tv = false }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [updatedAt, setUpdatedAt] = useState(new Date());
+  const [nowTick, setNowTick] = useState(Date.now());
 
   async function loadData(silent = false) {
     if (!silent) setLoading(true);
@@ -134,6 +149,11 @@ export function AlmoxarifadoCardsView({ tv = false }) {
     const t = setInterval(() => loadData(true), tv ? 10000 : 5000);
     return () => clearInterval(t);
   }, [tv]);
+
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const counts = useMemo(() => {
     return requests.reduce(
@@ -203,6 +223,7 @@ export function AlmoxarifadoCardsView({ tv = false }) {
               <div className="almoxCardHeader">
                 <div>
                   <strong>{machine.id}</strong>
+                  <em>{statusElapsed(machine.status_desde, nowTick)}</em>
                   <small>{machine.nome || machine.id}</small>
                 </div>
                 <span>{machine.status || "-"}</span>

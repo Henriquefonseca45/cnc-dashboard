@@ -336,6 +336,18 @@
   font-weight: 900;
 }
 
+.almoxCardHeader em {
+  display: block;
+  margin-top: 1px;
+  color: #25307b;
+  font-style: normal;
+  font-size: 14px;
+  font-weight: 950;
+  letter-spacing: 0.02em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
 .almoxCardHeader small {
   display: block;
   margin-top: 1px;
@@ -571,6 +583,10 @@
 
 .almoxTvCard .almoxCardHeader strong {
   font-size: 23px;
+}
+
+.almoxTvCard .almoxCardHeader em {
+  font-size: 17px;
 }
 
 .almoxTvCard .almoxCardBlock {
