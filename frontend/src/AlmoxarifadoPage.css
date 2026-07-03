@@ -615,12 +615,38 @@
   gap: 8px;
 }
 
+.almoxTvCard .almoxCardHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.almoxTvCard .almoxCardHeader > div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(84px, auto);
+  grid-template-areas:
+    "id timer"
+    "small timer";
+  column-gap: 18px;
+  align-items: start;
+  justify-content: start;
+}
+
 .almoxTvCard .almoxCardHeader strong {
+  grid-area: id;
   font-size: 23px;
 }
 
 .almoxTvCard .almoxCardHeader em {
+  grid-area: timer;
+  margin-top: 2px;
   font-size: 17px;
+  text-align: center;
+}
+
+.almoxTvCard .almoxCardHeader small {
+  display: none;
 }
 
 .almoxTvCard .almoxCardBlock {

@@ -242,9 +242,11 @@ export function AlmoxarifadoCardsView({ tv = false }) {
         {cardMachines.map((machine) => {
           const queue = queues[machine.id] || [];
           const current = queue.find((item) => String(item.status || "").toUpperCase() === "EM_EXECUCAO");
-          const next = queue.filter((item) => String(item.status || "").toUpperCase() !== "EM_EXECUCAO").slice(0, 2);
-          const materialList = (requestsByMachine[machine.id] || []).slice(0, 2);
-          const totalMaterials = (requestsByMachine[machine.id] || []).length;
+          const next = queue.filter((item) => String(item.status || "").toUpperCase() !== "EM_EXECUCAO").slice(0, tv ? 3 : 2);
+          const machineRequests = requestsByMachine[machine.id] || [];
+          const visibleRequests = tv ? machineRequests.filter(isActiveMaterial) : machineRequests;
+          const materialList = visibleRequests.slice(0, 2);
+          const totalMaterials = visibleRequests.length;
           const toneClass = machineCardClass(machine.status);
           const tempoRestante = calcTempoRestanteArquivo(current, machine.status, nowTick);
 
