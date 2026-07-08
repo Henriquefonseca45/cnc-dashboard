@@ -1101,7 +1101,7 @@ function calculateMachineCapacityInfo({ productionMaquinas = [], perMachineApi =
   };
 }
 const THEME_STORAGE_KEY = "programador_dashboard_theme";
-const RETURNED_FILES_NOTICE_STORAGE_KEY = "programador_returned_files_notice_seen";
+const RETURNED_FILES_NOTICE_STORAGE_KEY = "programador_returned_files_notice_seen_v2";
 const TEST_MACHINE_IDS = new Set(["CNC_TESTE"]);
 const DASHBOARD_MACHINE_IDS = ["CNC01", "CNC02", "CNC03", "CNC04", "CNC05", "CNC06", "CNC07"];
 
@@ -3679,12 +3679,19 @@ async function exportarPDF() {
       .filter((a) => ["SEM_MATERIAL", "CANCELADO"].includes(U(a.fila_observacao_tipo)))
       .map((a) => {
         const tipo = U(a.fila_observacao_tipo);
+        const detalheOriginal = a.fila_observacao || "";
+        const motivoMatch = /motivo:\s*(.+)$/i.exec(detalheOriginal);
+        const motivo = motivoMatch?.[1]?.trim() || "";
+        const faltaMateriaPrima = tipo === "SEM_MATERIAL";
         return {
           id: a.id,
           nome: a.arquivo_nome || a.nome || `Arquivo #${a.id}`,
           tipo,
-          titulo: tipo === "SEM_MATERIAL" ? "Sem material" : "Cancelado",
-          detalhe: a.fila_observacao || "Arquivo retornou para a fila geral.",
+          titulo: faltaMateriaPrima ? "Falta de materia-prima" : "Cancelado pelo operador",
+          detalhe: faltaMateriaPrima
+            ? "Esse arquivo voltou para a aba de Novos por falta de materia-prima."
+            : "Esse arquivo voltou para a aba de Novos por cancelamento do operador.",
+          motivo: faltaMateriaPrima ? "Sem material disponivel no almoxarifado." : motivo,
           maquina: a.fila_observacao_maquina || "",
           operador: a.fila_observacao_operador || "",
           data: a.fila_observacao_em || "",
@@ -6804,7 +6811,7 @@ const limparLista = (lista) =>
             <div className="pgReturnNoticeIcon" aria-hidden="true">!</div>
             <div className="pgReturnNoticeTitle">Arquivos retornaram para Novos</div>
             <div className="pgReturnNoticeSub">
-              Estes arquivos foram cancelados ou ficaram sem material e precisam ser reordenados pelo programador.
+              Revise os avisos abaixo e reordene esses arquivos na fila de Novos.
             </div>
 
             <div className="pgReturnNoticeList">
@@ -6825,6 +6832,11 @@ const limparLista = (lista) =>
                         {item.titulo}: {item.nome}
                       </div>
                       <div className="pgReturnNoticeItemText">{item.detalhe}</div>
+                      {item.motivo ? (
+                        <div className="pgReturnNoticeReason">
+                          Motivo: {item.motivo}
+                        </div>
+                      ) : null}
                       {detalhe ? <div className="pgReturnNoticeItemMeta">{detalhe}</div> : null}
                     </div>
                   </div>
