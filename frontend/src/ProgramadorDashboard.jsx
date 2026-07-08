@@ -1101,6 +1101,7 @@ function calculateMachineCapacityInfo({ productionMaquinas = [], perMachineApi =
   };
 }
 const THEME_STORAGE_KEY = "programador_dashboard_theme";
+const RETURNED_FILES_NOTICE_STORAGE_KEY = "programador_returned_files_notice_seen";
 const TEST_MACHINE_IDS = new Set(["CNC_TESTE"]);
 const DASHBOARD_MACHINE_IDS = ["CNC01", "CNC02", "CNC03", "CNC04", "CNC05", "CNC06", "CNC07"];
 
@@ -3706,12 +3707,26 @@ async function exportarPDF() {
       return;
     }
     if (returnedFilesNoticeSigRef.current === arquivosRetornadosSig) return;
+    try {
+      if (localStorage.getItem(RETURNED_FILES_NOTICE_STORAGE_KEY) === arquivosRetornadosSig) {
+        returnedFilesNoticeSigRef.current = arquivosRetornadosSig;
+        return;
+      }
+    } catch {}
     returnedFilesNoticeSigRef.current = arquivosRetornadosSig;
+    try {
+      localStorage.setItem(RETURNED_FILES_NOTICE_STORAGE_KEY, arquivosRetornadosSig);
+    } catch {}
     setReturnedFilesNoticeOpen(true);
   }, [readOnly, arquivosRetornadosSig]);
 
   function fecharAvisoArquivosRetornados() {
     returnedFilesNoticeSigRef.current = arquivosRetornadosSig;
+    try {
+      if (arquivosRetornadosSig) {
+        localStorage.setItem(RETURNED_FILES_NOTICE_STORAGE_KEY, arquivosRetornadosSig);
+      }
+    } catch {}
     setReturnedFilesNoticeOpen(false);
   }
 
