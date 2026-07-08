@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { api, getErrMsg, API_URL } from "./api";
 import "./ProgramadorDashboard.css";
+import "./ProgramadorDashboardFiles.css";
 import rvbLogo from "./assets/rvb-logo.png";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
@@ -1784,6 +1785,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const [draggingId, setDraggingId] = useState(null);
 
   const [view, setView] = useState("dashboard");
+  const [sidebarFilesTab, setSidebarFilesTab] = useState("novos");
  const [visualTab, setVisualTab] = useState("producao");
 
   const [historicoAll, setHistoricoAll] = useState([]);
@@ -3625,6 +3627,26 @@ async function exportarPDF() {
     });
   }, [materialHistory, materialHistFrom, materialHistTo, materialHistSearch]);
 
+  const arquivosCanceladosOperador = useMemo(() => {
+    const semMaterialItemIds = new Set(
+      (materialHistory || [])
+        .filter((req) => U(req.status) === "CANCELADA_SEM_MATERIAL")
+        .map((req) => Number(req.item_id))
+        .filter(Boolean)
+    );
+
+    return (historicoAll || [])
+      .filter((h) => U(h.status) === "CANCELADO")
+      .filter((h) => !semMaterialItemIds.has(Number(h.fila_item_id || h.id)))
+      .slice(0, 80);
+  }, [historicoAll, materialHistory]);
+
+  const arquivosSemMaterial = useMemo(() => {
+    return (materialHistory || [])
+      .filter((req) => U(req.status) === "CANCELADA_SEM_MATERIAL")
+      .slice(0, 80);
+  }, [materialHistory]);
+
   const rastreamentoFiltrado = useMemo(() => {
     const q = U(rastreamentoSearch).trim();
     if (!q) return rastreamentoFilas || [];
@@ -4249,58 +4271,44 @@ const limparLista = (lista) =>
   </div>
 </div>
 
-          <nav className="pgNav">
-            <button className={`pgNavItem ${view === "dashboard" ? "pgNavActive" : ""}`} onClick={() => setView("dashboard")}>
-              <span className="pgNavDot" />
-              Dashboard
-            </button>
-
-            <button
-              className={`pgNavItem ${view === "historico" ? "pgNavActive" : ""}`}
-              onClick={async () => {
-                setView("historico");
-                await fetchHistoricoAll();
-              }}
-            >
-              <span className="pgNavDot" />
-              Histórico de Corte
-            </button>
-
-            <button
-              className={`pgNavItem ${view === "materialHistorico" ? "pgNavActive" : ""}`}
-              onClick={async () => {
-                setView("materialHistorico");
-                await fetchMaterialHistory();
-              }}
-            >
-              <span className="pgNavDot" />
-              Histórico de Material
-            </button>
-
-            <button
-              className={`pgNavItem ${view === "rastreamento" ? "pgNavActive" : ""}`}
-              onClick={async () => {
-                setView("rastreamento");
-                await fetchRastreamentoFilas();
-              }}
-            >
-              <span className="pgNavDot" />
-              Rastreamento
-            </button>
-
-            <button
-              className={`pgNavItem ${view === "chat" ? "pgNavActive" : ""}`}
-              onClick={() => openChatMachine(selectedId)}
-            >
-              <span className="pgNavDot" />
-              <span>Chat</span>
-              {totalChatUnread > 0 && <span className="pgNavBadge">{totalChatUnread}</span>}
-            </button>
-          </nav>
-
           <div className="pgSidebarUpload">
-            <div className="pgSidebarUploadTitle">Upload / Fila Geral</div>
+            <div className="pgSidebarUploadTitle">Arquivos</div>
 
+            <div className="pgFileTabs">
+              <button
+                type="button"
+                className={`pgFileTab ${sidebarFilesTab === "novos" ? "active" : ""}`}
+                onClick={() => setSidebarFilesTab("novos")}
+              >
+                Novos
+                <span>{pool.length}</span>
+              </button>
+              <button
+                type="button"
+                className={`pgFileTab ${sidebarFilesTab === "cancelados" ? "active" : ""}`}
+                onClick={async () => {
+                  setSidebarFilesTab("cancelados");
+                  await Promise.all([fetchHistoricoAll(), fetchMaterialHistory()]);
+                }}
+              >
+                Cancelados
+                <span>{arquivosCanceladosOperador.length}</span>
+              </button>
+              <button
+                type="button"
+                className={`pgFileTab ${sidebarFilesTab === "semMaterial" ? "active" : ""}`}
+                onClick={async () => {
+                  setSidebarFilesTab("semMaterial");
+                  await fetchMaterialHistory();
+                }}
+              >
+                Sem material
+                <span>{arquivosSemMaterial.length}</span>
+              </button>
+            </div>
+
+            {sidebarFilesTab === "novos" && (
+              <>
             <div
               className={`pgDrop ${uploading ? "busy" : ""}`}
               onDrop={onPoolDropUpload}
@@ -4393,6 +4401,62 @@ const limparLista = (lista) =>
                 })
               )}
             </div>
+              </>
+            )}
+
+            {sidebarFilesTab === "cancelados" && (
+              <div className="pgPoolList poolRows">
+                {histLoading ? (
+                  <div className="pgEmpty" style={{ padding: 10 }}>Carregando...</div>
+                ) : arquivosCanceladosOperador.length === 0 ? (
+                  <div className="pgEmpty" style={{ padding: 10 }}>Nenhum arquivo cancelado.</div>
+                ) : (
+                  arquivosCanceladosOperador.map((h, idx) => (
+                    <div key={h.id || `${h._maquina_id}-${idx}`} className="poolRow pgFileLogRow">
+                      <div className="rowPos">{idx + 1}</div>
+                      <div className="rowMain">
+                        <div className="rowTitle" title={h.arquivo_nome || ""}>
+                          {h.arquivo_nome || "-"}
+                        </div>
+                        <div className="rowMeta">
+                          <span className="pgMono">{h._maquina_id || h.maquina_id || "-"}</span>
+                          {" | "}
+                          {h.operador_nome || h.operador || "-"}
+                        </div>
+                        <div className="rowMeta">{fmtDate(h.finalizado_em || h.criado_em)}</div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {sidebarFilesTab === "semMaterial" && (
+              <div className="pgPoolList poolRows">
+                {materialHistoryLoading ? (
+                  <div className="pgEmpty" style={{ padding: 10 }}>Carregando...</div>
+                ) : arquivosSemMaterial.length === 0 ? (
+                  <div className="pgEmpty" style={{ padding: 10 }}>Nenhum arquivo sem material.</div>
+                ) : (
+                  arquivosSemMaterial.map((req, idx) => (
+                    <div key={req.id || idx} className="poolRow pgFileLogRow">
+                      <div className="rowPos">{idx + 1}</div>
+                      <div className="rowMain">
+                        <div className="rowTitle" title={req.arquivo_nome || ""}>
+                          {req.arquivo_nome || "-"}
+                        </div>
+                        <div className="rowMeta">
+                          <span className="pgMono">{req.maquina_id || "-"}</span>
+                          {" | "}
+                          {req.material || "material nao informado"}
+                        </div>
+                        <div className="rowMeta">{materialStatusDate(req)}</div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
           <div className="pgSys">
@@ -4551,44 +4615,54 @@ const limparLista = (lista) =>
           </div>
         )}
 
+        {!readOnly && (
+          <nav className="pgTopNav">
+            <button className={`pgTopNavItem ${view === "dashboard" ? "active" : ""}`} onClick={() => setView("dashboard")}>
+              Dashboard
+            </button>
+
+            <button
+              className={`pgTopNavItem ${view === "historico" ? "active" : ""}`}
+              onClick={async () => {
+                setView("historico");
+                await fetchHistoricoAll();
+              }}
+            >
+              Historico de Corte
+            </button>
+
+            <button
+              className={`pgTopNavItem ${view === "materialHistorico" ? "active" : ""}`}
+              onClick={async () => {
+                setView("materialHistorico");
+                await fetchMaterialHistory();
+              }}
+            >
+              Historico de Material
+            </button>
+
+            <button
+              className={`pgTopNavItem ${view === "rastreamento" ? "active" : ""}`}
+              onClick={async () => {
+                setView("rastreamento");
+                await fetchRastreamentoFilas();
+              }}
+            >
+              Rastreamento
+            </button>
+
+            <button
+              className={`pgTopNavItem ${view === "chat" ? "active" : ""}`}
+              onClick={() => openChatMachine(selectedId)}
+            >
+              <span>Chat</span>
+              {totalChatUnread > 0 && <span className="pgNavBadge">{totalChatUnread}</span>}
+            </button>
+          </nav>
+        )}
+
         {((!readOnly && view === "dashboard") || isFacilitador) && (
           <>
-            <section className="pgKpis">
-              <div className="pgKpiCard">
-                <div className="pgKpiIcon i-blue">⚡</div>
-                <div className="pgKpiNum">{kpis.total}</div>
-                <div className="pgKpiLabel">Total de Máquinas</div>
-              </div>
-
-              <div className="pgKpiCard">
-                <div className="pgKpiIcon i-green">▶</div>
-                <div className="pgKpiNum">{kpis.cortando}</div>
-                <div className="pgKpiLabel">USINANDO</div>
-              </div>
-
-              <div className="pgKpiCard">
-                <div className="pgKpiIcon i-amber">⏸</div>
-                <div className="pgKpiNum">{kpis.paradaProgramada}</div>
-                <div className="pgKpiLabel">PARADA PROGRAMADA</div>
-              </div>
-
-              <div className="pgKpiCard">
-                <div className="pgKpiIcon i-purple">⚠</div>
-                <div className="pgKpiNum">{kpis.paradaNaoProgramada}</div>
-                <div className="pgKpiLabel">PARADA NAO PROGRAMADA</div>
-              </div>
-            </section>
-
-            <section className="pgEff">
-              <div className="pgEffTop">
-                <div className="pgEffLabel">Eficiência de Produção</div>
-                <div className="pgEffPct">{kpis.eficiencia}%</div>
-              </div>
-              <div className="pgEffBar">
-                <div className="pgEffFill" style={{ width: `${kpis.eficiencia}%` }} />
-              </div>
-            </section>
-
             <section className="pgMaint">
               <div className="pgMaintHeader">
                 <div className="pgMaintTitle">
@@ -4904,42 +4978,6 @@ const limparLista = (lista) =>
 
         {isVisual && visualTab === "producao" && (
           <>
-            <section className="pgKpis">
-              <div className="pgKpiCard">
-                <div className="pgKpiIcon i-blue">⚡</div>
-                <div className="pgKpiNum">{kpis.total}</div>
-                <div className="pgKpiLabel">Total de Máquinas</div>
-              </div>
-
-              <div className="pgKpiCard">
-                <div className="pgKpiIcon i-green">▶</div>
-                <div className="pgKpiNum">{kpis.cortando}</div>
-                <div className="pgKpiLabel">USINANDO</div>
-              </div>
-
-              <div className="pgKpiCard">
-                <div className="pgKpiIcon i-amber">⏸</div>
-                <div className="pgKpiNum">{kpis.paradaProgramada}</div>
-                <div className="pgKpiLabel">PARADA PROGRAMADA</div>
-              </div>
-
-              <div className="pgKpiCard">
-                <div className="pgKpiIcon i-purple">⚠</div>
-                <div className="pgKpiNum">{kpis.paradaNaoProgramada}</div>
-                <div className="pgKpiLabel">PARADA NAO PROGRAMADA</div>
-              </div>
-            </section>
-
-            <section className="pgEff">
-              <div className="pgEffTop">
-                <div className="pgEffLabel">Eficiência de Produção</div>
-                <div className="pgEffPct">{kpis.eficiencia}%</div>
-              </div>
-              <div className="pgEffBar">
-                <div className="pgEffFill" style={{ width: `${kpis.eficiencia}%` }} />
-              </div>
-            </section>
-
             <section className="pgMaint">
               <div className="pgMaintHeader">
                 <div className="pgMaintTitle">

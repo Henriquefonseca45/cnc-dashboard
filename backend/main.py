@@ -4712,7 +4712,7 @@ def api_entregar_material_solicitacao(solicitacao_id: int, msg: MaterialChatMens
 def api_sem_material_solicitacao(solicitacao_id: int, msg: MaterialChatMensagemIn | None = None):
     conn = get_conn()
     _ensure_material_solicitacoes_table(conn)
-    row = conn.execute("SELECT id FROM material_solicitacoes WHERE id = ?", (solicitacao_id,)).fetchone()
+    row = conn.execute("SELECT * FROM material_solicitacoes WHERE id = ?", (solicitacao_id,)).fetchone()
     if not row:
         conn.close()
         raise HTTPException(status_code=404, detail="Solicitacao nao encontrada.")
@@ -4733,6 +4733,38 @@ def api_sem_material_solicitacao(solicitacao_id: int, msg: MaterialChatMensagemI
         """,
         (usuario_id, usuario_nome, solicitacao_id),
     )
+
+    fila_item_id = row["item_id"]
+    if fila_item_id:
+        _ensure_fila_itens_cols(conn)
+        fila_row = _fila_item_log_snapshot(conn, int(fila_item_id))
+        if fila_row and (fila_row["status"] or "").upper() not in _fila_finalizada_status_list():
+            conn.execute(
+                """
+                UPDATE fila_itens
+                SET status = 'CANCELADO',
+                    finalizado_em = COALESCE(finalizado_em, datetime('now','localtime'))
+                WHERE id = ?
+                """,
+                (int(fila_item_id),),
+            )
+            _log_chapa_movimentacao(
+                conn,
+                "CANCELADO_SEM_MATERIAL",
+                fila_item_id=int(fila_item_id),
+                arquivo_id=fila_row["arquivo_id"],
+                arquivo_nome=fila_row["arquivo_nome"],
+                maquina_origem=fila_row["maquina_id"],
+                maquina_destino=fila_row["maquina_id"],
+                posicao_origem=fila_row["posicao"],
+                posicao_destino=fila_row["posicao"],
+                status_origem=fila_row["status"],
+                status_destino="CANCELADO",
+                operador_nome=usuario_nome,
+                detalhe="Almoxarifado marcou como SEM MATERIAL; item removido da fila do operador.",
+            )
+            _reindex_fila(conn, fila_row["maquina_id"])
+
     _material_add_message(
         conn,
         solicitacao_id,

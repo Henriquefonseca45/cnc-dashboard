@@ -1,0 +1,85 @@
+/* Navegacao superior e abas de arquivos */
+.pgTopNav{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+  margin:18px 0 14px;
+  padding:10px;
+  border:1px solid var(--stroke);
+  border-radius:14px;
+  background:rgba(255,255,255,.64);
+  box-shadow:var(--shadow-soft);
+}
+.pgTopNavItem{
+  min-height:38px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:8px 14px;
+  border-radius:10px;
+  border:1px solid transparent;
+  background:transparent;
+  color:var(--text);
+  font-size:13px;
+  font-weight:800;
+  cursor:pointer;
+  transition:.18s;
+  white-space:nowrap;
+}
+.pgTopNavItem:hover{ background:rgba(47,55,125,.06); }
+.pgTopNavItem.active{
+  background:var(--brand);
+  color:#fff;
+  border-color:rgba(47,55,125,.22);
+  box-shadow:0 8px 18px rgba(47,55,125,.16);
+}
+.pgTopNavItem.active .pgNavBadge{
+  background:rgba(255,255,255,.20);
+  color:#fff;
+  border-color:rgba(255,255,255,.30);
+}
+.pgFileTabs{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:8px;
+  margin-bottom:12px;
+}
+.pgFileTab{
+  min-height:38px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:8px 10px;
+  border-radius:10px;
+  border:1px solid var(--stroke);
+  background:rgba(255,255,255,.54);
+  color:var(--text);
+  font-size:12px;
+  font-weight:800;
+  cursor:pointer;
+  transition:.18s;
+}
+.pgFileTab:hover{ background:rgba(47,55,125,.07); }
+.pgFileTab.active{
+  background:rgba(47,55,125,.11);
+  border-color:rgba(47,55,125,.24);
+  color:var(--brand);
+}
+.pgFileTab span{
+  min-width:24px;
+  text-align:center;
+  padding:2px 7px;
+  border-radius:999px;
+  background:rgba(47,55,125,.10);
+  color:var(--brand);
+  font-size:11px;
+}
+.pgFileLogRow{
+  cursor:default;
+  background:rgba(255,255,255,.38);
+  border-color:rgba(47,55,125,.08);
+}
+.pgFileLogRow:hover{ background:rgba(47,55,125,.045); }
