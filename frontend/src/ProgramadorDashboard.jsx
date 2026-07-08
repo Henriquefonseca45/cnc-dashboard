@@ -1840,6 +1840,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const [chatUnreadByMachine, setChatUnreadByMachine] = useState({});
   const [chatLastMessageByMachine, setChatLastMessageByMachine] = useState({});
   const [materialRequestsByMachine, setMaterialRequestsByMachine] = useState({});
+  const [returnedFilesNoticeOpen, setReturnedFilesNoticeOpen] = useState(false);
 
   const freezeMsByMachineRef = useRef({});
   const chatListRef = useRef(null);
@@ -1851,6 +1852,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const chatNotifyBootstrappedRef = useRef(false);
   const chatSeenByMachineRef = useRef({});
   const chatLastNotifiedByMachineRef = useRef({});
+  const returnedFilesNoticeSigRef = useRef("");
   const previewSvgRef = useRef(null);
   const previewDragRef = useRef(null);
   const viewRef = useRef("dashboard");
@@ -3671,6 +3673,48 @@ async function exportarPDF() {
       .slice(0, 80);
   }, [materialHistory]);
 
+  const arquivosRetornadosParaNovos = useMemo(() => {
+    return (pool || [])
+      .filter((a) => ["SEM_MATERIAL", "CANCELADO"].includes(U(a.fila_observacao_tipo)))
+      .map((a) => {
+        const tipo = U(a.fila_observacao_tipo);
+        return {
+          id: a.id,
+          nome: a.arquivo_nome || a.nome || `Arquivo #${a.id}`,
+          tipo,
+          titulo: tipo === "SEM_MATERIAL" ? "Sem material" : "Cancelado",
+          detalhe: a.fila_observacao || "Arquivo retornou para a fila geral.",
+          maquina: a.fila_observacao_maquina || "",
+          operador: a.fila_observacao_operador || "",
+          data: a.fila_observacao_em || "",
+        };
+      })
+      .slice(0, 12);
+  }, [pool]);
+
+  const arquivosRetornadosSig = useMemo(() => {
+    return arquivosRetornadosParaNovos
+      .map((a) => `${a.id}:${a.tipo}:${a.data}`)
+      .join("|");
+  }, [arquivosRetornadosParaNovos]);
+
+  useEffect(() => {
+    if (readOnly) return;
+    if (!arquivosRetornadosSig) {
+      setReturnedFilesNoticeOpen(false);
+      returnedFilesNoticeSigRef.current = "";
+      return;
+    }
+    if (returnedFilesNoticeSigRef.current === arquivosRetornadosSig) return;
+    returnedFilesNoticeSigRef.current = arquivosRetornadosSig;
+    setReturnedFilesNoticeOpen(true);
+  }, [readOnly, arquivosRetornadosSig]);
+
+  function fecharAvisoArquivosRetornados() {
+    returnedFilesNoticeSigRef.current = arquivosRetornadosSig;
+    setReturnedFilesNoticeOpen(false);
+  }
+
   const rastreamentoFiltrado = useMemo(() => {
     const q = U(rastreamentoSearch).trim();
     if (!q) return rastreamentoFilas || [];
@@ -4361,20 +4405,6 @@ const limparLista = (lista) =>
                 pool.slice(0, 80).map((a, idx) => {
                   const checked = selectedPoolIds.has(a.id);
                   const isDragging = draggingId === a.id;
-                  const filaNoteType = U(a.fila_observacao_tipo);
-                  const filaNoteLabel =
-                    filaNoteType === "SEM_MATERIAL"
-                      ? "Sem material - reordenar"
-                      : filaNoteType === "CANCELADO"
-                      ? "Cancelado - reordenar"
-                      : "";
-                  const filaNoteDetail = [
-                    a.fila_observacao_maquina,
-                    a.fila_observacao_operador,
-                    a.fila_observacao_em ? fmtDate(a.fila_observacao_em) : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" | ");
 
                   return (
                     <div
@@ -4391,18 +4421,6 @@ const limparLista = (lista) =>
                         <div className="rowTitle" title={a.arquivo_nome || a.nome || ""}>
                           {a.arquivo_nome || a.nome}
                         </div>
-                        {filaNoteLabel ? (
-                          <div className={`pgPoolNotice ${filaNoteType === "SEM_MATERIAL" ? "semMaterial" : "cancelado"}`}>
-                            <div className="pgPoolNoticeIcon" aria-hidden="true">i</div>
-                            <div className="pgPoolNoticeBody">
-                              <div className="pgPoolNoticeTitle">{filaNoteLabel}</div>
-                              <div className="pgPoolNoticeText">
-                                {a.fila_observacao || "Arquivo retornou para a fila geral."}
-                              </div>
-                              {filaNoteDetail ? <div className="pgPoolNoticeMeta">{filaNoteDetail}</div> : null}
-                            </div>
-                          </div>
-                        ) : null}
                         <div className="rowMeta" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                           <span className="pgMono">id:{a.id}</span>
                           <button
@@ -6754,6 +6772,64 @@ const limparLista = (lista) =>
               </div> {/* pgChatComposer */}
           </div>   {/* pgChatPanel */}
         </section>
+      )}
+
+      {returnedFilesNoticeOpen && arquivosRetornadosParaNovos.length > 0 && (
+        <div className="pgReturnNoticeOverlay" onClick={fecharAvisoArquivosRetornados}>
+          <div className="pgReturnNoticeModal" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="pgReturnNoticeClose"
+              onClick={fecharAvisoArquivosRetornados}
+              aria-label="Fechar aviso"
+            >
+              x
+            </button>
+
+            <div className="pgReturnNoticeIcon" aria-hidden="true">!</div>
+            <div className="pgReturnNoticeTitle">Arquivos retornaram para Novos</div>
+            <div className="pgReturnNoticeSub">
+              Estes arquivos foram cancelados ou ficaram sem material e precisam ser reordenados pelo programador.
+            </div>
+
+            <div className="pgReturnNoticeList">
+              {arquivosRetornadosParaNovos.slice(0, 6).map((item) => {
+                const detalhe = [
+                  item.maquina,
+                  item.operador,
+                  item.data ? fmtDate(item.data) : null,
+                ]
+                  .filter(Boolean)
+                  .join(" | ");
+
+                return (
+                  <div key={`${item.id}-${item.tipo}-${item.data}`} className="pgReturnNoticeItem">
+                    <div className="pgReturnNoticeCheck" aria-hidden="true">i</div>
+                    <div className="pgReturnNoticeItemBody">
+                      <div className="pgReturnNoticeItemTitle">
+                        {item.titulo}: {item.nome}
+                      </div>
+                      <div className="pgReturnNoticeItemText">{item.detalhe}</div>
+                      {detalhe ? <div className="pgReturnNoticeItemMeta">{detalhe}</div> : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {arquivosRetornadosParaNovos.length > 6 ? (
+              <div className="pgReturnNoticeMore">
+                +{arquivosRetornadosParaNovos.length - 6} arquivo(s) tambem retornaram para Novos.
+              </div>
+            ) : null}
+
+            <div className="pgReturnNoticeActions">
+              <button type="button" className="pgBtn pgBtnPrimary" onClick={fecharAvisoArquivosRetornados}>
+                Entendi
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {previewItem && (
