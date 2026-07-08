@@ -4272,38 +4272,10 @@ const limparLista = (lista) =>
 </div>
 
           <div className="pgSidebarUpload">
-            <div className="pgSidebarUploadTitle">Arquivos</div>
-
-            <div className="pgFileTabs">
-              <button
-                type="button"
-                className={`pgFileTab ${sidebarFilesTab === "novos" ? "active" : ""}`}
-                onClick={() => setSidebarFilesTab("novos")}
-              >
-                Novos
-                <span>{pool.length}</span>
-              </button>
-              <button
-                type="button"
-                className={`pgFileTab ${sidebarFilesTab === "cancelados" ? "active" : ""}`}
-                onClick={async () => {
-                  setSidebarFilesTab("cancelados");
-                  await Promise.all([fetchHistoricoAll(), fetchMaterialHistory()]);
-                }}
-              >
-                Cancelados
-                <span>{arquivosCanceladosOperador.length}</span>
-              </button>
-              <button
-                type="button"
-                className={`pgFileTab ${sidebarFilesTab === "semMaterial" ? "active" : ""}`}
-                onClick={async () => {
-                  setSidebarFilesTab("semMaterial");
-                  await fetchMaterialHistory();
-                }}
-              >
-                Sem material
-                <span>{arquivosSemMaterial.length}</span>
+            <div className="pgSidebarUploadTop">
+              <div className="pgSidebarUploadTitle">Upload / Fila Geral</div>
+              <button className="pgThemeMiniBtn" onClick={toggleThemeMode} type="button">
+                {themeMode === "dark" ? "Modo claro" : "Modo escuro"}
               </button>
             </div>
 
@@ -4403,6 +4375,39 @@ const limparLista = (lista) =>
             </div>
               </>
             )}
+
+            <div className="pgFileTabs">
+              <button
+                type="button"
+                className={`pgFileTab ${sidebarFilesTab === "novos" ? "active" : ""}`}
+                onClick={() => setSidebarFilesTab("novos")}
+              >
+                Novos
+                <span>{pool.length}</span>
+              </button>
+              <button
+                type="button"
+                className={`pgFileTab ${sidebarFilesTab === "cancelados" ? "active" : ""}`}
+                onClick={async () => {
+                  setSidebarFilesTab("cancelados");
+                  await Promise.all([fetchHistoricoAll(), fetchMaterialHistory()]);
+                }}
+              >
+                Cancelados
+                <span>{arquivosCanceladosOperador.length}</span>
+              </button>
+              <button
+                type="button"
+                className={`pgFileTab ${sidebarFilesTab === "semMaterial" ? "active" : ""}`}
+                onClick={async () => {
+                  setSidebarFilesTab("semMaterial");
+                  await fetchMaterialHistory();
+                }}
+              >
+                Sem material
+                <span>{arquivosSemMaterial.length}</span>
+              </button>
+            </div>
 
             {sidebarFilesTab === "cancelados" && (
               <div className="pgPoolList poolRows">
