@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { http } from "./http";
 import { useNavigate, useParams } from "react-router-dom";
 import rvbLogo from "./assets/rvb-logo.png";
+import { useAppTheme } from "./theme";
+import "./OperatorTheme.css";
 import {
   RefreshCw,
   Eye,
@@ -634,9 +636,9 @@ function StatusPill({ label }) {
   return <span className={cn(base, cls)}>{label}</span>;
 }
 
-function Shell({ children }) {
+function Shell({ children, themeMode }) {
   return (
-    <div className="min-h-screen text-slate-800 bg-[#f5f6f8]">
+    <div className={cn("opThemeRoot min-h-screen text-slate-800 bg-[#f5f6f8]", themeMode === "light" ? "opThemeLight" : "opThemeDark")}>
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[900px] h-[420px] bg-indigo-500/10 blur-[110px]" />
         <div className="absolute top-28 left-10 w-[520px] h-[320px] bg-sky-500/10 blur-[110px]" />
@@ -646,7 +648,7 @@ function Shell({ children }) {
   );
 }
 
-function Topbar({ onRefresh }) {
+function Topbar({ onRefresh, onToggleTheme, themeLabel }) {
   return (
     <div className="sticky top-0 z-20 border-b border-[rgba(47,55,125,.10)] bg-white/75 backdrop-blur">
       <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -664,6 +666,13 @@ function Topbar({ onRefresh }) {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={onToggleTheme}
+            className="opThemeToggle h-10 px-4 rounded-xl bg-white border border-[rgba(47,55,125,.12)] hover:bg-[rgba(47,55,125,.05)] text-sm font-bold text-[#2f377d]"
+            title="Alternar tema"
+          >
+            {themeLabel}
+          </button>
           <button
             onClick={onRefresh}
             className="h-10 px-3 rounded-xl bg-white border border-[rgba(47,55,125,.12)] hover:bg-[rgba(47,55,125,.05)] inline-flex items-center"
@@ -746,6 +755,7 @@ function Row({ title, subtitle, leftIcon, right }) {
 export default function OperatorDashboard() {
   const { cncId } = useParams();
   const navigate = useNavigate();
+  const { themeMode, toggleThemeMode, themeLabel } = useAppTheme("dark");
 
   const cnc = (cncId || DEFAULT_CNC).toUpperCase();
 
@@ -1714,8 +1724,10 @@ export default function OperatorDashboard() {
   }, [materialRequests]);
 
   return (
-    <Shell>
+    <Shell themeMode={themeMode}>
       <Topbar
+        onToggleTheme={toggleThemeMode}
+        themeLabel={themeLabel}
         onRefresh={async () => {
           await carregarTudo();
           await fetchChat();

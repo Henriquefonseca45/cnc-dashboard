@@ -4,6 +4,8 @@ import { MessageSquare, RefreshCw, Search, Send, XCircle } from "lucide-react";
 import { http } from "./http";
 import { getErrMsg } from "./api";
 import "./AlmoxarifadoChatPage.css";
+import "./AlmoxarifadoTheme.css";
+import { useAppTheme } from "./theme";
 
 const FILTERS = [
   { key: "pendentes", label: "Pendentes" },
@@ -31,6 +33,7 @@ function statusClass(status) {
 }
 
 export default function AlmoxarifadoChatPage({ embedded = false, basePath = "/almoxarifado-chat" }) {
+  const { themeMode, toggleThemeMode, themeLabel } = useAppTheme("dark");
   const { solicitacaoId } = useParams();
   const navigate = useNavigate();
   const listRef = useRef([]);
@@ -187,7 +190,7 @@ export default function AlmoxarifadoChatPage({ embedded = false, basePath = "/al
   }
 
   return (
-    <main className={embedded ? "almPage almPageEmbedded" : "almPage"}>
+    <main className={`${embedded ? "almPage almPageEmbedded" : "almPage"} ${!embedded ? (themeMode === "light" ? "almoxThemeLight" : "almoxThemeDark") : ""}`}>
       <section className="almShell">
         <header className="almHeader">
           <div>
@@ -195,10 +198,17 @@ export default function AlmoxarifadoChatPage({ embedded = false, basePath = "/al
             <h1>Chat de solicitações de material</h1>
             <span>Atendimentos enviados pelos operadores CNC.</span>
           </div>
-          <button className="almRefresh" onClick={() => loadRequests()} disabled={loadingList}>
-            <RefreshCw size={16} />
-            {loadingList ? "Atualizando..." : "Atualizar"}
-          </button>
+          <div className="almHeaderActions">
+            {!embedded ? (
+              <button className="almThemeToggle" onClick={toggleThemeMode} type="button">
+                {themeLabel}
+              </button>
+            ) : null}
+            <button className="almRefresh" onClick={() => loadRequests()} disabled={loadingList}>
+              <RefreshCw size={16} />
+              {loadingList ? "Atualizando..." : "Atualizar"}
+            </button>
+          </div>
         </header>
 
         <div className="almFilters">

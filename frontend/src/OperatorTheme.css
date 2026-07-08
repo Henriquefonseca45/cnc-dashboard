@@ -1,0 +1,75 @@
+.opThemeRoot{
+  transition:background .18s ease,color .18s ease;
+}
+
+.opThemeLight{
+  color:#1e293b;
+  background:
+    radial-gradient(900px 420px at 45% -15%, rgba(47,55,125,.08), transparent 60%),
+    linear-gradient(180deg,#f8fafc,#e9eef7);
+}
+
+.opThemeLight .sticky{
+  background:rgba(255,255,255,.82) !important;
+  border-color:rgba(47,55,125,.12) !important;
+}
+
+.opThemeLight .rounded-2xl{
+  color:#1e293b;
+}
+
+.opThemeDark{
+  color:#e5edf8;
+  background:
+    radial-gradient(900px 420px at 45% -15%, rgba(96,165,250,.12), transparent 60%),
+    linear-gradient(180deg,#0f172a,#070b16);
+}
+
+.opThemeDark .sticky{
+  background:rgba(7,11,22,.84) !important;
+  border-color:rgba(148,163,184,.18) !important;
+}
+
+.opThemeDark .bg-white,
+.opThemeDark .bg-white\/80,
+.opThemeDark .bg-white\/70{
+  background-color:rgba(15,23,42,.88) !important;
+}
+
+.opThemeDark .border-\[rgba\(47\,55\,125\,\.12\)\],
+.opThemeDark .border-\[rgba\(47\,55\,125\,\.10\)\]{
+  border-color:rgba(148,163,184,.22) !important;
+}
+
+.opThemeDark .text-slate-800,
+.opThemeDark .text-\[\#2f377d\],
+.opThemeDark .text-lg,
+.opThemeDark .font-semibold{
+  color:#e5edf8 !important;
+}
+
+.opThemeDark .text-slate-600,
+.opThemeDark .text-slate-500,
+.opThemeDark .text-slate-400{
+  color:#a7b4ca !important;
+}
+
+.opThemeDark input,
+.opThemeDark select,
+.opThemeDark textarea{
+  background-color:rgba(15,23,42,.92) !important;
+  color:#f8fafc !important;
+  -webkit-text-fill-color:#f8fafc !important;
+  border-color:rgba(148,163,184,.28) !important;
+}
+
+.opThemeDark option{
+  color:#f8fafc !important;
+  background-color:#0f172a !important;
+}
+
+.opThemeDark .opThemeToggle{
+  background:rgba(15,23,42,.92) !important;
+  color:#dbeafe !important;
+  border-color:rgba(148,163,184,.28) !important;
+}

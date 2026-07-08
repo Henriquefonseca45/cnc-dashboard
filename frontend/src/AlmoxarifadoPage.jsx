@@ -4,6 +4,8 @@ import { http } from "./http";
 import { getErrMsg } from "./api";
 import AlmoxarifadoChatPage from "./AlmoxarifadoChatPage.jsx";
 import "./AlmoxarifadoPage.css";
+import "./AlmoxarifadoTheme.css";
+import { useAppTheme } from "./theme";
 
 const CNC_IDS = ["CNC01", "CNC02", "CNC03", "CNC04", "CNC05", "CNC06", "CNC07"];
 
@@ -145,7 +147,7 @@ function isActiveMaterial(req) {
   return ["ABERTA", "AGUARDANDO_ALMOXARIFADO", "EM_SEPARACAO"].includes(String(req?.status || "").toUpperCase());
 }
 
-export function AlmoxarifadoCardsView({ tv = false }) {
+export function AlmoxarifadoCardsView({ tv = false, themeMode = "dark", onToggleTheme = null, themeLabel = "" }) {
   const [machines, setMachines] = useState([]);
   const [queues, setQueues] = useState({});
   const [requests, setRequests] = useState([]);
@@ -241,7 +243,7 @@ export function AlmoxarifadoCardsView({ tv = false }) {
   }, [requests]);
 
   return (
-    <section className={tv ? "almoxTvPage" : "almoxCardsPage"}>
+    <section className={`${tv ? "almoxTvPage" : "almoxCardsPage"} ${tv ? (themeMode === "light" ? "almoxThemeLight" : "almoxThemeDark") : ""}`}>
       {!tv ? (
         <header className="almoxCardsHeader">
         <div>
@@ -255,7 +257,11 @@ export function AlmoxarifadoCardsView({ tv = false }) {
             {loading ? "Atualizando..." : "Atualizar"}
           </button>
         </header>
-      ) : null}
+      ) : (
+        <button className="almoxThemeToggle almoxTvThemeToggle" onClick={onToggleTheme} type="button">
+          {themeLabel}
+        </button>
+      )}
 
       {error && !tv ? <div className="almoxCardsError">{error}</div> : null}
 
@@ -471,15 +477,19 @@ function AlmoxarifadoHistoryView() {
 
 export default function AlmoxarifadoPage() {
   const [tab, setTab] = useState("chat");
+  const { themeMode, toggleThemeMode, themeLabel } = useAppTheme("dark");
 
   return (
-    <main className="almoxPage">
+    <main className={`almoxPage ${themeMode === "light" ? "almoxThemeLight" : "almoxThemeDark"}`}>
       <header className="almoxPageHeader">
         <div>
           <p>Almoxarifado</p>
           <h1>Solicitações de Material</h1>
         </div>
         <div className="almoxTabs">
+          <button className="almoxThemeToggle" onClick={toggleThemeMode} type="button">
+            {themeLabel}
+          </button>
           <button className={tab === "cards" ? "active" : ""} onClick={() => setTab("cards")}>
             <Monitor size={16} />
             Cards

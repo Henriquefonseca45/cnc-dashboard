@@ -1,0 +1,156 @@
+.almoxThemeLight,
+.almoxThemeLight.almPage,
+.almoxThemeLight.almoxCardsPage,
+.almoxThemeLight.almoxTvPage{
+  color:#24284a;
+  background:
+    radial-gradient(900px 440px at 20% -10%, rgba(47,55,125,.08), transparent 60%),
+    linear-gradient(180deg,#f8fafc,#edf2f8);
+}
+
+.almoxThemeDark,
+.almoxThemeDark.almPage,
+.almoxThemeDark.almoxCardsPage,
+.almoxThemeDark.almoxTvPage{
+  color:#e5edf8;
+  background:
+    radial-gradient(900px 440px at 20% -10%, rgba(96,165,250,.12), transparent 60%),
+    linear-gradient(180deg,#0f172a,#070b16);
+}
+
+.almoxThemeToggle,
+.almThemeToggle{
+  min-height:36px;
+  border-radius:12px;
+  border:1px solid rgba(47,55,125,.14);
+  background:#fff;
+  color:#38327c;
+  font-weight:900;
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 12px;
+}
+
+.almHeaderActions{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+.almoxTvThemeToggle{
+  position:fixed;
+  right:18px;
+  top:18px;
+  z-index:20;
+}
+
+.almoxThemeDark .almoxPageHeader,
+.almoxThemeDark .almoxCardsHeader,
+.almoxThemeDark .almoxRequestHistory,
+.almoxThemeDark .almoxCncCard,
+.almoxThemeDark .almoxTvCard,
+.almoxThemeDark .almoxTvPriorityCard,
+.almoxThemeDark .almShell,
+.almoxThemeDark .almList,
+.almoxThemeDark .almChat{
+  background:rgba(15,23,42,.90) !important;
+  border-color:rgba(148,163,184,.24) !important;
+  color:#e5edf8 !important;
+  box-shadow:0 22px 60px -38px rgba(0,0,0,.70) !important;
+}
+
+.almoxThemeDark .almoxPageHeader h1,
+.almoxThemeDark .almoxCardsHeader h1,
+.almoxThemeDark .almoxTvHeader h1,
+.almoxThemeDark .almHeader h1,
+.almoxThemeDark .almChatTitle,
+.almoxThemeDark .almMaterial,
+.almoxThemeDark .almoxCardHeader strong,
+.almoxThemeDark .almoxCardBlock p,
+.almoxThemeDark .almoxHistoryMain strong{
+  color:#f8fafc !important;
+}
+
+.almoxThemeDark .almoxPageHeader p,
+.almoxThemeDark .almoxCardsHeader span,
+.almoxThemeDark .almoxTvHeader span,
+.almoxThemeDark .almEyebrow,
+.almoxThemeDark .almHeader span,
+.almoxThemeDark .almChatHead small,
+.almoxThemeDark .almMeta,
+.almoxThemeDark .almLast,
+.almoxThemeDark .almoxCardBlock b,
+.almoxThemeDark .almoxHistoryMain span,
+.almoxThemeDark .almoxHistoryMain small,
+.almoxThemeDark .almoxEmptyMaterial,
+.almoxThemeDark .almEmpty{
+  color:#a7b4ca !important;
+}
+
+.almoxThemeDark .almoxTabs button,
+.almoxThemeDark .almoxCardsHeader button,
+.almoxThemeDark .almoxRequestHistoryTop button,
+.almoxThemeDark .almoxRequestChip,
+.almoxThemeDark .almRefresh,
+.almoxThemeDark .almInput button,
+.almoxThemeDark .almActions button,
+.almoxThemeDark .almCardActions button,
+.almoxThemeDark .almoxThemeToggle,
+.almoxThemeDark .almThemeToggle{
+  background:rgba(15,23,42,.92) !important;
+  border-color:rgba(148,163,184,.28) !important;
+  color:#dbeafe !important;
+}
+
+.almoxThemeDark .almoxTabs button.active,
+.almoxThemeDark .almTabs button.active{
+  background:#33408f !important;
+  color:#fff !important;
+  border-color:#5361c3 !important;
+}
+
+.almoxThemeDark .almoxCardBlock,
+.almoxThemeDark .almoxMaterials,
+.almoxThemeDark .almoxHistoryRow,
+.almoxThemeDark .almRequest,
+.almoxThemeDark .almMessages,
+.almoxThemeDark .almSearch,
+.almoxThemeDark .almInput,
+.almoxThemeDark .almMsgBubble{
+  background:rgba(30,41,59,.86) !important;
+  border-color:rgba(148,163,184,.24) !important;
+  color:#e5edf8 !important;
+}
+
+.almoxThemeDark .almSearch input,
+.almoxThemeDark .almInput input{
+  color:#f8fafc !important;
+}
+
+.almoxThemeDark .almSearch input::placeholder,
+.almoxThemeDark .almInput input::placeholder{
+  color:#8390a8 !important;
+}
+
+.almoxThemeDark .almMsgMeta,
+.almoxThemeDark .almMsgBubble p{
+  color:#e5edf8 !important;
+}
+
+.almoxThemeDark .almMsg.system .almMsgBubble{
+  background:rgba(51,65,85,.72) !important;
+}
+
+.almoxThemeDark .almoxCncCard.machineRunning,
+.almoxThemeDark .almoxTvCard.machineRunning{
+  background:linear-gradient(135deg, rgba(6,78,59,.86), rgba(15,23,42,.92)) !important;
+}
+
+.almoxThemeDark .almoxCncCard.machineMaterialWait,
+.almoxThemeDark .almoxTvCard.machineMaterialWait{
+  background:linear-gradient(135deg, rgba(127,29,29,.84), rgba(15,23,42,.92)) !important;
+}

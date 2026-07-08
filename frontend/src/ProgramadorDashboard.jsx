@@ -4570,6 +4570,11 @@ const limparLista = (lista) =>
   </div>
 
   <div className="pgTopRight">
+    {readOnly && (
+      <button className="pgBtn pgBtnGhost pgThemeToggleBtn" onClick={toggleThemeMode}>
+        {themeMode === "dark" ? "Tema Claro" : "Tema Escuro"}
+      </button>
+    )}
     {!readOnly && (
       <>
         <button className="pgBtn pgBtnGhost pgThemeToggleBtn" onClick={toggleThemeMode}>
@@ -5335,6 +5340,14 @@ const limparLista = (lista) =>
   </button>
 
   <button
+    className="pgBtn pgBtnGhost pgThemeToggleBtn"
+    onClick={toggleThemeMode}
+    style={{ marginLeft: 8 }}
+  >
+    {themeMode === "dark" ? "Tema Claro" : "Tema Escuro"}
+  </button>
+
+  <button
     className="pgBtn pgBtnGhost"
     onClick={async () => {
       await Promise.all([
@@ -5945,6 +5958,14 @@ const limparLista = (lista) =>
             onClick={() => setDashFilter("custom")}
           >
             Personalizado
+          </button>
+
+          <button
+            className="pgBtn pgBtnGhost pgThemeToggleBtn"
+            onClick={toggleThemeMode}
+            style={{ marginLeft: 8 }}
+          >
+            {themeMode === "dark" ? "Tema Claro" : "Tema Escuro"}
           </button>
 
           <button
