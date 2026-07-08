@@ -48,6 +48,15 @@
   z-index:20;
 }
 
+.almoxTvPage{
+  padding-top:58px;
+}
+
+.almoxTvPage .almoxTvGrid{
+  height:calc(100vh - 58px) !important;
+  padding-top:0 !important;
+}
+
 .almoxThemeDark .almoxPageHeader,
 .almoxThemeDark .almoxCardsHeader,
 .almoxThemeDark .almoxRequestHistory,
@@ -120,7 +129,8 @@
 .almoxThemeDark .almMessages,
 .almoxThemeDark .almSearch,
 .almoxThemeDark .almInput,
-.almoxThemeDark .almMsgBubble{
+.almoxThemeDark .almMsgBubble,
+.almoxThemeDark .almoxEmptyMaterial{
   background:rgba(30,41,59,.86) !important;
   border-color:rgba(148,163,184,.24) !important;
   color:#e5edf8 !important;
