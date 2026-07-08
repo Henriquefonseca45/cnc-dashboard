@@ -2665,11 +2665,60 @@ def listar_arquivos():
 def listar_arquivos_disponiveis():
     conn = get_conn()
     _ensure_arquivos_cols(conn)
+    _ensure_chapa_movimentacao_log_table(conn)
     cur = conn.cursor()
 
     rows = cur.execute(
         """
-        SELECT a.id, a.nome, a.status, a.criado_em
+        SELECT
+            a.id,
+            a.nome,
+            a.status,
+            a.criado_em,
+            (
+                SELECT
+                    CASE
+                        WHEN l.acao = 'CANCELADO_SEM_MATERIAL' THEN 'SEM_MATERIAL'
+                        ELSE 'CANCELADO'
+                    END
+                FROM chapa_movimentacao_log l
+                WHERE l.arquivo_id = a.id
+                  AND l.acao IN ('CANCELADO', 'CANCELADO_SEM_MATERIAL')
+                ORDER BY l.id DESC
+                LIMIT 1
+            ) AS fila_observacao_tipo,
+            (
+                SELECT l.detalhe
+                FROM chapa_movimentacao_log l
+                WHERE l.arquivo_id = a.id
+                  AND l.acao IN ('CANCELADO', 'CANCELADO_SEM_MATERIAL')
+                ORDER BY l.id DESC
+                LIMIT 1
+            ) AS fila_observacao,
+            (
+                SELECT l.maquina_origem
+                FROM chapa_movimentacao_log l
+                WHERE l.arquivo_id = a.id
+                  AND l.acao IN ('CANCELADO', 'CANCELADO_SEM_MATERIAL')
+                ORDER BY l.id DESC
+                LIMIT 1
+            ) AS fila_observacao_maquina,
+            (
+                SELECT l.operador_nome
+                FROM chapa_movimentacao_log l
+                WHERE l.arquivo_id = a.id
+                  AND l.acao IN ('CANCELADO', 'CANCELADO_SEM_MATERIAL')
+                ORDER BY l.id DESC
+                LIMIT 1
+            ) AS fila_observacao_operador,
+            (
+                SELECT l.criado_em
+                FROM chapa_movimentacao_log l
+                WHERE l.arquivo_id = a.id
+                  AND l.acao IN ('CANCELADO', 'CANCELADO_SEM_MATERIAL')
+                ORDER BY l.id DESC
+                LIMIT 1
+            ) AS fila_observacao_em
         FROM arquivos_dxf a
         WHERE UPPER(COALESCE(a.status,'')) NOT IN ('EXCLUIDO','CORTADO')
           AND a.id NOT IN (
@@ -4761,7 +4810,7 @@ def api_sem_material_solicitacao(solicitacao_id: int, msg: MaterialChatMensagemI
                 status_origem=fila_row["status"],
                 status_destino="CANCELADO",
                 operador_nome=usuario_nome,
-                detalhe="Almoxarifado marcou como SEM MATERIAL; item removido da fila do operador.",
+                detalhe="Almoxarifado marcou como SEM MATERIAL; arquivo voltou para a fila geral para reordenacao.",
             )
             _reindex_fila(conn, fila_row["maquina_id"])
 

@@ -4357,6 +4357,20 @@ const limparLista = (lista) =>
                 pool.slice(0, 80).map((a, idx) => {
                   const checked = selectedPoolIds.has(a.id);
                   const isDragging = draggingId === a.id;
+                  const filaNoteType = U(a.fila_observacao_tipo);
+                  const filaNoteLabel =
+                    filaNoteType === "SEM_MATERIAL"
+                      ? "Sem material - reordenar"
+                      : filaNoteType === "CANCELADO"
+                      ? "Cancelado - reordenar"
+                      : "";
+                  const filaNoteDetail = [
+                    a.fila_observacao_maquina,
+                    a.fila_observacao_operador,
+                    a.fila_observacao_em ? fmtDate(a.fila_observacao_em) : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" | ");
 
                   return (
                     <div
@@ -4373,6 +4387,15 @@ const limparLista = (lista) =>
                         <div className="rowTitle" title={a.arquivo_nome || a.nome || ""}>
                           {a.arquivo_nome || a.nome}
                         </div>
+                        {filaNoteLabel ? (
+                          <div className={`pgPoolNotice ${filaNoteType === "SEM_MATERIAL" ? "semMaterial" : "cancelado"}`}>
+                            <div className="pgPoolNoticeTitle">{filaNoteLabel}</div>
+                            <div className="pgPoolNoticeText">
+                              {a.fila_observacao || "Arquivo retornou para a fila geral."}
+                            </div>
+                            {filaNoteDetail ? <div className="pgPoolNoticeMeta">{filaNoteDetail}</div> : null}
+                          </div>
+                        ) : null}
                         <div className="rowMeta" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                           <span className="pgMono">id:{a.id}</span>
                           <button
