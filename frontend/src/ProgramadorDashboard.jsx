@@ -3552,6 +3552,25 @@ async function exportarPDF() {
     }
   }
 
+  async function excluirArquivoCancelado(item) {
+    if (readOnly || !item?.arquivo_id) return;
+
+    const nome = item.arquivo_nome || `arquivo ${item.arquivo_id}`;
+    if (!window.confirm(`Excluir o arquivo cancelado "${nome}" do sistema?`)) return;
+
+    setErr("");
+    setMsg("");
+
+    try {
+      await api.delete(`/arquivos/${item.arquivo_id}`);
+      setMsg(`Arquivo cancelado excluido: ${nome}.`);
+      await Promise.all([fetchHistoricoAll(), fetchMaterialHistory()]);
+      setLastUpdate(new Date().toISOString());
+    } catch (e) {
+      setErr(getErrMsg(e));
+    }
+  }
+
   const bigCheckStyle = { width: 22, height: 22, cursor: readOnly ? "not-allowed" : "pointer" };
 
   function getDragType(dt) {
@@ -3637,6 +3656,7 @@ async function exportarPDF() {
 
     return (historicoAll || [])
       .filter((h) => U(h.status) === "CANCELADO")
+      .filter((h) => U(h.arquivo_status) !== "EXCLUIDO")
       .filter((h) => !semMaterialItemIds.has(Number(h.fila_item_id || h.id)))
       .slice(0, 80);
   }, [historicoAll, materialHistory]);
@@ -4428,7 +4448,19 @@ const limparLista = (lista) =>
                           {" | "}
                           {h.operador_nome || h.operador || "-"}
                         </div>
-                        <div className="rowMeta">{fmtDate(h.finalizado_em || h.criado_em)}</div>
+                        <div className="rowMeta pgFileLogMetaActions">
+                          <span>{fmtDate(h.finalizado_em || h.criado_em)}</span>
+                          <button
+                            type="button"
+                            className="pgDangerMiniBtn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              excluirArquivoCancelado(h);
+                            }}
+                          >
+                            Excluir
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))

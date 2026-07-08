@@ -110,3 +110,119 @@
   border-color:rgba(47,55,125,.08);
 }
 .pgFileLogRow:hover{ background:rgba(47,55,125,.045); }
+.pgFileLogMetaActions{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+.pgDangerMiniBtn{
+  min-height:26px;
+  padding:4px 8px;
+  border-radius:8px;
+  border:1px solid rgba(239,68,68,.26);
+  background:rgba(239,68,68,.10);
+  color:#b91c1c;
+  font-size:11px;
+  font-weight:800;
+  cursor:pointer;
+}
+.pgDangerMiniBtn:hover{
+  background:rgba(239,68,68,.18);
+  border-color:rgba(239,68,68,.42);
+}
+
+.pgThemeDark{
+  --bg0:#0b1020;
+  --bg1:#111827;
+  --bg2:#182033;
+  --card:rgba(17,24,39,.88);
+  --card2:rgba(15,23,42,.84);
+  --stroke:rgba(148,163,184,.22);
+  --stroke2:rgba(148,163,184,.34);
+  --text:#e5edf8;
+  --muted:#a7b4ca;
+  --muted2:#8390a8;
+  --shadow:0 22px 55px rgba(0,0,0,.36);
+  --shadow-soft:0 12px 32px rgba(0,0,0,.28);
+  color:var(--text);
+  background:
+    radial-gradient(900px 500px at 15% 15%, rgba(96,165,250,.12), transparent 60%),
+    radial-gradient(900px 500px at 85% 85%, rgba(45,212,191,.10), transparent 60%),
+    linear-gradient(180deg, var(--bg2), var(--bg0) 48%, var(--bg1));
+}
+.pgThemeDark .pgSidebar,
+.pgThemeDark .pgMain,
+.pgThemeDark .pgTopNav,
+.pgThemeDark .pgPanel,
+.pgThemeDark .pgMaint,
+.pgThemeDark .pgCard,
+.pgThemeDark .pgQueuePanel,
+.pgThemeDark .pgQueueBox,
+.pgThemeDark .pgQueueListWrap,
+.pgThemeDark .poolRow,
+.pgThemeDark .pgRow{
+  background:var(--card);
+  border-color:var(--stroke);
+  color:var(--text);
+  box-shadow:var(--shadow);
+}
+.pgThemeDark .pgTitle,
+.pgThemeDark .pgBrandTitle,
+.pgThemeDark .pgPanelTitle,
+.pgThemeDark .pgMaintTitle,
+.pgThemeDark .pgCardName,
+.pgThemeDark .rowTitle,
+.pgThemeDark .pgQueueNameText{
+  color:var(--text);
+}
+.pgThemeDark .pgTiny,
+.pgThemeDark .pgBrandSub,
+.pgThemeDark .pgMaintSub,
+.pgThemeDark .rowMeta,
+.pgThemeDark .pgCardHint,
+.pgThemeDark .pgQueueMetaLine{
+  color:var(--muted);
+}
+.pgThemeDark .pgMono{ color:#dbeafe; }
+.pgThemeDark .pgTopNavItem,
+.pgThemeDark .pgFileTab,
+.pgThemeDark .pgThemeMiniBtn,
+.pgThemeDark .pgBtn,
+.pgThemeDark .pgInput{
+  background:rgba(15,23,42,.72);
+  color:var(--text);
+  border-color:var(--stroke);
+}
+.pgThemeDark .pgTopNavItem:hover,
+.pgThemeDark .pgFileTab:hover,
+.pgThemeDark .pgThemeMiniBtn:hover,
+.pgThemeDark .pgBtn:hover{
+  background:rgba(30,41,59,.88);
+  border-color:var(--stroke2);
+}
+.pgThemeDark .pgTopNavItem.active,
+.pgThemeDark .pgFileTab.active{
+  background:#33408f;
+  color:#fff;
+  border-color:#5361c3;
+}
+.pgThemeDark .pgFileTab span,
+.pgThemeDark .pgPoolCount{
+  background:rgba(96,165,250,.16);
+  color:#dbeafe;
+  border-color:rgba(96,165,250,.22);
+}
+.pgThemeDark .pgDrop{
+  background:rgba(15,23,42,.58);
+  border-color:rgba(148,163,184,.34);
+}
+.pgThemeDark .pgFileLogRow{
+  background:rgba(15,23,42,.62);
+  border-color:var(--stroke);
+}
+.pgThemeDark .pgDangerMiniBtn{
+  background:rgba(239,68,68,.18);
+  border-color:rgba(248,113,113,.32);
+  color:#fecaca;
+}
