@@ -226,3 +226,94 @@
   border-color:rgba(248,113,113,.32);
   color:#fecaca;
 }
+.pgThemeDark .pgCard{
+  background:linear-gradient(180deg, rgba(15,23,42,.94), rgba(17,24,39,.90)) !important;
+  border-color:rgba(148,163,184,.24) !important;
+  color:var(--text) !important;
+}
+.pgThemeDark .pgCard.active{
+  border-color:rgba(96,165,250,.40) !important;
+  box-shadow:0 0 0 3px rgba(96,165,250,.12), var(--shadow) !important;
+}
+.pgThemeDark .pgCardBox,
+.pgThemeDark .pgQueueBox,
+.pgThemeDark .pgQueueItem,
+.pgThemeDark .pgCardQueueItem{
+  background:rgba(30,41,59,.86) !important;
+  border-color:rgba(148,163,184,.24) !important;
+  color:var(--text) !important;
+  box-shadow:none !important;
+}
+.pgThemeDark .pgCardId,
+.pgThemeDark .pgCardTimer,
+.pgThemeDark .pgPanelTitle,
+.pgThemeDark .pgPoolTitle{
+  color:#93c5fd !important;
+}
+.pgThemeDark .pgCardBoxValue,
+.pgThemeDark .pgQueueBoxValue,
+.pgThemeDark .pgQueueNameText,
+.pgThemeDark .pgCardQueueName{
+  color:#f8fafc !important;
+}
+.pgThemeDark .pgCardBoxLabel,
+.pgThemeDark .pgQueueBoxLabel,
+.pgThemeDark .pgCardName{
+  color:#bfdbfe !important;
+}
+.pgThemeDark .pgMaintCard{
+  color:#f8fafc !important;
+}
+.pgThemeDark .pgMaintCardEmp{
+  border-color:rgba(244,63,94,.62) !important;
+  background:linear-gradient(135deg, rgba(127,29,29,.92), rgba(76,29,49,.88)) !important;
+  box-shadow:0 0 0 2px rgba(244,63,94,.18), 0 14px 28px rgba(0,0,0,.30) !important;
+}
+.pgThemeDark .pgMaintCardMan{
+  border-color:rgba(168,85,247,.62) !important;
+  background:linear-gradient(135deg, rgba(76,29,149,.88), rgba(49,46,129,.86)) !important;
+  box-shadow:0 0 0 2px rgba(168,85,247,.18), 0 14px 28px rgba(0,0,0,.30) !important;
+}
+.pgThemeDark .pgMaintCardUsi{
+  border-color:rgba(16,185,129,.52) !important;
+  background:linear-gradient(135deg, rgba(6,78,59,.90), rgba(20,83,45,.84)) !important;
+  box-shadow:0 0 0 2px rgba(16,185,129,.16), 0 14px 28px rgba(0,0,0,.30) !important;
+}
+.pgThemeDark .pgMaintCardDefault{
+  background:rgba(15,23,42,.88) !important;
+}
+.pgThemeDark .pgMaintCardEmp .pgTone{
+  color:#fecdd3 !important;
+  border-color:rgba(251,113,133,.42) !important;
+  background:rgba(244,63,94,.22) !important;
+}
+.pgThemeDark .pgMaintCardMan .pgTone{
+  color:#e9d5ff !important;
+  border-color:rgba(196,181,253,.42) !important;
+  background:rgba(147,51,234,.24) !important;
+}
+.pgThemeDark .pgMaintCardUsi .pgTone{
+  color:#bbf7d0 !important;
+  border-color:rgba(74,222,128,.38) !important;
+  background:rgba(16,185,129,.20) !important;
+}
+.pgThemeDark .tone-green{
+  color:#bbf7d0 !important;
+  border-color:rgba(74,222,128,.38) !important;
+  background:rgba(16,185,129,.20) !important;
+}
+.pgThemeDark .tone-amber{
+  color:#fde68a !important;
+  border-color:rgba(251,191,36,.42) !important;
+  background:rgba(245,158,11,.20) !important;
+}
+.pgThemeDark .tone-purple{
+  color:#e9d5ff !important;
+  border-color:rgba(196,181,253,.42) !important;
+  background:rgba(147,51,234,.22) !important;
+}
+.pgThemeDark .tone-red{
+  color:#fecdd3 !important;
+  border-color:rgba(251,113,133,.42) !important;
+  background:rgba(244,63,94,.22) !important;
+}
