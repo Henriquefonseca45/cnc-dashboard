@@ -2407,11 +2407,11 @@ async function exportarPDF() {
     setPool(r.data || []);
   }
 
-  async function fetchHistoricoAll() {
+  async function fetchHistoricoAll(maquinasBase = maquinas) {
     setHistLoading(true);
     setErr("");
     try {
-      const ids = (maquinas || []).filter(isProductionMachine).map((m) => m.id);
+      const ids = (maquinasBase || []).filter(isProductionMachine).map((m) => m.id);
       if (ids.length === 0) {
         setHistoricoAll([]);
         return;
@@ -2793,7 +2793,11 @@ async function exportarPDF() {
       }
 
       if (!readOnly) {
-        await fetchPool();
+        await Promise.all([
+          fetchPool(),
+          fetchHistoricoAll(list),
+          fetchMaterialHistory(),
+        ]);
       } else {
         setPool([]);
       }
@@ -4389,11 +4393,14 @@ const limparLista = (lista) =>
                         </div>
                         {filaNoteLabel ? (
                           <div className={`pgPoolNotice ${filaNoteType === "SEM_MATERIAL" ? "semMaterial" : "cancelado"}`}>
-                            <div className="pgPoolNoticeTitle">{filaNoteLabel}</div>
-                            <div className="pgPoolNoticeText">
-                              {a.fila_observacao || "Arquivo retornou para a fila geral."}
+                            <div className="pgPoolNoticeIcon" aria-hidden="true">i</div>
+                            <div className="pgPoolNoticeBody">
+                              <div className="pgPoolNoticeTitle">{filaNoteLabel}</div>
+                              <div className="pgPoolNoticeText">
+                                {a.fila_observacao || "Arquivo retornou para a fila geral."}
+                              </div>
+                              {filaNoteDetail ? <div className="pgPoolNoticeMeta">{filaNoteDetail}</div> : null}
                             </div>
-                            {filaNoteDetail ? <div className="pgPoolNoticeMeta">{filaNoteDetail}</div> : null}
                           </div>
                         ) : null}
                         <div className="rowMeta" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
