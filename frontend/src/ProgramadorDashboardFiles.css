@@ -317,3 +317,76 @@
   border-color:rgba(251,113,133,.42) !important;
   background:rgba(244,63,94,.22) !important;
 }
+.pgThemeDark .pgChatHeaderCard,
+.pgThemeDark .pgChatPanel{
+  background:rgba(15,23,42,.90) !important;
+  border-color:rgba(148,163,184,.24) !important;
+  color:var(--text) !important;
+  box-shadow:var(--shadow) !important;
+}
+.pgThemeDark .pgChatHeaderTitle,
+.pgThemeDark .pgChatEmptyTitle{
+  color:#dbeafe !important;
+}
+.pgThemeDark .pgChatHeaderSub,
+.pgThemeDark .pgChatEmptySub,
+.pgThemeDark .pgChatEmpty,
+.pgThemeDark .pgChatMeta{
+  color:#a7b4ca !important;
+}
+.pgThemeDark .pgChatMachinesBar{
+  color:var(--text);
+}
+.pgThemeDark .pgChatMachineTab{
+  background:rgba(30,41,59,.88) !important;
+  border-color:rgba(148,163,184,.26) !important;
+  color:#e5edf8 !important;
+  box-shadow:0 10px 24px rgba(0,0,0,.22) !important;
+}
+.pgThemeDark .pgChatMachineTab:hover{
+  background:rgba(51,65,85,.92) !important;
+  border-color:rgba(147,197,253,.38) !important;
+}
+.pgThemeDark .pgChatMachineTab.active{
+  background:linear-gradient(180deg, #33408f 0%, #273273 100%) !important;
+  border-color:#5361c3 !important;
+  color:#fff !important;
+}
+.pgThemeDark .pgChatList{
+  background:linear-gradient(180deg, rgba(2,6,23,.96), rgba(15,23,42,.94)) !important;
+  border-color:rgba(148,163,184,.24) !important;
+}
+.pgThemeDark .pgChatBubble{
+  border-color:rgba(148,163,184,.26) !important;
+  box-shadow:0 10px 22px rgba(0,0,0,.24) !important;
+}
+.pgThemeDark .pgChatBubble.mine{
+  background:linear-gradient(180deg, rgba(51,64,143,.92), rgba(39,50,115,.88)) !important;
+}
+.pgThemeDark .pgChatBubble.other{
+  background:rgba(30,41,59,.92) !important;
+}
+.pgThemeDark .pgChatText{
+  color:#f8fafc !important;
+}
+.pgThemeDark .pgChatInput,
+.pgThemeDark .pgChatAttachBtn,
+.pgThemeDark .pgChatRemoveAttachmentBtn{
+  background:rgba(15,23,42,.92) !important;
+  border-color:rgba(148,163,184,.28) !important;
+  color:#e5edf8 !important;
+}
+.pgThemeDark .pgChatInput::placeholder{
+  color:#8390a8 !important;
+}
+.pgThemeDark .pgChatAttachmentPreview{
+  background:rgba(30,41,59,.88) !important;
+  border-color:rgba(148,163,184,.26) !important;
+}
+.pgThemeDark .pgChatAttachmentName,
+.pgThemeDark .pgChatAttachmentName span{
+  color:#a7b4ca !important;
+}
+.pgThemeDark .pgChatAttachmentName strong{
+  color:#f8fafc !important;
+}
