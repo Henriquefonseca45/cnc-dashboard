@@ -169,6 +169,19 @@ class QueueAuditTests(unittest.TestCase):
         self.assertTrue(data)
         self.assertEqual(data[0]["cnc_id"], "CNC01")
 
+    def test_consultar_dados_desatualizados_filters_only_true(self):
+        original = main._assistant_list_cncs
+        try:
+            main._assistant_list_cncs = lambda: [
+                {"id": "CNC01", "dados_desatualizados": True},
+                {"id": "CNC02", "dados_desatualizados": False},
+                {"id": "CNC03", "dados_desatualizados": None},
+            ]
+            data = main.consultar_dados_desatualizados()
+            self.assertEqual([row["id"] for row in data], ["CNC01"])
+        finally:
+            main._assistant_list_cncs = original
+
 
 if __name__ == "__main__":
     unittest.main()

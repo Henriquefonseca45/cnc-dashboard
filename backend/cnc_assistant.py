@@ -99,8 +99,6 @@ def parse_datetime(value: str | None) -> datetime | None:
                 parsed = None
         if parsed is None:
             return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
     return parsed
 
 
@@ -108,10 +106,17 @@ def readable_duration_since(value: str | None, now: datetime | None = None) -> s
     start = parse_datetime(value)
     if not start:
         return "nao informado"
-    reference = now or datetime.now(start.tzinfo or timezone.utc)
-    if reference.tzinfo is None:
-        reference = reference.replace(tzinfo=start.tzinfo or timezone.utc)
-    seconds = max(0, int((reference.astimezone(start.tzinfo) - start).total_seconds()))
+    if start.tzinfo is None:
+        reference = now or datetime.now()
+        if reference.tzinfo is not None:
+            reference = reference.astimezone().replace(tzinfo=None)
+    else:
+        reference = now or datetime.now(start.tzinfo)
+        if reference.tzinfo is None:
+            reference = reference.replace(tzinfo=start.tzinfo)
+        else:
+            reference = reference.astimezone(start.tzinfo)
+    seconds = max(0, int((reference - start).total_seconds()))
     minutes = seconds // 60
     if minutes < 60:
         return f"{minutes}min"
@@ -132,10 +137,17 @@ def stale_status(value: str | None, now: datetime | None = None) -> bool | None:
     updated = parse_datetime(value)
     if not updated:
         return None
-    reference = now or datetime.now(updated.tzinfo or timezone.utc)
-    if reference.tzinfo is None:
-        reference = reference.replace(tzinfo=updated.tzinfo or timezone.utc)
-    return (reference.astimezone(updated.tzinfo) - updated).total_seconds() > STALE_AFTER_SECONDS
+    if updated.tzinfo is None:
+        reference = now or datetime.now()
+        if reference.tzinfo is not None:
+            reference = reference.astimezone().replace(tzinfo=None)
+    else:
+        reference = now or datetime.now(updated.tzinfo)
+        if reference.tzinfo is None:
+            reference = reference.replace(tzinfo=updated.tzinfo)
+        else:
+            reference = reference.astimezone(updated.tzinfo)
+    return (reference - updated).total_seconds() > STALE_AFTER_SECONDS
 
 
 def normalize_machine(row: dict, arquivo_atual: str | None = None, ultima_comunicacao: str | None = None) -> NormalizedCnc:
