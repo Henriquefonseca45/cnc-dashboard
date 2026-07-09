@@ -11,8 +11,9 @@ import sqlite3
 import json
 import re
 import unicodedata
+import time
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request, Header
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -24,6 +25,13 @@ from openpyxl import Workbook
 from backend.db import get_conn
 from backend.config_maquinas import MAQUINAS
 from backend.audit import log_action
+from backend.cnc_assistant import (
+    TEST_MACHINE_IDS,
+    build_response,
+    detect_intent,
+    find_cnc_id,
+    normalize_machine,
+)
 
 # =========================
 # APP
@@ -33,7 +41,7 @@ BASE_DIR = Path(__file__).resolve().parent  # .../cnc-dashboard/backend
 FRONT_DIST = BASE_DIR.parent / "frontend" / "dist"
 FRONT_ASSETS = FRONT_DIST / "assets"
 TEST_MACHINE_ID = "CNC_TESTE"
-TEST_MACHINE_IDS = {TEST_MACHINE_ID}
+ASSISTANT_RATE_BUCKET: dict[str, list[float]] = {}
 
 # =========================
 # UI (Painel + Dashboard + Agente + Visual)
@@ -214,6 +222,17 @@ class TempoEstimadoIn(BaseModel):
 
 class OperadorPayload(BaseModel):
     nome: str
+
+
+class AssistantChatRequest(BaseModel):
+    mensagem: str
+
+
+class AssistantChatResponse(BaseModel):
+    resposta: str
+    ferramentas: list[str]
+    ultima_atualizacao: str | None = None
+    dados_desatualizados: bool = False
 
 
 # =========================
@@ -1981,6 +2000,236 @@ def admin_invalidar_status_apontamento(apontamento_id: int, body: InvalidarApont
     conn.commit()
     conn.close()
     return {"ok": True, "message": "Apontamento invalidado com sucesso."}
+
+
+def _assistant_require_auth(
+    request: Request,
+    authorization: str | None = Header(default=None),
+    x_user_id: str | None = Header(default=None),
+    x_user_name: str | None = Header(default=None),
+    x_user_role: str | None = Header(default=None),
+):
+    expected_token = (os.getenv("CNC_ASSISTANT_TOKEN") or os.getenv("ASSISTANT_API_TOKEN") or "").strip()
+    bearer = ""
+    if authorization and authorization.lower().startswith("bearer "):
+        bearer = authorization.split(" ", 1)[1].strip()
+    if expected_token and bearer == expected_token:
+        return {"id": x_user_id, "nome": x_user_name or "token", "role": x_user_role or "API"}
+    if x_user_id or x_user_name or x_user_role:
+        return {"id": x_user_id, "nome": x_user_name or x_user_id or x_user_role, "role": x_user_role or "OPERADOR"}
+    raise HTTPException(status_code=401, detail="Autenticacao obrigatoria para consultar o assistente CNC.")
+
+
+def _assistant_rate_limit(request: Request, user: dict):
+    limit = max(1, int(os.getenv("CNC_ASSISTANT_RATE_LIMIT_PER_MINUTE", "20") or "20"))
+    client_host = request.client.host if request.client else "anon"
+    key = str(user.get("id") or user.get("nome") or client_host)
+    now = time.time()
+    bucket = [stamp for stamp in ASSISTANT_RATE_BUCKET.get(key, []) if now - stamp < 60]
+    if len(bucket) >= limit:
+        raise HTTPException(status_code=429, detail="Muitas perguntas em pouco tempo. Aguarde um instante e tente novamente.")
+    bucket.append(now)
+    ASSISTANT_RATE_BUCKET[key] = bucket
+
+
+def _cnc_current_file(conn, maquina_id: str) -> str | None:
+    try:
+        row = conn.execute(
+            """
+            SELECT a.nome AS arquivo_nome
+            FROM fila_itens fi
+            JOIN arquivos_dxf a ON a.id = fi.arquivo_id
+            WHERE fi.maquina_id = ?
+              AND UPPER(COALESCE(fi.status, '')) = 'EM_EXECUCAO'
+            ORDER BY fi.started_em DESC, fi.id DESC
+            LIMIT 1
+            """,
+            (maquina_id,),
+        ).fetchone()
+        return row["arquivo_nome"] if row else None
+    except Exception:
+        return None
+
+
+def _cnc_last_update(conn, maquina_id: str, status_desde: str | None) -> str | None:
+    values = [status_desde]
+    try:
+        row = conn.execute(
+            """
+            SELECT MAX(COALESCE(criado_em, inicio_em)) AS ultima
+            FROM maquina_status_log
+            WHERE maquina_id = ?
+            """,
+            (maquina_id,),
+        ).fetchone()
+        if row and row["ultima"]:
+            values.append(row["ultima"])
+    except Exception:
+        pass
+    try:
+        row = conn.execute(
+            """
+            SELECT MAX(COALESCE(fi.finalizado_em, fi.started_em, fi.criado_em)) AS ultima
+            FROM fila_itens fi
+            WHERE fi.maquina_id = ?
+            """,
+            (maquina_id,),
+        ).fetchone()
+        if row and row["ultima"]:
+            values.append(row["ultima"])
+    except Exception:
+        pass
+    clean = [str(v) for v in values if v]
+    return max(clean) if clean else None
+
+
+def _assistant_list_cncs() -> list[dict]:
+    conn = get_conn()
+    _ensure_maquinas_cols(conn)
+    rows = conn.execute(
+        """
+        SELECT id, nome, status, status_desde, operador_nome
+        FROM maquinas
+        ORDER BY id
+        """
+    ).fetchall()
+    machines = []
+    for row in rows:
+        raw = dict(row)
+        machine_id = str(raw.get("id") or "").upper().strip()
+        if machine_id in TEST_MACHINE_IDS:
+            continue
+        machine = normalize_machine(
+            raw,
+            arquivo_atual=_cnc_current_file(conn, machine_id),
+            ultima_atualizacao=_cnc_last_update(conn, machine_id, raw.get("status_desde")),
+        )
+        machines.append(machine.as_dict())
+    conn.close()
+    return machines
+
+
+def consultar_status_geral() -> list[dict]:
+    return _assistant_list_cncs()
+
+
+def consultar_status_cnc(cnc_id: str) -> dict | None:
+    cnc = str(cnc_id or "").upper().strip()
+    return next((m for m in _assistant_list_cncs() if m["id"] == cnc), None)
+
+
+def consultar_cncs_usinando() -> list[dict]:
+    return [m for m in _assistant_list_cncs() if m["status"] == "usinando"]
+
+
+def consultar_cncs_paradas() -> list[dict]:
+    stopped = {"parada_nao_programada", "parada_programada", "desligada", "sem_comunicacao"}
+    return [m for m in _assistant_list_cncs() if m["status"] in stopped]
+
+
+def consultar_cncs_em_manutencao() -> list[dict]:
+    return [m for m in _assistant_list_cncs() if m["status"] == "manutencao"]
+
+
+def consultar_dados_desatualizados() -> list[dict]:
+    return [m for m in _assistant_list_cncs() if m.get("dados_desatualizados")]
+
+
+def consultar_arquivo_atual(cnc_id: str) -> str | None:
+    machine = consultar_status_cnc(cnc_id)
+    return machine.get("arquivo_atual") if machine else None
+
+
+def _assistant_latest_update(machines: list[dict]) -> str | None:
+    updates = [m.get("ultima_atualizacao") for m in machines if m.get("ultima_atualizacao")]
+    return max(updates) if updates else None
+
+
+@app.get("/api/cncs/status")
+def api_cncs_status(_user: dict = Depends(_assistant_require_auth)):
+    return {"maquinas": consultar_status_geral(), "somente_leitura": True}
+
+
+@app.get("/api/cncs/paradas")
+def api_cncs_paradas(_user: dict = Depends(_assistant_require_auth)):
+    return {"maquinas": consultar_cncs_paradas(), "somente_leitura": True}
+
+
+@app.get("/api/cncs/manutencoes")
+def api_cncs_manutencoes(_user: dict = Depends(_assistant_require_auth)):
+    return {"maquinas": consultar_cncs_em_manutencao(), "somente_leitura": True}
+
+
+@app.get("/api/cncs/desatualizadas")
+def api_cncs_desatualizadas(_user: dict = Depends(_assistant_require_auth)):
+    return {"maquinas": consultar_dados_desatualizados(), "somente_leitura": True}
+
+
+@app.get("/api/cncs/{cnc_id}")
+def api_cnc_status(cnc_id: str, _user: dict = Depends(_assistant_require_auth)):
+    machine = consultar_status_cnc(cnc_id)
+    if not machine:
+        raise HTTPException(status_code=404, detail="Maquina nao encontrada.")
+    return {"maquina": machine, "somente_leitura": True}
+
+
+@app.post("/api/assistant/chat", response_model=AssistantChatResponse)
+def api_assistant_chat(req: AssistantChatRequest, request: Request, user: dict = Depends(_assistant_require_auth)):
+    _assistant_rate_limit(request, user)
+    mensagem = (req.mensagem or "").strip()
+    if not mensagem:
+        raise HTTPException(status_code=400, detail="Mensagem obrigatoria.")
+    if len(mensagem) > 500:
+        raise HTTPException(status_code=413, detail="Mensagem muito longa. Limite de 500 caracteres.")
+
+    blocked = ("ligue", "desligue", "pare a maquina", "interrompa", "altere", "mova", "execute", "revele", "token", "senha")
+    if any(term in mensagem.lower() for term in blocked):
+        resposta = "Posso apenas consultar dados das CNCs. Nao executo comandos, nao altero status e nao revelo configuracoes internas."
+        log_action(None, "ASSISTANT_CHAT_BLOCKED", extra=json.dumps({"usuario": user, "pergunta": mensagem}, ensure_ascii=False))
+        return AssistantChatResponse(resposta=resposta, ferramentas=[], ultima_atualizacao=None, dados_desatualizados=False)
+
+    try:
+        intent, cnc_id = detect_intent(mensagem)
+        tools = []
+        if intent == "cnc":
+            tools.append("consultar_status_cnc")
+        elif intent == "arquivo":
+            tools.append("consultar_arquivo_atual")
+        elif intent == "usinando":
+            tools.append("consultar_cncs_usinando")
+        elif intent == "paradas":
+            tools.append("consultar_cncs_paradas")
+        elif intent == "manutencao":
+            tools.append("consultar_cncs_em_manutencao")
+        elif intent == "desatualizadas":
+            tools.append("consultar_dados_desatualizados")
+        else:
+            tools.append("consultar_status_geral")
+
+        machines = consultar_status_geral()
+        if intent in {"cnc", "arquivo"} and not cnc_id:
+            cnc_id = find_cnc_id(mensagem)
+        resposta = build_response(intent, machines, cnc_id)
+        latest = _assistant_latest_update(machines)
+        stale = any(m.get("dados_desatualizados") for m in machines)
+        log_action(
+            None,
+            "ASSISTANT_CHAT",
+            extra=json.dumps(
+                {"usuario": user, "pergunta": mensagem, "ferramentas": tools},
+                ensure_ascii=False,
+            ),
+        )
+        return AssistantChatResponse(resposta=resposta, ferramentas=tools, ultima_atualizacao=latest, dados_desatualizados=stale)
+    except HTTPException:
+        raise
+    except Exception:
+        return AssistantChatResponse(
+            resposta="Nao foi possivel consultar as maquinas neste momento.",
+            ferramentas=[],
+            ultima_atualizacao=None,
+            dados_desatualizados=False,
+        )
 
 
 @app.get("/maquinas")

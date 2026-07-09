@@ -3654,25 +3654,63 @@ async function exportarPDF() {
   }, [materialHistory, materialHistFrom, materialHistTo, materialHistSearch]);
 
   const arquivosCanceladosOperador = useMemo(() => {
-    const semMaterialItemIds = new Set(
-      (materialHistory || [])
-        .filter((req) => U(req.status) === "CANCELADA_SEM_MATERIAL")
-        .map((req) => Number(req.item_id))
+    const base = (historicoAll || [])
+      .filter((h) => U(h.status) === "CANCELADO")
+      .filter((h) => U(h.arquivo_status) !== "EXCLUIDO");
+
+    const existingArquivoIds = new Set(
+      base
+        .map((h) => Number(h.arquivo_id))
         .filter(Boolean)
     );
 
-    return (historicoAll || [])
-      .filter((h) => U(h.status) === "CANCELADO")
-      .filter((h) => U(h.arquivo_status) !== "EXCLUIDO")
-      .filter((h) => !semMaterialItemIds.has(Number(h.fila_item_id || h.id)))
+    const retornadosCancelados = (pool || [])
+      .filter((a) => U(a.fila_observacao_tipo) === "CANCELADO")
+      .filter((a) => !existingArquivoIds.has(Number(a.id)))
+      .map((a) => ({
+        id: `retornado-${a.id}`,
+        arquivo_id: a.id,
+        arquivo_nome: a.arquivo_nome || a.nome,
+        _maquina_id: a.fila_observacao_maquina || "-",
+        operador_nome: a.fila_observacao_operador || "-",
+        finalizado_em: a.fila_observacao_em,
+        criado_em: a.fila_observacao_em || a.criado_em,
+        status: "CANCELADO",
+        arquivo_status: a.status,
+      }));
+
+    return [...retornadosCancelados, ...base]
       .slice(0, 80);
-  }, [historicoAll, materialHistory]);
+  }, [historicoAll, pool]);
 
   const arquivosSemMaterial = useMemo(() => {
-    return (materialHistory || [])
-      .filter((req) => U(req.status) === "CANCELADA_SEM_MATERIAL")
+    const base = (materialHistory || [])
+      .filter((req) => U(req.status) === "CANCELADA_SEM_MATERIAL");
+
+    const existingArquivoIds = new Set(
+      base
+        .map((req) => Number(req.arquivo_id))
+        .filter(Boolean)
+    );
+
+    const retornadosSemMaterial = (pool || [])
+      .filter((a) => U(a.fila_observacao_tipo) === "SEM_MATERIAL")
+      .filter((a) => !existingArquivoIds.has(Number(a.id)))
+      .map((a) => ({
+        id: `retornado-sem-material-${a.id}`,
+        arquivo_id: a.id,
+        arquivo_nome: a.arquivo_nome || a.nome,
+        maquina_id: a.fila_observacao_maquina || "-",
+        material: "materia-prima",
+        status: "CANCELADA_SEM_MATERIAL",
+        cancelado_em: a.fila_observacao_em,
+        atualizado_em: a.fila_observacao_em || a.criado_em,
+        motivo_cancelamento: "SEM MATERIAL",
+      }));
+
+    return [...retornadosSemMaterial, ...base]
       .slice(0, 80);
-  }, [materialHistory]);
+  }, [materialHistory, pool]);
 
   const arquivosRetornadosParaNovos = useMemo(() => {
     return (pool || [])
