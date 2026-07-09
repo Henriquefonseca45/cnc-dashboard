@@ -53,7 +53,8 @@
 .adminStatusHeader button,
 .adminStatusSearch,
 .adminStatusInvalidate,
-.adminStatusModalActions button {
+.adminStatusModalActions button,
+.adminStatusTabs button {
   min-height: 40px;
   border-radius: 13px;
   border: 1px solid rgba(47, 55, 125, 0.12);
@@ -66,6 +67,30 @@
   justify-content: center;
   gap: 8px;
   padding: 0 14px;
+}
+
+.adminStatusTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 6px;
+  width: fit-content;
+  border-radius: 16px;
+  border: 1px solid rgba(47, 55, 125, 0.1);
+  background: #f8fafc;
+}
+
+.adminStatusTabs button {
+  min-height: 36px;
+  border-radius: 12px;
+  background: transparent;
+}
+
+.adminStatusTabs button.active {
+  color: #fff;
+  background: #38327c;
+  border-color: #38327c;
 }
 
 .adminStatusFilters {
@@ -142,6 +167,10 @@
   min-width: 1280px;
   border-collapse: collapse;
   background: #fff;
+}
+
+.adminStatusTable.audit {
+  min-width: 860px;
 }
 
 .adminStatusTable th,

@@ -156,6 +156,20 @@ CREATE TABLE IF NOT EXISTS chat_mensagens (
     )
     """)
 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS cnc_queue_audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cnc_id TEXT NOT NULL,
+        arquivo_id INTEGER,
+        arquivo_nome TEXT,
+        acao TEXT NOT NULL DEFAULT 'REORDENAR_FILA',
+        posicao_anterior INTEGER,
+        posicao_nova INTEGER,
+        ip_origem TEXT,
+        criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    )
+    """)
+
     maquinas = [
         ("CNC01", "CNC 01"),
         ("CNC02", "CNC 02"),

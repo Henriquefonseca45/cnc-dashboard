@@ -26,6 +26,7 @@ function fmtDuration(sec) {
 }
 
 export default function AdminStatusApontamentos() {
+  const [activeTab, setActiveTab] = useState("apontamentos");
   const [filters, setFilters] = useState({
     data_inicio: "",
     data_fim: "",
@@ -41,6 +42,14 @@ export default function AdminStatusApontamentos() {
   const [modalRow, setModalRow] = useState(null);
   const [motivo, setMotivo] = useState("");
   const [saving, setSaving] = useState(false);
+  const [auditFilters, setAuditFilters] = useState({
+    cnc: "CNC01",
+    data_inicio: "",
+    data_fim: "",
+    ip: "",
+  });
+  const [auditRows, setAuditRows] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   const headers = useMemo(() => ({
     "x-user-role": "ADMIN",
@@ -49,6 +58,10 @@ export default function AdminStatusApontamentos() {
 
   function setFilter(key, value) {
     setFilters((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function setAuditFilter(key, value) {
+    setAuditFilters((prev) => ({ ...prev, [key]: value }));
   }
 
   async function loadRows() {
@@ -69,6 +82,34 @@ export default function AdminStatusApontamentos() {
     }
   }
 
+  async function loadAuditRows() {
+    const cncList = auditFilters.cnc
+      ? [auditFilters.cnc]
+      : CNC_IDS.filter((id) => id && id !== "CNC_TESTE");
+
+    setAuditLoading(true);
+    setError("");
+    try {
+      const params = { limit: 100 };
+      if (auditFilters.data_inicio) params.data_inicio = auditFilters.data_inicio;
+      if (auditFilters.data_fim) params.data_fim = auditFilters.data_fim;
+      if (auditFilters.ip) params.ip = auditFilters.ip;
+
+      const responses = await Promise.all(
+        cncList.map((cnc) => http.get(`/api/cncs/${cnc}/queue-audit`, { params, headers })),
+      );
+      const merged = responses
+        .flatMap((res) => (Array.isArray(res.data) ? res.data : []))
+        .sort((a, b) => String(b.criado_em || "").localeCompare(String(a.criado_em || "")));
+      setAuditRows(merged);
+    } catch (err) {
+      setError(getErrMsg(err));
+      setAuditRows([]);
+    } finally {
+      setAuditLoading(false);
+    }
+  }
+
   useEffect(() => {
     loadRows();
   }, []);
@@ -83,7 +124,7 @@ export default function AdminStatusApontamentos() {
   async function confirmInvalidar() {
     const clean = String(motivo || "").trim();
     if (!clean) {
-      setError("Informe o motivo da invalidação.");
+      setError("Informe o motivo da invalidacao.");
       return;
     }
     if (!modalRow?.id || saving) return;
@@ -94,7 +135,7 @@ export default function AdminStatusApontamentos() {
       await http.post(
         `/api/admin/status-apontamentos/${modalRow.id}/invalidar`,
         { motivo: clean },
-        { headers }
+        { headers },
       );
       setSuccess("Apontamento invalidado com sucesso.");
       setModalRow(null);
@@ -112,114 +153,195 @@ export default function AdminStatusApontamentos() {
       <section className="adminStatusShell">
         <header className="adminStatusHeader">
           <div>
-            <p>Administração</p>
+            <p>Administracao</p>
             <h1>Apontamentos de Status</h1>
-            <span>Visualize e invalide apontamentos incorretos sem apagar o histórico.</span>
+            <span>Visualize, invalide apontamentos e acompanhe rastreamentos da fila.</span>
           </div>
-          <button onClick={loadRows} disabled={loading}>
+          <button onClick={activeTab === "rastreamento" ? loadAuditRows : loadRows} disabled={loading || auditLoading}>
             <RefreshCw size={16} />
-            {loading ? "Atualizando..." : "Atualizar"}
+            {loading || auditLoading ? "Atualizando..." : "Atualizar"}
           </button>
         </header>
 
-        <div className="adminStatusFilters">
-          <label>
-            Data inicial
-            <input type="date" value={filters.data_inicio} onChange={(e) => setFilter("data_inicio", e.target.value)} />
-          </label>
-          <label>
-            Data final
-            <input type="date" value={filters.data_fim} onChange={(e) => setFilter("data_fim", e.target.value)} />
-          </label>
-          <label>
-            CNC
-            <select value={filters.cnc} onChange={(e) => setFilter("cnc", e.target.value)}>
-              {CNC_IDS.map((id) => <option key={id || "todas"} value={id}>{id || "Todas"}</option>)}
-            </select>
-          </label>
-          <label>
-            Operador
-            <input value={filters.operador} onChange={(e) => setFilter("operador", e.target.value)} placeholder="Nome do operador" />
-          </label>
-          <label>
-            Status
-            <input value={filters.status} onChange={(e) => setFilter("status", e.target.value)} placeholder="Ex.: SETUP" />
-          </label>
-          <label>
-            Situação
-            <select value={filters.situacao} onChange={(e) => setFilter("situacao", e.target.value)}>
-              <option value="todos">Todos</option>
-              <option value="validos">Válidos</option>
-              <option value="invalidados">Invalidados</option>
-            </select>
-          </label>
-          <button className="adminStatusSearch" onClick={loadRows} disabled={loading}>
-            <Search size={16} />
-            Filtrar
+        <div className="adminStatusTabs">
+          <button className={activeTab === "apontamentos" ? "active" : ""} onClick={() => setActiveTab("apontamentos")}>
+            Apontamentos
+          </button>
+          <button
+            className={activeTab === "rastreamento" ? "active" : ""}
+            onClick={() => {
+              setActiveTab("rastreamento");
+              if (auditRows.length === 0) loadAuditRows();
+            }}
+          >
+            Rastreamento
           </button>
         </div>
 
         {error ? <div className="adminStatusAlert error">{error}</div> : null}
         {success ? <div className="adminStatusAlert success">{success}</div> : null}
 
-        <div className="adminStatusTableWrap">
-          <table className="adminStatusTable">
-            <thead>
-              <tr>
-                <th>CNC</th>
-                <th>Operador</th>
-                <th>Status</th>
-                <th>Início</th>
-                <th>Fim</th>
-                <th>Duração</th>
-                <th>Observação</th>
-                <th>Situação</th>
-                <th>Motivo invalidação</th>
-                <th>Invalidado por</th>
-                <th>Invalidado em</th>
-                <th>Ação</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={12} className="adminStatusEmpty">
-                    {loading ? "Carregando apontamentos..." : "Nenhum apontamento encontrado."}
-                  </td>
-                </tr>
-              ) : (
-                rows.map((row) => (
-                  <tr key={row.id} className={row.invalidado ? "invalidated" : ""}>
-                    <td>{row.cnc || "-"}</td>
-                    <td>{row.operador || "-"}</td>
-                    <td><strong>{row.status || "-"}</strong></td>
-                    <td>{fmtDate(row.inicio_em)}</td>
-                    <td>{fmtDate(row.fim_em)}</td>
-                    <td>{fmtDuration(row.duracao_seg)}</td>
-                    <td>{row.observacao || "-"}</td>
-                    <td>
-                      <span className={`adminStatusBadge ${row.invalidado ? "bad" : "ok"}`}>
-                        {row.invalidado ? "Invalidado" : "Válido"}
-                      </span>
-                    </td>
-                    <td>{row.motivo_invalidacao || "-"}</td>
-                    <td>{row.invalidado_por || "-"}</td>
-                    <td>{fmtDate(row.invalidado_em)}</td>
-                    <td>
-                      {row.invalidado ? (
-                        <span className="adminStatusMuted">Invalidado</span>
-                      ) : (
-                        <button className="adminStatusInvalidate" onClick={() => openInvalidar(row)}>
-                          Invalidar
-                        </button>
-                      )}
-                    </td>
+        {activeTab === "apontamentos" ? (
+          <>
+            <div className="adminStatusFilters">
+              <label>
+                Data inicial
+                <input type="date" value={filters.data_inicio} onChange={(e) => setFilter("data_inicio", e.target.value)} />
+              </label>
+              <label>
+                Data final
+                <input type="date" value={filters.data_fim} onChange={(e) => setFilter("data_fim", e.target.value)} />
+              </label>
+              <label>
+                CNC
+                <select value={filters.cnc} onChange={(e) => setFilter("cnc", e.target.value)}>
+                  {CNC_IDS.map((id) => <option key={id || "todas"} value={id}>{id || "Todas"}</option>)}
+                </select>
+              </label>
+              <label>
+                Operador
+                <input value={filters.operador} onChange={(e) => setFilter("operador", e.target.value)} placeholder="Nome do operador" />
+              </label>
+              <label>
+                Status
+                <input value={filters.status} onChange={(e) => setFilter("status", e.target.value)} placeholder="Ex.: SETUP" />
+              </label>
+              <label>
+                Situacao
+                <select value={filters.situacao} onChange={(e) => setFilter("situacao", e.target.value)}>
+                  <option value="todos">Todos</option>
+                  <option value="validos">Validos</option>
+                  <option value="invalidados">Invalidados</option>
+                </select>
+              </label>
+              <button className="adminStatusSearch" onClick={loadRows} disabled={loading}>
+                <Search size={16} />
+                Filtrar
+              </button>
+            </div>
+
+            <div className="adminStatusTableWrap">
+              <table className="adminStatusTable">
+                <thead>
+                  <tr>
+                    <th>CNC</th>
+                    <th>Operador</th>
+                    <th>Status</th>
+                    <th>Inicio</th>
+                    <th>Fim</th>
+                    <th>Duracao</th>
+                    <th>Observacao</th>
+                    <th>Situacao</th>
+                    <th>Motivo invalidacao</th>
+                    <th>Invalidado por</th>
+                    <th>Invalidado em</th>
+                    <th>Acao</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={12} className="adminStatusEmpty">
+                        {loading ? "Carregando apontamentos..." : "Nenhum apontamento encontrado."}
+                      </td>
+                    </tr>
+                  ) : (
+                    rows.map((row) => (
+                      <tr key={row.id} className={row.invalidado ? "invalidated" : ""}>
+                        <td>{row.cnc || "-"}</td>
+                        <td>{row.operador || "-"}</td>
+                        <td><strong>{row.status || "-"}</strong></td>
+                        <td>{fmtDate(row.inicio_em)}</td>
+                        <td>{fmtDate(row.fim_em)}</td>
+                        <td>{fmtDuration(row.duracao_seg)}</td>
+                        <td>{row.observacao || "-"}</td>
+                        <td>
+                          <span className={`adminStatusBadge ${row.invalidado ? "bad" : "ok"}`}>
+                            {row.invalidado ? "Invalidado" : "Valido"}
+                          </span>
+                        </td>
+                        <td>{row.motivo_invalidacao || "-"}</td>
+                        <td>{row.invalidado_por || "-"}</td>
+                        <td>{fmtDate(row.invalidado_em)}</td>
+                        <td>
+                          {row.invalidado ? (
+                            <span className="adminStatusMuted">Invalidado</span>
+                          ) : (
+                            <button className="adminStatusInvalidate" onClick={() => openInvalidar(row)}>
+                              Invalidar
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="adminStatusFilters">
+              <label>
+                CNC
+                <select value={auditFilters.cnc} onChange={(e) => setAuditFilter("cnc", e.target.value)}>
+                  {CNC_IDS.filter((id) => id !== "CNC_TESTE").map((id) => (
+                    <option key={id || "todas-audit"} value={id}>{id || "Todas"}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Data inicial
+                <input type="date" value={auditFilters.data_inicio} onChange={(e) => setAuditFilter("data_inicio", e.target.value)} />
+              </label>
+              <label>
+                Data final
+                <input type="date" value={auditFilters.data_fim} onChange={(e) => setAuditFilter("data_fim", e.target.value)} />
+              </label>
+              <label>
+                IP
+                <input value={auditFilters.ip} onChange={(e) => setAuditFilter("ip", e.target.value)} placeholder="Ex.: 192.168.1.35" />
+              </label>
+              <button className="adminStatusSearch" onClick={loadAuditRows} disabled={auditLoading}>
+                <Search size={16} />
+                Filtrar
+              </button>
+            </div>
+
+            <div className="adminStatusTableWrap">
+              <table className="adminStatusTable audit">
+                <thead>
+                  <tr>
+                    <th>Data e hora</th>
+                    <th>CNC</th>
+                    <th>Arquivo</th>
+                    <th>Movimentacao</th>
+                    <th>IP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="adminStatusEmpty">
+                        {auditLoading ? "Carregando rastreamento..." : "Nenhum registro de rastreamento encontrado."}
+                      </td>
+                    </tr>
+                  ) : (
+                    auditRows.map((row) => (
+                      <tr key={row.id}>
+                        <td>{fmtDate(row.criado_em)}</td>
+                        <td><strong>{row.cnc_id || "-"}</strong></td>
+                        <td>{row.arquivo_nome || row.arquivo_id || "-"}</td>
+                        <td>Posicao {row.posicao_anterior ?? "-"} -> {row.posicao_nova ?? "-"}</td>
+                        <td>{row.ip_origem || "-"}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </section>
 
       {modalRow ? (
@@ -231,19 +353,19 @@ export default function AdminStatusApontamentos() {
             <ShieldAlert size={34} className="adminStatusModalIcon" />
             <h2>Invalidar apontamento de status</h2>
             <p>
-              Tem certeza que deseja invalidar este apontamento? Ele não será apagado, apenas desconsiderado dos dashboards e relatórios.
+              Tem certeza que deseja invalidar este apontamento? Ele nao sera apagado, apenas desconsiderado dos dashboards e relatorios.
             </p>
             <div className="adminStatusModalSummary">
-              {modalRow.cnc} · {modalRow.status} · {fmtDate(modalRow.inicio_em)}
+              {modalRow.cnc} - {modalRow.status} - {fmtDate(modalRow.inicio_em)}
             </div>
             <label>
-              Motivo da invalidação
+              Motivo da invalidacao
               <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Explique o motivo..." />
             </label>
             <div className="adminStatusModalActions">
               <button onClick={() => setModalRow(null)} disabled={saving}>Cancelar</button>
               <button className="danger" onClick={confirmInvalidar} disabled={saving}>
-                {saving ? "Invalidando..." : "Confirmar invalidação"}
+                {saving ? "Invalidando..." : "Confirmar invalidacao"}
               </button>
             </div>
           </div>

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List
+import logging
 import shutil
 import os
 import platform
@@ -42,6 +43,7 @@ FRONT_DIST = BASE_DIR.parent / "frontend" / "dist"
 FRONT_ASSETS = FRONT_DIST / "assets"
 TEST_MACHINE_ID = "CNC_TESTE"
 ASSISTANT_RATE_BUCKET: dict[str, list[float]] = {}
+logger = logging.getLogger("cnc_dashboard")
 
 # =========================
 # UI (Painel + Dashboard + Agente + Visual)
@@ -248,6 +250,22 @@ def _fila_ativa_status_list():
 
 def _fila_finalizada_status_list():
     return ("CORTADO", "CANCELADO")
+
+
+def obter_ip_cliente(request: Request) -> str:
+    # Use X-Forwarded-For/X-Real-IP somente quando o sistema estiver atras de um proxy controlado pela empresa.
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+
+    if request.client:
+        return request.client.host
+
+    return "desconhecido"
 
 
 def _normalizar_nome_arquivo(nome: str | None) -> str:
@@ -1021,6 +1039,25 @@ def _ensure_chapa_movimentacao_log_table(conn):
         pass
 
 
+def _ensure_cnc_queue_audit_table(conn):
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cnc_queue_audit (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cnc_id TEXT NOT NULL,
+            arquivo_id INTEGER,
+            arquivo_nome TEXT,
+            acao TEXT NOT NULL DEFAULT 'REORDENAR_FILA',
+            posicao_anterior INTEGER,
+            posicao_nova INTEGER,
+            ip_origem TEXT,
+            criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        )
+        """
+    )
+
+
 def _get_operador_nome_for_machine(conn, maquina_id: str | None) -> str | None:
     _ensure_maquinas_cols(conn)
     mid = (maquina_id or "").upper().strip()
@@ -1108,6 +1145,43 @@ def _log_chapa_movimentacao(
     )
 
 
+def _log_cnc_queue_audit(
+    conn,
+    *,
+    cnc_id: str,
+    arquivo_id=None,
+    arquivo_nome=None,
+    posicao_anterior=None,
+    posicao_nova=None,
+    ip_origem=None,
+):
+    _ensure_cnc_queue_audit_table(conn)
+    conn.execute(
+        """
+        INSERT INTO cnc_queue_audit (
+            cnc_id,
+            arquivo_id,
+            arquivo_nome,
+            acao,
+            posicao_anterior,
+            posicao_nova,
+            ip_origem,
+            criado_em
+        )
+        VALUES (?, ?, ?, 'REORDENAR_FILA', ?, ?, ?, ?)
+        """,
+        (
+            cnc_id,
+            arquivo_id,
+            arquivo_nome,
+            posicao_anterior,
+            posicao_nova,
+            str(ip_origem or "desconhecido")[:45],
+            datetime.now().isoformat(timespec="seconds"),
+        ),
+    )
+
+
 # =========================
 # HELPERS: LOG DE STATUS / DASHBOARD
 # =========================
@@ -1144,6 +1218,23 @@ def _require_admin_or_supervisor(x_user_role: str | None = Header(default=None),
     if role not in {"ADMIN", "SUPERVISOR"}:
         raise HTTPException(status_code=403, detail="Acesso permitido somente para Admin ou Supervisor.")
     return (x_user_name or role).strip() or role
+
+
+def _require_queue_audit_viewer(x_user_role: str | None = Header(default=None), x_user_name: str | None = Header(default=None)):
+    role = (x_user_role or "").strip().upper()
+    if role not in {"ADMIN", "SUPERVISOR", "PROGRAMADOR"}:
+        raise HTTPException(status_code=403, detail="Acesso permitido somente para Admin, Supervisor ou Programador.")
+    return {"nome": (x_user_name or role).strip() or role, "role": role}
+
+
+def _normalize_cnc_audit_id(cnc_id: str) -> str:
+    raw = str(cnc_id or "").strip().upper()
+    if raw.isdigit():
+        return f"CNC{int(raw):02d}"
+    match = re.fullmatch(r"CNC\s*0?(\d{1,2})", raw)
+    if match:
+        return f"CNC{int(match.group(1)):02d}"
+    return raw
 
 
 def _infer_motivo_from_status(status: str) -> str | None:
@@ -2165,6 +2256,46 @@ def api_cncs_manutencoes(_user: dict = Depends(_assistant_require_auth)):
 @app.get("/api/cncs/desatualizadas")
 def api_cncs_desatualizadas(_user: dict = Depends(_assistant_require_auth)):
     return {"maquinas": consultar_dados_desatualizados(), "somente_leitura": True}
+
+
+@app.get("/api/cncs/{cnc_id}/queue-audit")
+def api_cnc_queue_audit(
+    cnc_id: str,
+    limit: int = Query(100, ge=1, le=500),
+    data_inicio: str | None = Query(default=None),
+    data_fim: str | None = Query(default=None),
+    ip: str | None = Query(default=None),
+    _user: dict = Depends(_require_queue_audit_viewer),
+):
+    mid = _normalize_cnc_audit_id(cnc_id)
+    conn = get_conn()
+    _ensure_cnc_queue_audit_table(conn)
+
+    where = ["cnc_id = ?"]
+    params: list = [mid]
+    if data_inicio:
+        where.append("criado_em >= ?")
+        params.append(data_inicio)
+    if data_fim:
+        where.append("criado_em <= ?")
+        params.append(data_fim)
+    if ip:
+        where.append("ip_origem = ?")
+        params.append(ip.strip())
+    params.append(limit)
+
+    rows = conn.execute(
+        f"""
+        SELECT id, cnc_id, arquivo_id, arquivo_nome, acao, posicao_anterior, posicao_nova, ip_origem, criado_em
+        FROM cnc_queue_audit
+        WHERE {" AND ".join(where)}
+        ORDER BY criado_em DESC, id DESC
+        LIMIT ?
+        """,
+        tuple(params),
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
 
 
 @app.get("/api/cncs/{cnc_id}")
@@ -3367,14 +3498,16 @@ def add_fila(maquina_id: str, req: AddFilaRequest):
 
 
 @app.post("/fila/{maquina_id}/reorder")
-def reorder_fila(maquina_id: str, req: ReorderFilaRequest):
+def reorder_fila(maquina_id: str, req: ReorderFilaRequest, request: Request):
     mid = (maquina_id or "").upper().strip()
     ids = req.ids()
     if not ids:
         raise HTTPException(status_code=400, detail="Lista de itens vazia (ordem/ordered_item_ids).")
 
+    ip_origem = obter_ip_cliente(request)
     conn = get_conn()
     _ensure_fila_itens_cols(conn)
+    _ensure_cnc_queue_audit_table(conn)
     cur = conn.cursor()
     cur.execute("BEGIN IMMEDIATE;")
 
@@ -3419,25 +3552,65 @@ def reorder_fila(maquina_id: str, req: ReorderFilaRequest):
             "UPDATE fila_itens SET posicao = ? WHERE id = ? AND maquina_id = ?",
             (i, item_id, mid),
         )
+
+    _reindex_fila(conn, mid)
+
+    after_rows = cur.execute(
+        f"""
+        SELECT fi.id, fi.arquivo_id, fi.posicao, fi.status, a.nome AS arquivo_nome
+        FROM fila_itens fi
+        LEFT JOIN arquivos_dxf a ON a.id = fi.arquivo_id
+        WHERE fi.maquina_id = ?
+          AND fi.status IN ({",".join(["?"] * len(allowed_status))})
+        ORDER BY fi.posicao ASC, fi.id ASC
+        """,
+        (mid, *allowed_status),
+    ).fetchall()
+    after_by_id = {int(r["id"]): dict(r) for r in after_rows}
+
+    for item_id, after in after_by_id.items():
         before = before_by_id.get(item_id) or {}
         old_pos = before.get("posicao")
-        if old_pos != i:
+        new_pos = after.get("posicao")
+        if old_pos != new_pos:
             _log_chapa_movimentacao(
                 conn,
                 "REORDENADO_NA_FILA",
                 fila_item_id=item_id,
-                arquivo_id=before.get("arquivo_id"),
-                arquivo_nome=before.get("arquivo_nome"),
+                arquivo_id=after.get("arquivo_id"),
+                arquivo_nome=after.get("arquivo_nome"),
                 maquina_origem=mid,
                 maquina_destino=mid,
                 posicao_origem=old_pos,
-                posicao_destino=i,
+                posicao_destino=new_pos,
                 status_origem=before.get("status"),
-                status_destino=before.get("status"),
+                status_destino=after.get("status"),
                 detalhe="Ordem da fila alterada.",
             )
-
-    _reindex_fila(conn, mid)
+            try:
+                _log_cnc_queue_audit(
+                    conn,
+                    cnc_id=mid,
+                    arquivo_id=after.get("arquivo_id"),
+                    arquivo_nome=after.get("arquivo_nome"),
+                    posicao_anterior=old_pos,
+                    posicao_nova=new_pos,
+                    ip_origem=ip_origem,
+                )
+            except Exception as exc:
+                conn.rollback()
+                conn.close()
+                raise HTTPException(status_code=500, detail=f"Falha ao registrar auditoria da reordenacao: {exc}")
+            logger.info(
+                "Fila CNC reorganizada",
+                extra={
+                    "cnc_id": mid,
+                    "arquivo_id": after.get("arquivo_id"),
+                    "posicao_anterior": old_pos,
+                    "posicao_nova": new_pos,
+                    "ip_origem": ip_origem,
+                },
+            )
 
     conn.commit()
     conn.close()
