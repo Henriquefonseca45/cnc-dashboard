@@ -9,6 +9,7 @@ const quickQuestions = [
   { label: "Maquinas usinando", message: "Quais maquinas estao usinando?", icon: Factory },
   { label: "Maquinas paradas", message: "Quais maquinas estao paradas?", icon: AlertTriangle },
   { label: "Em manutencao", message: "Tem alguma CNC em manutencao?", icon: Wrench },
+  { label: "Em setup", message: "Tem alguma CNC em setup?", icon: Wrench, tone: "setup" },
   { label: "Dados desatualizados", message: "Alguma maquina deixou de enviar dados?", icon: Clock },
 ];
 
@@ -35,6 +36,19 @@ function getErrorMessage(error) {
   if (status === 401) return "Acesso nao autenticado para consultar as CNCs.";
   if (status === 429) return "Muitas consultas em pouco tempo. Aguarde um instante.";
   return "Nao foi possivel consultar as maquinas.";
+}
+
+function renderAssistantText(message) {
+  const text = String(message.text || "");
+  if (message.role !== "assistant") return text;
+  return text.split(/\n{2,}/).map((block, index) => {
+    const isMachineBlock = /^CNC\d+/i.test(block.trim());
+    return (
+      <div key={`${message.id}-block-${index}`} className={isMachineBlock ? "assistantMachineBlock" : "assistantTextBlock"}>
+        {block}
+      </div>
+    );
+  });
 }
 
 export default function AssistenteCncPage() {
@@ -120,7 +134,7 @@ export default function AssistenteCncPage() {
         <div className="assistantMeta">
           <div>
             <Clock size={16} />
-            <span>Ultima atualizacao: {formatDate(lastUpdate)}</span>
+            <span>Ultima comunicacao: {formatDate(lastUpdate)}</span>
           </div>
           <div>
             <Bot size={16} />
@@ -132,7 +146,13 @@ export default function AssistenteCncPage() {
           {quickQuestions.map((item) => {
             const Icon = item.icon;
             return (
-              <button key={item.label} type="button" onClick={() => sendMessage(item.message)} disabled={loading}>
+              <button
+                key={item.label}
+                type="button"
+                className={item.tone || ""}
+                onClick={() => sendMessage(item.message)}
+                disabled={loading}
+              >
                 <Icon size={18} />
                 <span>{item.label}</span>
               </button>
@@ -143,7 +163,7 @@ export default function AssistenteCncPage() {
         <section className="assistantChat" ref={chatRef} aria-live="polite">
           {messages.map((message) => (
             <article key={message.id} className={`assistantBubble ${message.role} ${message.error ? "error" : ""}`}>
-              <div className="assistantBubbleText">{message.text}</div>
+              <div className="assistantBubbleText">{renderAssistantText(message)}</div>
               <time>{formatDate(message.at)}</time>
             </article>
           ))}

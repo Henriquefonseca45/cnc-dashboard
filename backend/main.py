@@ -491,6 +491,21 @@ def _ensure_maquinas_cols(conn):
         cur.execute("ALTER TABLE maquinas ADD COLUMN operador_nome TEXT")
     except Exception:
         pass
+    try:
+        cur.execute("ALTER TABLE maquinas ADD COLUMN ultima_comunicacao TEXT")
+    except Exception:
+        pass
+
+
+def _touch_maquina_comunicacao(conn, maquina_id: str, quando_iso: str | None = None):
+    _ensure_maquinas_cols(conn)
+    mid = str(maquina_id or "").upper().strip()
+    if not mid:
+        return
+    conn.execute(
+        "UPDATE maquinas SET ultima_comunicacao = ? WHERE id = ?",
+        (quando_iso or datetime.now().isoformat(timespec="seconds"), mid),
+    )
 
 
 def _ensure_test_maquina(conn):
@@ -2051,36 +2066,19 @@ def _cnc_current_file(conn, maquina_id: str) -> str | None:
         return None
 
 
-def _cnc_last_update(conn, maquina_id: str, status_desde: str | None) -> str | None:
-    values = [status_desde]
+def _cnc_last_communication(conn, maquina_id: str) -> str | None:
     try:
         row = conn.execute(
             """
-            SELECT MAX(COALESCE(criado_em, inicio_em)) AS ultima
-            FROM maquina_status_log
-            WHERE maquina_id = ?
+            SELECT ultima_comunicacao
+            FROM maquinas
+            WHERE id = ?
             """,
             (maquina_id,),
         ).fetchone()
-        if row and row["ultima"]:
-            values.append(row["ultima"])
+        return row["ultima_comunicacao"] if row else None
     except Exception:
-        pass
-    try:
-        row = conn.execute(
-            """
-            SELECT MAX(COALESCE(fi.finalizado_em, fi.started_em, fi.criado_em)) AS ultima
-            FROM fila_itens fi
-            WHERE fi.maquina_id = ?
-            """,
-            (maquina_id,),
-        ).fetchone()
-        if row and row["ultima"]:
-            values.append(row["ultima"])
-    except Exception:
-        pass
-    clean = [str(v) for v in values if v]
-    return max(clean) if clean else None
+        return None
 
 
 def _assistant_list_cncs() -> list[dict]:
@@ -2088,7 +2086,7 @@ def _assistant_list_cncs() -> list[dict]:
     _ensure_maquinas_cols(conn)
     rows = conn.execute(
         """
-        SELECT id, nome, status, status_desde, operador_nome
+        SELECT id, nome, status, status_desde, operador_nome, ultima_comunicacao
         FROM maquinas
         ORDER BY id
         """
@@ -2102,7 +2100,7 @@ def _assistant_list_cncs() -> list[dict]:
         machine = normalize_machine(
             raw,
             arquivo_atual=_cnc_current_file(conn, machine_id),
-            ultima_atualizacao=_cnc_last_update(conn, machine_id, raw.get("status_desde")),
+            ultima_comunicacao=_cnc_last_communication(conn, machine_id),
         )
         machines.append(machine.as_dict())
     conn.close()
@@ -2131,8 +2129,12 @@ def consultar_cncs_em_manutencao() -> list[dict]:
     return [m for m in _assistant_list_cncs() if m["status"] == "manutencao"]
 
 
+def consultar_cncs_em_setup() -> list[dict]:
+    return [m for m in _assistant_list_cncs() if m["status"] == "setup"]
+
+
 def consultar_dados_desatualizados() -> list[dict]:
-    return [m for m in _assistant_list_cncs() if m.get("dados_desatualizados")]
+    return [m for m in _assistant_list_cncs() if m.get("dados_desatualizados") is True]
 
 
 def consultar_arquivo_atual(cnc_id: str) -> str | None:
@@ -2141,7 +2143,7 @@ def consultar_arquivo_atual(cnc_id: str) -> str | None:
 
 
 def _assistant_latest_update(machines: list[dict]) -> str | None:
-    updates = [m.get("ultima_atualizacao") for m in machines if m.get("ultima_atualizacao")]
+    updates = [m.get("ultima_comunicacao") for m in machines if m.get("ultima_comunicacao")]
     return max(updates) if updates else None
 
 
@@ -2201,6 +2203,8 @@ def api_assistant_chat(req: AssistantChatRequest, request: Request, user: dict =
             tools.append("consultar_cncs_paradas")
         elif intent == "manutencao":
             tools.append("consultar_cncs_em_manutencao")
+        elif intent == "setup":
+            tools.append("consultar_cncs_em_setup")
         elif intent == "desatualizadas":
             tools.append("consultar_dados_desatualizados")
         else:
@@ -2211,7 +2215,7 @@ def api_assistant_chat(req: AssistantChatRequest, request: Request, user: dict =
             cnc_id = find_cnc_id(mensagem)
         resposta = build_response(intent, machines, cnc_id)
         latest = _assistant_latest_update(machines)
-        stale = any(m.get("dados_desatualizados") for m in machines)
+        stale = any(m.get("dados_desatualizados") is True for m in machines)
         log_action(
             None,
             "ASSISTANT_CHAT",
@@ -4088,6 +4092,7 @@ def set_status_fila_item(maquina_id: str, req: FilaStatusRequest):
 def agente_next(maquina_id: str):
     conn = get_conn()
     cur = conn.cursor()
+    _touch_maquina_comunicacao(conn, maquina_id)
 
     pendente = cur.execute(
         """
@@ -4104,6 +4109,7 @@ def agente_next(maquina_id: str):
     ).fetchone()
 
     if pendente:
+        conn.commit()
         conn.close()
         return {
             "maquina_id": maquina_id,
@@ -4121,6 +4127,7 @@ def agente_next(maquina_id: str):
 
     m = cur.execute("SELECT id FROM maquinas WHERE id = ?", (maquina_id,)).fetchone()
     if not m:
+        conn.rollback()
         conn.close()
         raise HTTPException(status_code=404, detail="Máquina não encontrada")
 
@@ -4139,6 +4146,7 @@ def agente_next(maquina_id: str):
     ).fetchone()
 
     if not row:
+        conn.commit()
         conn.close()
         return {"maquina_id": maquina_id, "pendente": False, "modo": "FILA"}
 
@@ -4183,6 +4191,7 @@ def agente_download_fila(maquina_id: str, fila_item_id: int):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("BEGIN IMMEDIATE;")
+    _touch_maquina_comunicacao(conn, maquina_id)
 
     row = cur.execute(
         """
@@ -4270,6 +4279,7 @@ def agente_download_fila(maquina_id: str, fila_item_id: int):
 def agente_preview_fila(maquina_id: str, fila_item_id: int):
     conn = get_conn()
     cur = conn.cursor()
+    _touch_maquina_comunicacao(conn, maquina_id)
 
     row = cur.execute(
         """
@@ -4282,6 +4292,7 @@ def agente_preview_fila(maquina_id: str, fila_item_id: int):
         (fila_item_id, maquina_id),
     ).fetchone()
 
+    conn.commit()
     conn.close()
 
     if not row:
@@ -4302,6 +4313,7 @@ def agente_preview_fila(maquina_id: str, fila_item_id: int):
 def agente_executar(maquina_id: str, fila_item_id: int):
     conn = get_conn()
     cur = conn.cursor()
+    _touch_maquina_comunicacao(conn, maquina_id)
 
     row = cur.execute(
         """
@@ -4356,6 +4368,7 @@ def agente_executar(maquina_id: str, fila_item_id: int):
 def agente_cortado(maquina_id: str, fila_item_id: int, req: CortadoRequest):
     conn = get_conn()
     cur = conn.cursor()
+    _touch_maquina_comunicacao(conn, maquina_id)
 
     row = cur.execute(
         """

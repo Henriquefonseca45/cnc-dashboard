@@ -107,7 +107,7 @@
 
 .assistantQuickGrid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
   padding: 10px;
   border-radius: 8px;
@@ -130,6 +130,17 @@
 .assistantQuickGrid button:hover:not(:disabled) {
   border-color: rgba(59, 130, 246, 0.7);
   background: rgba(30, 64, 175, 0.42);
+}
+
+.assistantQuickGrid button.setup {
+  border-color: rgba(34, 211, 238, 0.45);
+  background: rgba(8, 145, 178, 0.24);
+  color: #cffafe;
+}
+
+.assistantQuickGrid button.setup:hover:not(:disabled) {
+  border-color: rgba(103, 232, 249, 0.85);
+  background: rgba(14, 116, 144, 0.42);
 }
 
 .assistantQuickGrid button:disabled {
@@ -182,6 +193,20 @@
   white-space: pre-wrap;
   line-height: 1.5;
   font-weight: 650;
+}
+
+.assistantTextBlock + .assistantMachineBlock,
+.assistantMachineBlock + .assistantMachineBlock,
+.assistantMachineBlock + .assistantTextBlock {
+  margin-top: 10px;
+}
+
+.assistantMachineBlock {
+  padding: 10px 12px;
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  border-left: 3px solid #22d3ee;
+  border-radius: 8px;
+  background: rgba(8, 47, 73, 0.34);
 }
 
 .assistantBubble time {
