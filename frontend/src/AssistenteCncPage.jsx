@@ -1,7 +1,6 @@
 import React, { useMemo, useRef, useState } from "react";
 import { AlertTriangle, Bot, Clock, Factory, Loader2, Send, Wrench } from "lucide-react";
 import { http, API_URL } from "./http";
-import rvbLogo from "./assets/rvb-logo.png";
 import "./AssistenteCncPage.css";
 
 const quickQuestions = [
@@ -119,7 +118,6 @@ export default function AssistenteCncPage() {
       <section className="assistantShell">
         <header className="assistantHeader">
           <div className="assistantBrand">
-            <img src={rvbLogo} alt="RVB" />
             <div>
               <p>Assistente Virtual CNC RVB</p>
               <h1>Assistente CNC</h1>

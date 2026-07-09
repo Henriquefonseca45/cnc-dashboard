@@ -75,9 +75,8 @@ body::after{
   inset:0;
   pointer-events:none;
   z-index:0;
-  background:
-    url("/rvb-logo.png") no-repeat right 32px bottom 24px / 430px auto;
-  opacity:.10;
+  background:none;
+  opacity:0;
 }
 
 .pgShell,
@@ -3671,29 +3670,12 @@ body::after{
 .pgThemeLight input::placeholder {
   color: var(--muted2);
 }
-.pgBrandLogo{
-  width:56px;
-  height:56px;
-  object-fit:contain;
-  background:#fff;
-  border-radius:12px;
-  padding:6px;
-  box-shadow:0 4px 12px rgba(0,0,0,.08);
-  flex-shrink:0;
-}
-
 .pgTitleWrap{
   display:flex;
   align-items:center;
   gap:14px;
 }
 
-.pgTopLogo{
-  width:58px;
-  height:58px;
-  object-fit:contain;
-  flex-shrink:0;
-}
 .pdf-mode {
   overflow: visible !important;
 }
@@ -3719,12 +3701,6 @@ body::after{
   opacity: 1;
   cursor: pointer;
 }
-.pdf-export-mode .pgWatermark,
-.pdf-export-mode .pgBgLogo,
-.pdf-export-mode .pgDashboardWatermark {
-  display: none !important;
-}
-
 .pdf-export-mode * {
   box-shadow: none;
 }

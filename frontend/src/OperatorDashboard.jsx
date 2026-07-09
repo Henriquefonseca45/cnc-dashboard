@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { http } from "./http";
 import { useNavigate, useParams } from "react-router-dom";
-import rvbLogo from "./assets/rvb-logo.png";
 import { useAppTheme } from "./theme";
 import "./OperatorTheme.css";
 import {
@@ -653,12 +652,6 @@ function Topbar({ onRefresh, onToggleTheme, themeLabel }) {
     <div className="sticky top-0 z-20 border-b border-[rgba(47,55,125,.10)] bg-white/75 backdrop-blur">
       <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <img
-            src={rvbLogo}
-            alt="RVB"
-            className="w-12 h-12 object-contain rounded-xl bg-white p-1 border border-[rgba(47,55,125,.12)] shadow-sm"
-          />
-
           <div className="leading-tight">
             <div className="text-lg font-semibold text-[#2f377d]">Painel do Operador</div>
             <div className="text-xs text-slate-500">Controle CNC</div>

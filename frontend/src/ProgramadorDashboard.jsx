@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { api, getErrMsg, API_URL } from "./api";
 import "./ProgramadorDashboard.css";
 import "./ProgramadorDashboardFiles.css";
-import rvbLogo from "./assets/rvb-logo.png";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { ImagePlus } from "lucide-react";
@@ -2125,11 +2124,6 @@ async function exportarPDF() {
         // aplica modo de exportação
         clonedDoc.body.classList.add("pdf-export-mode");
 
-        // remove imagens decorativas / fundo / marca d'água
-        clonedDoc.querySelectorAll(".pgWatermark, .pgBgLogo, .pgDashboardWatermark").forEach((el) => {
-          el.remove();
-        });
-
         // remove background-image inline que possa quebrar o html2canvas
         clonedDoc.querySelectorAll("*").forEach((el) => {
           const style = clonedDoc.defaultView?.getComputedStyle(el);
@@ -2160,15 +2154,7 @@ async function exportarPDF() {
         });
       },
 
-      ignoreElements: (el) => {
-        if (!el) return false;
-
-        if (el.classList?.contains("pgWatermark")) return true;
-        if (el.classList?.contains("pgBgLogo")) return true;
-        if (el.classList?.contains("pgDashboardWatermark")) return true;
-
-        return false;
-      },
+      ignoreElements: () => false,
     });
 
     const imgData = canvas.toDataURL("image/png");
@@ -4388,11 +4374,6 @@ const limparLista = (lista) =>
       {!readOnly && (
         <aside className="pgSidebar">
      <div className="pgBrand">
-  <img
-    src={rvbLogo}
-    alt="RVB"
-    className="pgBrandLogo"
-  />
   <div>
     <div className="pgBrandTitle">CNC Monitor</div>
     <div className="pgBrandSub">Painel de Produção</div>
@@ -4618,14 +4599,6 @@ const limparLista = (lista) =>
  <div className="pgTopbar">
   <div>
     <div className="pgTitleWrap">
-      {readOnly && (
-        <img
-          src={rvbLogo}
-          alt="RVB"
-          className="pgTopLogo"
-        />
-      )}
-
       <div className="pgTitle">
         Painel de Produção
         {isFacilitador && (
