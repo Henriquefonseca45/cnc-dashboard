@@ -1,0 +1,292 @@
+.assistantPage {
+  min-height: 100vh;
+  background:
+    linear-gradient(120deg, rgba(15, 23, 42, 0.94), rgba(17, 24, 39, 0.9)),
+    radial-gradient(circle at 20% 0%, rgba(34, 197, 94, 0.18), transparent 34%),
+    #0b1120;
+  color: #e5e7eb;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 24px;
+}
+
+.assistantShell {
+  width: min(1120px, 100%);
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto auto;
+  gap: 14px;
+}
+
+.assistantHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 0 8px;
+}
+
+.assistantBrand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.assistantBrand img {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+}
+
+.assistantBrand p {
+  margin: 0 0 4px;
+  color: #93c5fd;
+  font-size: 0.88rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.assistantBrand h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 3.2rem);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.assistantStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.68);
+  border-radius: 8px;
+  color: #cbd5e1;
+  font-weight: 800;
+}
+
+.assistantStatus span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.14);
+}
+
+.assistantStatus.stale span {
+  background: #a855f7;
+  box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.16);
+}
+
+.assistantMeta,
+.assistantQuickGrid,
+.assistantChat,
+.assistantComposer {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.72);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
+}
+
+.assistantMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: 8px;
+}
+
+.assistantMeta div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #cbd5e1;
+  font-weight: 700;
+}
+
+.assistantQuickGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.assistantQuickGrid button {
+  min-height: 48px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(30, 41, 59, 0.82);
+  color: #f8fafc;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.assistantQuickGrid button:hover:not(:disabled) {
+  border-color: rgba(59, 130, 246, 0.7);
+  background: rgba(30, 64, 175, 0.42);
+}
+
+.assistantQuickGrid button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.assistantChat {
+  min-height: 360px;
+  max-height: calc(100vh - 330px);
+  overflow-y: auto;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.assistantBubble {
+  width: min(760px, 88%);
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.assistantBubble.assistant {
+  align-self: flex-start;
+  background: rgba(30, 41, 59, 0.9);
+}
+
+.assistantBubble.user {
+  align-self: flex-end;
+  background: rgba(21, 128, 61, 0.26);
+  border-color: rgba(34, 197, 94, 0.28);
+}
+
+.assistantBubble.error {
+  border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(127, 29, 29, 0.35);
+}
+
+.assistantBubble.loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #bfdbfe;
+}
+
+.assistantBubbleText {
+  white-space: pre-wrap;
+  line-height: 1.5;
+  font-weight: 650;
+}
+
+.assistantBubble time {
+  display: block;
+  margin-top: 7px;
+  color: #94a3b8;
+  font-size: 0.78rem;
+}
+
+.assistantSpin {
+  animation: assistantSpin 0.9s linear infinite;
+}
+
+.assistantComposer {
+  display: grid;
+  grid-template-columns: 1fr 52px;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.assistantComposer input {
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.68);
+  color: #f8fafc;
+  padding: 0 14px;
+  font-size: 1rem;
+  outline: none;
+}
+
+.assistantComposer input:focus {
+  border-color: rgba(59, 130, 246, 0.75);
+}
+
+.assistantComposer button {
+  width: 52px;
+  height: 52px;
+  border: 0;
+  border-radius: 8px;
+  background: #16a34a;
+  color: white;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.assistantComposer button:disabled {
+  background: #475569;
+  cursor: not-allowed;
+}
+
+.assistantApiHint {
+  color: #94a3b8;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+@keyframes assistantSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 860px) {
+  .assistantPage {
+    padding: 16px;
+  }
+
+  .assistantHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .assistantQuickGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .assistantChat {
+    max-height: none;
+    min-height: 420px;
+  }
+}
+
+@media (max-width: 520px) {
+  .assistantPage {
+    padding: 10px;
+  }
+
+  .assistantBrand img {
+    width: 46px;
+    height: 46px;
+  }
+
+  .assistantQuickGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .assistantBubble {
+    width: 100%;
+  }
+
+  .assistantMeta {
+    font-size: 0.9rem;
+  }
+}
