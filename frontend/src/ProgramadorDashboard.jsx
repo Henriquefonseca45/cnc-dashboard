@@ -2217,10 +2217,19 @@ function imprimirGrafico7() {
   ${styles}
   <style>
     @page { size: A4 landscape; margin: 10mm; }
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
     body { margin: 0; background: #fff; }
     .printGraph7Wrap { padding: 12px; }
     .printGraph7Wrap .pgDashChartCard { box-shadow: none !important; width: 100% !important; }
     .printGraph7Wrap .pgDashGanttActions { display: none !important; }
+    .printGraph7Wrap .pgDashGanttSegment {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
   </style>
 </head>
 <body class="${themeClass}">
