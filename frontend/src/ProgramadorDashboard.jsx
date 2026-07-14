@@ -1740,6 +1740,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   }, [isFacilitador]);
   const isVisual = readOnly && !isFacilitador;
   const dashboardRef = useRef(null);
+  const grafico7PrintRef = useRef(null);
   const [exportandoPdf, setExportandoPdf] = useState(false);
   const [exportandoExcel, setExportandoExcel] = useState(false);
 
@@ -2189,6 +2190,52 @@ async function exportarPDF() {
     document.body.classList.remove("pdf-export-mode");
     setExportandoPdf(false);
   }
+}
+
+function imprimirGrafico7() {
+  const element = grafico7PrintRef.current;
+  if (!element) {
+    alert("Grafico 7 nao encontrado para imprimir.");
+    return;
+  }
+
+  const printWindow = window.open("", "_blank", "width=1200,height=800");
+  if (!printWindow) {
+    alert("O navegador bloqueou a janela de impressao.");
+    return;
+  }
+
+  const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+    .map((node) => node.outerHTML)
+    .join("\n");
+  const themeClass = themeMode === "dark" ? "pgThemeDark" : "pgThemeLight";
+  const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Grafico 7 - Cronograma por CNC</title>
+  ${styles}
+  <style>
+    @page { size: A4 landscape; margin: 10mm; }
+    body { margin: 0; background: #fff; }
+    .printGraph7Wrap { padding: 12px; }
+    .printGraph7Wrap .pgDashChartCard { box-shadow: none !important; width: 100% !important; }
+    .printGraph7Wrap .pgDashGanttActions { display: none !important; }
+  </style>
+</head>
+<body class="${themeClass}">
+  <main class="printGraph7Wrap">${element.outerHTML}</main>
+  <script>
+    window.addEventListener("load", function () {
+      setTimeout(function () { window.print(); }, 150);
+    });
+  </script>
+</body>
+</html>`;
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
 }
 
   async function baixarArquivoPool(arquivo) {
@@ -5838,7 +5885,7 @@ const limparLista = (lista) =>
       </section>
 
       <section className="pgDashChartsRow pgDashChartsRowBottom">
-        <div className="pgDashChartCard pgDashGanttCard">
+        <div className="pgDashChartCard pgDashGanttCard" ref={grafico7PrintRef}>
           <div className="pgDashChartHeader">
             <div>
               <div className="pgDashChartTitle">
@@ -5861,6 +5908,14 @@ const limparLista = (lista) =>
                   ))}
                 </select>
               </label>
+
+              <button
+                type="button"
+                className="pgBtn pgBtnGhost"
+                onClick={imprimirGrafico7}
+              >
+                Imprimir
+              </button>
 
               <button
                 type="button"
