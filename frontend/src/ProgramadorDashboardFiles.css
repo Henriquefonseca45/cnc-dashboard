@@ -620,3 +620,56 @@
 .pgThemeDark .pgChatAttachmentName strong{
   color:#f8fafc !important;
 }
+
+/* Machine status cards: the whole card follows the current status color. */
+.pgThemeLight .pgCard.pgCardUsi,
+.pgCard.pgCardUsi{
+  background:linear-gradient(135deg, #bbf7d0 0%, #dcfce7 58%, #ecfdf5 100%) !important;
+  border-color:rgba(16,185,129,.72) !important;
+  box-shadow:0 0 0 3px rgba(16,185,129,.12), 0 16px 34px rgba(16,185,129,.16) !important;
+}
+.pgThemeLight .pgCard.pgCardMan,
+.pgCard.pgCardMan{
+  background:linear-gradient(135deg, #e9d5ff 0%, #f3e8ff 58%, #faf5ff 100%) !important;
+  border-color:rgba(147,51,234,.68) !important;
+  box-shadow:0 0 0 3px rgba(147,51,234,.12), 0 16px 34px rgba(147,51,234,.16) !important;
+}
+.pgThemeLight .pgCard.pgCardEmp,
+.pgCard.pgCardEmp{
+  background:linear-gradient(135deg, #fecdd3 0%, #ffe4e6 58%, #fff1f2 100%) !important;
+  border-color:rgba(244,63,94,.72) !important;
+  box-shadow:0 0 0 3px rgba(244,63,94,.12), 0 16px 34px rgba(244,63,94,.16) !important;
+}
+.pgThemeLight .pgCard.pgCardUsi .pgCardBox,
+.pgThemeLight .pgCard.pgCardUsi .pgCardQueue,
+.pgThemeLight .pgCard.pgCardMan .pgCardBox,
+.pgThemeLight .pgCard.pgCardMan .pgCardQueue,
+.pgThemeLight .pgCard.pgCardEmp .pgCardBox,
+.pgThemeLight .pgCard.pgCardEmp .pgCardQueue{
+  background:rgba(255,255,255,.58) !important;
+  border-color:rgba(47,55,125,.14) !important;
+}
+.pgThemeDark .pgCard.pgCardUsi{
+  background:linear-gradient(135deg, rgba(6,78,59,.94) 0%, rgba(20,83,45,.88) 62%, rgba(15,23,42,.92) 100%) !important;
+  border-color:rgba(16,185,129,.58) !important;
+  box-shadow:0 0 0 2px rgba(16,185,129,.16), 0 14px 28px rgba(0,0,0,.30) !important;
+}
+.pgThemeDark .pgCard.pgCardMan{
+  background:linear-gradient(135deg, rgba(76,29,149,.92) 0%, rgba(49,46,129,.88) 62%, rgba(15,23,42,.92) 100%) !important;
+  border-color:rgba(168,85,247,.64) !important;
+  box-shadow:0 0 0 2px rgba(168,85,247,.18), 0 14px 28px rgba(0,0,0,.30) !important;
+}
+.pgThemeDark .pgCard.pgCardEmp{
+  background:linear-gradient(135deg, rgba(127,29,29,.94) 0%, rgba(76,29,49,.90) 62%, rgba(15,23,42,.92) 100%) !important;
+  border-color:rgba(244,63,94,.66) !important;
+  box-shadow:0 0 0 2px rgba(244,63,94,.18), 0 14px 28px rgba(0,0,0,.30) !important;
+}
+.pgThemeDark .pgCard.pgCardUsi .pgCardBox,
+.pgThemeDark .pgCard.pgCardUsi .pgCardQueue,
+.pgThemeDark .pgCard.pgCardMan .pgCardBox,
+.pgThemeDark .pgCard.pgCardMan .pgCardQueue,
+.pgThemeDark .pgCard.pgCardEmp .pgCardBox,
+.pgThemeDark .pgCard.pgCardEmp .pgCardQueue{
+  background:rgba(15,23,42,.42) !important;
+  border-color:rgba(226,232,240,.22) !important;
+}
