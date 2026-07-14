@@ -1202,12 +1202,10 @@ const GANTT_STATUS_LEGEND = [
   { label: "Manutencao", color: statusTimelineColor("MANUTENCAO") },
   { label: "Aguardando empilhadeira", color: statusTimelineColor("AGUAR.EMPILHADEIRA") },
   { label: "Falta de operador", color: statusTimelineColor("FALTA OPERADOR") },
-  { label: "Programacao", color: statusTimelineColor("PROGRAMACAO") },
   { label: "Troca chapa sacrificio", color: statusTimelineColor("TROCA CHAPA SACRIFICIO") },
   { label: "Reuniao", color: statusTimelineColor("REUNIAO") },
   { label: "Refeicao", color: statusTimelineColor("REFEICAO") },
   { label: "Ociosa", color: statusTimelineColor("OCIOSA") },
-  { label: "Parada", color: statusTimelineColor("PARADA") },
 ];
 
 function isGanttHiddenStatus(status = "") {
