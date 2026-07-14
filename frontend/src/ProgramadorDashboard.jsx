@@ -1196,6 +1196,21 @@ function statusTimelineColor(status = "") {
   return colors[bucket] || colors.outros;
 }
 
+const GANTT_STATUS_LEGEND = [
+  { label: "Usinando", color: statusTimelineColor("USINANDO") },
+  { label: "Setup", color: statusTimelineColor("SETUP") },
+  { label: "Manutencao", color: statusTimelineColor("MANUTENCAO") },
+  { label: "Aguardando empilhadeira", color: statusTimelineColor("AGUAR.EMPILHADEIRA") },
+  { label: "Falta de operador", color: statusTimelineColor("FALTA OPERADOR") },
+  { label: "Programacao", color: statusTimelineColor("PROGRAMACAO") },
+  { label: "Troca chapa sacrificio", color: statusTimelineColor("TROCA CHAPA SACRIFICIO") },
+  { label: "Reuniao", color: statusTimelineColor("REUNIAO") },
+  { label: "Refeicao", color: statusTimelineColor("REFEICAO") },
+  { label: "Ociosa", color: statusTimelineColor("OCIOSA") },
+  { label: "Parada", color: statusTimelineColor("PARADA") },
+  { label: "Outros", color: statusTimelineColor("OUTROS") },
+];
+
 function isGanttHiddenStatus(status = "") {
   const raw = String(status || "").trim();
   const s = U(raw);
@@ -2226,6 +2241,18 @@ function imprimirGrafico7() {
     .printGraph7Wrap { padding: 12px; }
     .printGraph7Wrap .pgDashChartCard { box-shadow: none !important; width: 100% !important; }
     .printGraph7Wrap .pgDashGanttActions { display: none !important; }
+    .printGraph7Wrap .pgDashGanttLegend {
+      gap: 4px 8px !important;
+      margin: 2px 0 8px !important;
+      padding: 6px 8px !important;
+    }
+    .printGraph7Wrap .pgDashGanttLegendItem {
+      font-size: 8px !important;
+    }
+    .printGraph7Wrap .pgDashGanttLegendItem span {
+      width: 14px !important;
+      height: 8px !important;
+    }
     .printGraph7Wrap .pgDashGantt {
       max-height: none !important;
       overflow: visible !important;
@@ -5968,6 +5995,15 @@ const limparLista = (lista) =>
                 {dashboardLoading ? "Atualizando..." : "Atualizar status"}
               </button>
             </div>
+          </div>
+
+          <div className="pgDashGanttLegend" aria-label="Legenda de cores do cronograma">
+            {GANTT_STATUS_LEGEND.map((item) => (
+              <div key={item.label} className="pgDashGanttLegendItem">
+                <span style={{ background: item.color }} />
+                <strong>{item.label}</strong>
+              </div>
+            ))}
           </div>
 
           {dashboardLoading ? (
