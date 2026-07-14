@@ -2226,6 +2226,36 @@ function imprimirGrafico7() {
     .printGraph7Wrap { padding: 12px; }
     .printGraph7Wrap .pgDashChartCard { box-shadow: none !important; width: 100% !important; }
     .printGraph7Wrap .pgDashGanttActions { display: none !important; }
+    .printGraph7Wrap .pgDashGantt {
+      max-height: none !important;
+      overflow: visible !important;
+      gap: 4px !important;
+      padding-bottom: 0 !important;
+    }
+    .printGraph7Wrap .pgDashGanttScale {
+      position: static !important;
+      top: auto !important;
+    }
+    .printGraph7Wrap .pgDashGanttRow {
+      break-inside: avoid !important;
+      page-break-inside: avoid !important;
+    }
+    .printGraph7Wrap .pgDashGanttTrack {
+      height: 18px !important;
+    }
+    .printGraph7Wrap .pgDashGanttTimeline {
+      height: 18px !important;
+    }
+    .printGraph7Wrap .pgDashGanttTick {
+      height: 18px !important;
+      font-size: 8px !important;
+    }
+    .printGraph7Wrap .pgDashGanttDate strong {
+      font-size: 10px !important;
+    }
+    .printGraph7Wrap .pgDashGanttDate span {
+      font-size: 8px !important;
+    }
     .printGraph7Wrap .pgDashGanttSegment {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
