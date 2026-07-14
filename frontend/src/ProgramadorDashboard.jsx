@@ -1208,7 +1208,6 @@ const GANTT_STATUS_LEGEND = [
   { label: "Refeicao", color: statusTimelineColor("REFEICAO") },
   { label: "Ociosa", color: statusTimelineColor("OCIOSA") },
   { label: "Parada", color: statusTimelineColor("PARADA") },
-  { label: "Outros", color: statusTimelineColor("OUTROS") },
 ];
 
 function isGanttHiddenStatus(status = "") {
