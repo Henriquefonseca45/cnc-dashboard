@@ -3765,6 +3765,55 @@ body::after{
   grid-template-columns: minmax(120px, 170px) minmax(250px, 1fr) 76px !important;
 }
 
+.pdf-export-mode .pgDashPieLayout {
+  grid-template-columns: minmax(190px, 240px) minmax(380px, 1fr) !important;
+  gap: 16px !important;
+  align-items: center !important;
+}
+
+.pdf-export-mode .pgDashPieSvg,
+.pdf-export-mode .pgDashPieChartSvgBox {
+  width: 220px !important;
+  height: 220px !important;
+}
+
+.pdf-export-mode .pgDashPieLegend {
+  gap: 6px !important;
+}
+
+.pdf-export-mode .pgDashPieLegendRow {
+  grid-template-columns: minmax(185px, 230px) minmax(210px, 1fr) 62px !important;
+  gap: 8px !important;
+  min-height: 18px !important;
+  align-items: center !important;
+}
+
+.pdf-export-mode .pgDashPieLegendLeft,
+.pdf-export-mode .pgDashPieLegendLabel {
+  min-width: 0 !important;
+  overflow: visible !important;
+}
+
+.pdf-export-mode .pgDashPieLegendLabel {
+  white-space: normal !important;
+  text-overflow: clip !important;
+  line-height: 1.15 !important;
+  font-size: 11px !important;
+}
+
+.pdf-export-mode .pgDashPieLegendBar {
+  height: 10px !important;
+  background: #eef2f7 !important;
+  border-color: #d8e0ec !important;
+}
+
+.pdf-export-mode .pgDashPieLegendFill,
+.pdf-export-mode .pgDashPieLegendDot,
+.pdf-export-mode .pgDashPieSlice {
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
 .pdf-export-mode .pgDashBarName,
 .pdf-export-mode .pgDashReasonName {
   white-space: normal !important;
@@ -3824,6 +3873,55 @@ body::after{
 
   .pgDashSetupRow {
     grid-template-columns: minmax(120px, 170px) minmax(250px, 1fr) 76px !important;
+  }
+
+  .pgDashPieLayout {
+    grid-template-columns: minmax(190px, 240px) minmax(380px, 1fr) !important;
+    gap: 16px !important;
+    align-items: center !important;
+  }
+
+  .pgDashPieSvg,
+  .pgDashPieChartSvgBox {
+    width: 220px !important;
+    height: 220px !important;
+  }
+
+  .pgDashPieLegend {
+    gap: 6px !important;
+  }
+
+  .pgDashPieLegendRow {
+    grid-template-columns: minmax(185px, 230px) minmax(210px, 1fr) 62px !important;
+    gap: 8px !important;
+    min-height: 18px !important;
+    align-items: center !important;
+  }
+
+  .pgDashPieLegendLeft,
+  .pgDashPieLegendLabel {
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+
+  .pgDashPieLegendLabel {
+    white-space: normal !important;
+    text-overflow: clip !important;
+    line-height: 1.15 !important;
+    font-size: 11px !important;
+  }
+
+  .pgDashPieLegendBar {
+    height: 10px !important;
+    background: #eef2f7 !important;
+    border-color: #d8e0ec !important;
+  }
+
+  .pgDashPieLegendFill,
+  .pgDashPieLegendDot,
+  .pgDashPieSlice {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   .pgDashBarName,
