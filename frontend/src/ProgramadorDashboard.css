@@ -3713,6 +3713,128 @@ body::after{
 }
 
 /* ===== Gráfico 4 - Cronograma/Gantt por CNC ===== */
+.pdf-export-mode .pgDashIefBarFill,
+.pdf-export-mode .pgDashBarFill,
+.pdf-export-mode .pgDashReasonFill,
+.pdf-export-mode .pgDashPerfFill,
+.pdf-export-mode .pgDashSetupFill,
+.pdf-export-mode .pgDashMaterialFill {
+  background-image: none !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+.pdf-export-mode .pgDashIefBarFill {
+  background-color: #22c55e !important;
+}
+
+.pdf-export-mode .pgDashBarFill {
+  background-color: #4a6fff !important;
+}
+
+.pdf-export-mode .pgDashPerfFill {
+  background-color: #22c55e !important;
+}
+
+.pdf-export-mode .pgDashReasonFill {
+  background-color: #ff6b6b !important;
+}
+
+.pdf-export-mode .pgDashSetupFill {
+  background-color: #f97316 !important;
+}
+
+.pdf-export-mode .pgDashMaterialFill {
+  background-color: #ef4444 !important;
+}
+
+.pdf-export-mode .pgDashSetupRow.isTotal .pgDashSetupFill,
+.pdf-export-mode .pgDashSetupRow.isTotal .pgDashMaterialFill {
+  background-color: #4a6fff !important;
+}
+
+.pdf-export-mode .pgDashBarRow {
+  grid-template-columns: 118px minmax(260px, 1fr) 76px !important;
+}
+
+.pdf-export-mode .pgDashReasonRow {
+  grid-template-columns: minmax(165px, 230px) minmax(260px, 1fr) 82px !important;
+}
+
+.pdf-export-mode .pgDashSetupRow {
+  grid-template-columns: minmax(120px, 170px) minmax(250px, 1fr) 76px !important;
+}
+
+.pdf-export-mode .pgDashBarName,
+.pdf-export-mode .pgDashReasonName {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  line-height: 1.2 !important;
+}
+
+@media print {
+  .pgDashIefBarFill,
+  .pgDashBarFill,
+  .pgDashReasonFill,
+  .pgDashPerfFill,
+  .pgDashSetupFill,
+  .pgDashMaterialFill {
+    background-image: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .pgDashIefBarFill {
+    background-color: #22c55e !important;
+  }
+
+  .pgDashBarFill {
+    background-color: #4a6fff !important;
+  }
+
+  .pgDashPerfFill {
+    background-color: #22c55e !important;
+  }
+
+  .pgDashReasonFill {
+    background-color: #ff6b6b !important;
+  }
+
+  .pgDashSetupFill {
+    background-color: #f97316 !important;
+  }
+
+  .pgDashMaterialFill {
+    background-color: #ef4444 !important;
+  }
+
+  .pgDashSetupRow.isTotal .pgDashSetupFill,
+  .pgDashSetupRow.isTotal .pgDashMaterialFill {
+    background-color: #4a6fff !important;
+  }
+
+  .pgDashBarRow {
+    grid-template-columns: 118px minmax(260px, 1fr) 76px !important;
+  }
+
+  .pgDashReasonRow {
+    grid-template-columns: minmax(165px, 230px) minmax(260px, 1fr) 82px !important;
+  }
+
+  .pgDashSetupRow {
+    grid-template-columns: minmax(120px, 170px) minmax(250px, 1fr) 76px !important;
+  }
+
+  .pgDashBarName,
+  .pgDashReasonName {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 1.2 !important;
+  }
+}
+
 .pgDashGanttCard{
   grid-column:1 / -1;
   min-height:0;
