@@ -26,6 +26,13 @@ from openpyxl import Workbook
 from backend.db import get_conn
 from backend.config_maquinas import MAQUINAS
 from backend.audit import log_action
+from backend.maintenance import (
+    MaintenanceError,
+    change_machine_status,
+    ensure_maintenance_schema,
+    iso_now as maintenance_iso_now,
+    maintenance_row_to_dict,
+)
 from backend.cnc_assistant import (
     TEST_MACHINE_IDS,
     build_response,
@@ -124,6 +131,21 @@ SEGUNDOS_DIA_MAQUINA = MINUTOS_DIA_MAQUINA * 60
 class StatusRequest(BaseModel):
     status: str
     motivo: str | None = None
+    maintenance_type_id: int | None = None
+    work_order: str | None = None
+    opening_notes: str | None = None
+    closing_notes: str | None = None
+
+
+class MaintenanceStartRequest(BaseModel):
+    maintenance_type_id: int | None = None
+    work_order: str | None = None
+    opening_notes: str | None = None
+
+
+class MaintenanceFinishRequest(BaseModel):
+    new_status: str
+    closing_notes: str | None = None
 
 
 class AddFilaRequest(BaseModel):
@@ -1225,6 +1247,14 @@ def _require_queue_audit_viewer(x_user_role: str | None = Header(default=None), 
     if role not in {"ADMIN", "SUPERVISOR", "PROGRAMADOR"}:
         raise HTTPException(status_code=403, detail="Acesso permitido somente para Admin, Supervisor ou Programador.")
     return {"nome": (x_user_name or role).strip() or role, "role": role}
+
+
+def _maintenance_actor(
+    x_user_id: str | None = Header(default=None),
+    x_user_name: str | None = Header(default=None),
+    x_user_role: str | None = Header(default=None),
+):
+    return {"id": x_user_id, "name": x_user_name, "role": x_user_role}
 
 
 def _normalize_cnc_audit_id(cnc_id: str) -> str:
@@ -2425,8 +2455,7 @@ def set_operador_maquina(maquina_id: str, payload: OperadorPayload):
     return {"ok": True, "maquina": dict(row) if row else None}
 
 
-@app.post("/maquinas/{maquina_id}/status")
-def atualizar_status(maquina_id: str, req: StatusRequest):
+def _legacy_atualizar_status_desativado(maquina_id: str, req: StatusRequest):
     """
     Atualiza status da máquina:
     - grava histórico antigo (historico_status legado)
@@ -2564,6 +2593,190 @@ def atualizar_status(maquina_id: str, req: StatusRequest):
         "desde": agora_iso,
         "status_inalterado": False,
     }
+
+
+def _legacy_machine_status_hook(conn, machine: dict, novo_status: str, agora_iso: str):
+    """Preserva históricos, timers e snapshots na transação do use case central."""
+    maquina_id = machine["id"]
+    status_anterior = machine.get("status") or ""
+    inicio_anterior = machine.get("status_desde")
+    _ensure_fila_itens_cols(conn)
+    _ensure_maquina_status_log_table(conn)
+    _ensure_dashboard_snapshot_daily_table(conn)
+    _validate_usinagem_status_arquivo(conn, maquina_id, novo_status)
+    if inicio_anterior:
+        duracao = None
+        try:
+            duracao = int((datetime.fromisoformat(agora_iso) - datetime.fromisoformat(inicio_anterior)).total_seconds())
+        except Exception:
+            pass
+        conn.execute(
+            "INSERT INTO historico_status (maquina_id, status, inicio, fim, duracao_segundos) VALUES (?, ?, ?, ?, ?)",
+            (maquina_id, status_anterior, inicio_anterior, agora_iso, duracao),
+        )
+    was_usinando = _is_machine_usinando(status_anterior)
+    will_usinando = _is_machine_usinando(novo_status)
+    if was_usinando and not will_usinando:
+        _pausar_timer_itens_em_execucao(conn, maquina_id, agora_iso)
+    if not was_usinando and will_usinando:
+        _retomar_timer_itens_em_execucao(conn, maquina_id, agora_iso)
+    _close_open_status_log(conn, maquina_id, agora_iso)
+    _open_status_log(conn, maquina_id, novo_status, _infer_motivo_from_status(novo_status), agora_iso)
+    try:
+        start_date = datetime.fromisoformat(inicio_anterior).date() if inicio_anterior else datetime.now().date()
+        _save_dashboard_snapshots_range(conn, start_date, datetime.now().date())
+    except Exception:
+        pass
+
+
+def _run_status_change(maquina_id: str, status: str, actor: dict, **maintenance_data):
+    try:
+        return change_machine_status(
+            get_conn,
+            maquina_id,
+            status,
+            actor,
+            legacy_hook=_legacy_machine_status_hook,
+            **maintenance_data,
+        )
+    except MaintenanceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+
+@app.post("/maquinas/{maquina_id}/status")
+def atualizar_status(maquina_id: str, req: StatusRequest, actor: dict = Depends(_maintenance_actor)):
+    result = _run_status_change(
+        maquina_id,
+        req.status,
+        actor,
+        maintenance_type_id=req.maintenance_type_id,
+        work_order=req.work_order,
+        opening_notes=req.opening_notes,
+        closing_notes=req.closing_notes,
+    )
+    return {
+        **result,
+        "maquina_id": maquina_id,
+        "status": result["machine"]["status"],
+        "desde": result["machine"].get("status_desde"),
+        "status_inalterado": result["status_unchanged"],
+    }
+
+
+def _maintenance_select_base():
+    return """
+        SELECT c.*, t.name AS type_name, m.nome AS cnc_name
+        FROM cnc_maintenance_calls c
+        JOIN maintenance_types t ON t.id = c.maintenance_type_id
+        JOIN maquinas m ON m.id = c.cnc_id
+    """
+
+
+@app.get("/api/maintenance/types")
+def maintenance_types():
+    conn = get_conn()
+    try:
+        ensure_maintenance_schema(conn)
+        rows = conn.execute(
+            "SELECT id, name, active, display_order FROM maintenance_types WHERE active = 1 ORDER BY display_order, name"
+        ).fetchall()
+        conn.commit()
+        return [{"id": r["id"], "name": r["name"], "active": bool(r["active"]), "displayOrder": r["display_order"]} for r in rows]
+    finally:
+        conn.close()
+
+
+@app.get("/api/maintenance/active")
+def active_maintenance_calls():
+    conn = get_conn()
+    try:
+        ensure_maintenance_schema(conn)
+        rows = conn.execute(_maintenance_select_base() + " WHERE c.status = 'OPEN' ORDER BY c.started_at ASC, c.id ASC").fetchall()
+        conn.commit()
+        return {"serverNow": maintenance_iso_now(), "items": [maintenance_row_to_dict(r) for r in rows]}
+    finally:
+        conn.close()
+
+
+@app.get("/api/maintenance/history")
+def maintenance_history(
+    cnc_id: str | None = None,
+    maintenance_type_id: int | None = None,
+    work_order: str | None = None,
+    status: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    opened_by: str | None = None,
+    finished_by: str | None = None,
+    min_duration_seconds: int | None = None,
+    limit: int = Query(200, ge=1, le=1000),
+):
+    conn = get_conn()
+    try:
+        ensure_maintenance_schema(conn)
+        clauses, params = [], []
+        for clause, value in (
+            ("c.cnc_id = ?", cnc_id),
+            ("c.maintenance_type_id = ?", maintenance_type_id),
+            ("c.status = ?", status and status.upper()),
+            ("c.started_at >= ?", date_from),
+            ("c.started_at <= ?", date_to),
+            ("c.opened_by_name = ?", opened_by),
+            ("c.finished_by_name = ?", finished_by),
+        ):
+            if value not in (None, ""):
+                clauses.append(clause)
+                params.append(value)
+        if work_order:
+            clauses.append("c.work_order LIKE ?")
+            params.append(f"%{work_order.strip()}%")
+        if min_duration_seconds is not None:
+            clauses.append("c.duration_seconds >= ?")
+            params.append(min_duration_seconds)
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        rows = conn.execute(_maintenance_select_base() + where + " ORDER BY c.started_at DESC, c.id DESC LIMIT ?", (*params, limit)).fetchall()
+        conn.commit()
+        return {"serverNow": maintenance_iso_now(), "items": [maintenance_row_to_dict(r) for r in rows]}
+    finally:
+        conn.close()
+
+
+@app.get("/api/cncs/{cnc_id}/maintenance/active")
+def cnc_active_maintenance(cnc_id: str):
+    conn = get_conn()
+    try:
+        ensure_maintenance_schema(conn)
+        row = conn.execute(_maintenance_select_base() + " WHERE c.cnc_id = ? AND c.status = 'OPEN'", (cnc_id,)).fetchone()
+        conn.commit()
+        return {"serverNow": maintenance_iso_now(), "item": maintenance_row_to_dict(row) if row else None}
+    finally:
+        conn.close()
+
+
+@app.post("/api/cncs/{cnc_id}/maintenance/start")
+def start_maintenance(cnc_id: str, req: MaintenanceStartRequest, actor: dict = Depends(_maintenance_actor)):
+    return _run_status_change(
+        cnc_id,
+        "MANUTENÇÃO",
+        actor,
+        maintenance_type_id=req.maintenance_type_id,
+        work_order=req.work_order,
+        opening_notes=req.opening_notes,
+        require_new_maintenance_for_start=True,
+    )
+
+
+@app.post("/api/cncs/{cnc_id}/maintenance/finish")
+def finish_maintenance(cnc_id: str, req: MaintenanceFinishRequest, actor: dict = Depends(_maintenance_actor)):
+    if not req.new_status.strip() or "MANUT" in _normalize_match_text(req.new_status):
+        raise HTTPException(status_code=422, detail="O novo status deve encerrar a manutenção.")
+    return _run_status_change(
+        cnc_id,
+        req.new_status,
+        actor,
+        closing_notes=req.closing_notes,
+        require_open_maintenance_for_finish=True,
+    )
 
 
 # =========================

@@ -774,8 +774,14 @@ export default function OperatorDashboard() {
   const [statusMaquina, setStatusMaquina] = useState("OCIOSA");
   const [salvandoStatus, setSalvandoStatus] = useState(false);
   const [manutModalOpen, setManutModalOpen] = useState(false);
-  const [manutStatusPending, setManutStatusPending] = useState("");
   const [manutMotivo, setManutMotivo] = useState("");
+  const [maintenanceTypes, setMaintenanceTypes] = useState([]);
+  const [manutWorkOrder, setManutWorkOrder] = useState("");
+  const [manutOpeningNotes, setManutOpeningNotes] = useState("");
+  const [activeMaintenance, setActiveMaintenance] = useState(null);
+  const [finishModalOpen, setFinishModalOpen] = useState(false);
+  const [finishStatusPending, setFinishStatusPending] = useState("");
+  const [finishNotes, setFinishNotes] = useState("");
   const [manutError, setManutError] = useState("");
 
   const [operadorNome, setOperadorNome] = useState("");
@@ -1117,13 +1123,14 @@ export default function OperatorDashboard() {
   async function carregarTudo(silent = false) {
     if (!silent) setLoading(true);
     try {
-      const [mRes, fRes, hRes, matRes] = await Promise.all([
+      const [mRes, fRes, hRes, matRes, maintenanceRes] = await Promise.all([
         http.get("/maquinas"),
         http.get(`/fila/${cnc}`, { params: { include_done: true } }),
         http.get(`/historico/${cnc}`),
         http.get("/api/material/solicitacoes", {
           params: { maquina_id: cnc, status: "TODAS", limit: 100 },
         }).catch(() => ({ data: [] })),
+        http.get(`/api/cncs/${cnc}/maintenance/active`).catch(() => ({ data: { item: null } })),
       ]);
 
       const maquinasData = mRes.data || [];
@@ -1135,6 +1142,7 @@ export default function OperatorDashboard() {
       setFila(filaData);
       setHistorico(histData);
       setMaterialRequests(materialData);
+      setActiveMaintenance(maintenanceRes.data?.item || null);
 
       const atual = filaData.find(
         (x) => String(x.status || "").toUpperCase() === "EM_EXECUCAO"
@@ -1185,24 +1193,43 @@ export default function OperatorDashboard() {
 
   function fecharPopupManutencao() {
     setManutModalOpen(false);
-    setManutStatusPending("");
     setManutMotivo("");
+    setManutWorkOrder("");
+    setManutOpeningNotes("");
     setManutError("");
   }
 
-  function abrirPopupManutencao(novoStatus) {
-    setManutStatusPending(novoStatus);
+  async function abrirPopupManutencao() {
     setManutMotivo("");
+    setManutWorkOrder("");
+    setManutOpeningNotes("");
     setManutError("");
     setManutModalOpen(true);
+    try {
+      const response = await http.get("/api/maintenance/types");
+      setMaintenanceTypes(Array.isArray(response.data) ? response.data : []);
+    } catch {
+      setManutError("Não foi possível carregar os tipos de manutenção.");
+    }
   }
 
-  async function atualizarStatusMaquina(novo, motivo = "") {
-    const novoStatus = String(novo || "").trim();
-    const motivoStatus = String(motivo || "").trim();
+  function actorConfig() {
+    return { headers: { "X-User-Name": String(operadorNome || "").trim(), "X-User-Role": "OPERADOR" } };
+  }
 
-    if (isManutencaoStatus(novoStatus) && !motivoStatus) {
+  async function atualizarStatusMaquina(novo) {
+    const novoStatus = String(novo || "").trim();
+    const currentStatus = String(maquinaAtual?.status || statusMaquina || "");
+
+    if (isManutencaoStatus(novoStatus) && !isManutencaoStatus(currentStatus)) {
       abrirPopupManutencao(novoStatus);
+      return false;
+    }
+    if (isManutencaoStatus(currentStatus) && !isManutencaoStatus(novoStatus)) {
+      setFinishStatusPending(novoStatus);
+      setFinishNotes("");
+      setManutError("");
+      setFinishModalOpen(true);
       return false;
     }
 
@@ -1219,10 +1246,7 @@ export default function OperatorDashboard() {
     try {
       setSalvandoStatus(true);
 
-      const payload = { status: novoStatus };
-      if (motivoStatus) payload.motivo = motivoStatus;
-
-      await http.post(`/maquinas/${cnc}/status`, payload);
+      await http.post(`/maquinas/${cnc}/status`, { status: novoStatus }, actorConfig());
 
       if (String(novoStatus).toUpperCase() === "DESLIGADA") {
         await http.post(`/maquinas/${cnc}/operador`, { nome: "" });
@@ -1235,6 +1259,7 @@ export default function OperatorDashboard() {
       return true;
     } catch (e) {
       console.error(e);
+      alert(getErrMsg(e));
       await carregarTudo();
       return false;
     } finally {
@@ -1243,14 +1268,49 @@ export default function OperatorDashboard() {
   }
 
   async function confirmarManutencao() {
-    const motivo = String(manutMotivo || "").trim();
-    if (!motivo) {
-      setManutError("Escolha o motivo da manutenção.");
+    const typeId = Number(manutMotivo);
+    const workOrder = String(manutWorkOrder || "").trim();
+    if (!typeId || !workOrder || salvandoStatus) {
+      setManutError("Informe o tipo e a Ordem de Serviço.");
       return;
     }
+    if (!String(operadorNome || "").trim()) {
+      setManutError("Selecione o operador responsável antes de iniciar.");
+      return;
+    }
+    try {
+      setSalvandoStatus(true);
+      await http.post(`/api/cncs/${cnc}/maintenance/start`, {
+        maintenance_type_id: typeId,
+        work_order: workOrder,
+        opening_notes: String(manutOpeningNotes || "").trim() || null,
+      }, actorConfig());
+      fecharPopupManutencao();
+      await carregarTudo();
+    } catch (error) {
+      setManutError(getErrMsg(error));
+    } finally {
+      setSalvandoStatus(false);
+    }
+  }
 
-    const ok = await atualizarStatusMaquina(manutStatusPending || "MANUTENCAO", motivo);
-    if (ok) fecharPopupManutencao();
+  async function confirmarEncerramentoManutencao() {
+    if (!finishStatusPending || salvandoStatus) return;
+    try {
+      setSalvandoStatus(true);
+      await http.post(`/api/cncs/${cnc}/maintenance/finish`, {
+        new_status: finishStatusPending,
+        closing_notes: String(finishNotes || "").trim() || null,
+      }, actorConfig());
+      setFinishModalOpen(false);
+      setFinishStatusPending("");
+      setFinishNotes("");
+      await carregarTudo();
+    } catch (error) {
+      setManutError(getErrMsg(error));
+    } finally {
+      setSalvandoStatus(false);
+    }
   }
 
   async function salvarOperador() {
@@ -1327,7 +1387,9 @@ export default function OperatorDashboard() {
           const parsed = JSON.parse(text);
           msg = parsed?.detail ? String(parsed.detail) : text || msg;
         }
-      } catch {}
+      } catch {
+        // Mantém a mensagem original quando a resposta não é JSON.
+      }
       alert("Erro ao baixar: " + msg);
     } finally {
       setBaixandoId(null);
@@ -1437,7 +1499,7 @@ export default function OperatorDashboard() {
 
       await http.post(`/maquinas/${cnc}/status`, {
         status: "AGUAR.EMPILHADEIRA",
-      });
+      }, actorConfig());
 
       setStatusMaquina("AGUAR.EMPILHADEIRA");
       setMenuOpenId(null);
@@ -1459,7 +1521,7 @@ export default function OperatorDashboard() {
 
       await http.post(`/maquinas/${cnc}/status`, {
         status: "SETUP",
-      });
+      }, actorConfig());
 
       await http.post("/almoxarifado/solicitacoes/entregar", {
         maquina_id: cnc,
@@ -1602,7 +1664,7 @@ export default function OperatorDashboard() {
 
       await http.post(`/maquinas/${cnc}/status`, {
         status: tempoModalTipo,
-      });
+      }, actorConfig());
 
       setStatusMaquina(tempoModalTipo);
       setTempoModalOpen(false);
@@ -2450,13 +2512,13 @@ export default function OperatorDashboard() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-[10px] tracking-[0.34em] text-slate-500 font-black">
-                  MOTIVO DA MANUTENÇÃO
+                  INICIAR MANUTENÇÃO
                 </div>
                 <div className="mt-2 text-lg font-black text-slate-800 leading-tight">
                   {cnc}
                 </div>
                 <div className="mt-2 text-xs font-semibold text-slate-400 leading-snug">
-                  Escolha o motivo para registrar a máquina em manutenção.
+                  Informe o tipo e a Ordem de Serviço. O status só mudará após a confirmação.
                 </div>
               </div>
 
@@ -2472,36 +2534,46 @@ export default function OperatorDashboard() {
               </button>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-2">
-              {MANUTENCAO_MOTIVOS.map((motivo) => {
-                const active = manutMotivo === motivo.value;
-
-                return (
-                  <button
-                    key={motivo.value}
-                    type="button"
-                    onClick={() => {
-                      setManutMotivo(motivo.value);
-                      if (manutError) setManutError("");
-                    }}
-                    disabled={salvandoStatus}
-                    className={cn(
-                      "h-12 rounded-xl border px-4 text-sm font-black text-left transition inline-flex items-center gap-3",
-                      active
-                        ? "bg-purple-600 border-purple-600 text-white"
-                        : "bg-white border-[rgba(47,55,125,.12)] text-slate-800 hover:bg-[rgba(47,55,125,.05)]"
-                    )}
-                  >
-                    <Wrench size={16} className={active ? "text-white" : "text-purple-600"} />
-                    {motivo.label}
-                  </button>
-                );
-              })}
+            <div className="mt-4 grid grid-cols-1 gap-3">
+              <label className="grid gap-1 text-xs font-black text-slate-600">
+                Tipo da manutenção
+                <select
+                  className="h-11 rounded-xl border border-[rgba(47,55,125,.16)] bg-white px-3 text-sm text-slate-800"
+                  value={manutMotivo}
+                  onChange={(event) => { setManutMotivo(event.target.value); setManutError(""); }}
+                  disabled={salvandoStatus}
+                >
+                  <option value="">Selecione o tipo</option>
+                  {maintenanceTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1 text-xs font-black text-slate-600">
+                Ordem de Serviço
+                <input
+                  className="h-11 rounded-xl border border-[rgba(47,55,125,.16)] px-3 text-sm text-slate-800"
+                  value={manutWorkOrder}
+                  onChange={(event) => { setManutWorkOrder(event.target.value); setManutError(""); }}
+                  placeholder="Ex.: OS-2026-00154"
+                  maxLength={80}
+                  disabled={salvandoStatus}
+                  autoFocus
+                />
+              </label>
+              <label className="grid gap-1 text-xs font-black text-slate-600">
+                Observação de abertura (opcional)
+                <textarea
+                  className="min-h-20 rounded-xl border border-[rgba(47,55,125,.16)] p-3 text-sm text-slate-800 resize-none"
+                  value={manutOpeningNotes}
+                  onChange={(event) => setManutOpeningNotes(event.target.value)}
+                  maxLength={1000}
+                  disabled={salvandoStatus}
+                />
+              </label>
             </div>
 
             <div className="mt-3 text-[11px]">
               <span className={manutError ? "font-semibold text-red-600" : "text-slate-400"}>
-                {manutError || "Esse motivo será salvo no log de status da máquina."}
+                {manutError || "A abertura e a mudança de status serão salvas na mesma transação."}
               </span>
             </div>
 
@@ -2518,10 +2590,66 @@ export default function OperatorDashboard() {
               <button
                 className="flex-1 h-11 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-sm font-black text-white transition"
                 onClick={confirmarManutencao}
-                disabled={salvandoStatus || !String(manutMotivo || "").trim()}
+                disabled={salvandoStatus || !String(manutMotivo || "").trim() || !String(manutWorkOrder || "").trim() || !String(operadorNome || "").trim()}
               >
-                {salvandoStatus ? "Salvando..." : "Confirmar manutenção"}
+                {salvandoStatus ? "Iniciando..." : "Iniciar manutenção"}
               </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {finishModalOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-[95] bg-black/60"
+            onClick={() => { if (!salvandoStatus) { setFinishModalOpen(false); setFinishStatusPending(""); setFinishNotes(""); setManutError(""); } }}
+          />
+          <div
+            className="fixed z-[100] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(92vw,480px)] rounded-2xl bg-white border border-[rgba(47,55,125,.12)] shadow-[0_25px_70px_-40px_rgba(32,37,61,.30)] p-5"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[10px] tracking-[0.28em] text-orange-600 font-black">ENCERRAR MANUTENÇÃO</div>
+                <div className="mt-2 text-xl font-black text-slate-800">{cnc}</div>
+                <div className="mt-1 text-xs font-semibold text-slate-500">Confirme os dados antes de mudar para {finishStatusPending}.</div>
+              </div>
+              <button
+                type="button"
+                className="h-10 w-10 rounded-xl border border-[rgba(47,55,125,.12)] text-[#2f377d] inline-flex items-center justify-center"
+                disabled={salvandoStatus}
+                onClick={() => { setFinishModalOpen(false); setFinishStatusPending(""); setFinishNotes(""); setManutError(""); }}
+              ><X size={16} /></button>
+            </div>
+            <dl className="mt-4 grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-xl bg-orange-50 p-3"><dt className="font-black text-slate-400">TIPO</dt><dd className="mt-1 font-black text-slate-800">{activeMaintenance?.type || "—"}</dd></div>
+              <div className="rounded-xl bg-orange-50 p-3"><dt className="font-black text-slate-400">ORDEM DE SERVIÇO</dt><dd className="mt-1 font-black text-orange-700">{activeMaintenance?.workOrder || "—"}</dd></div>
+              <div className="rounded-xl bg-orange-50 p-3"><dt className="font-black text-slate-400">TEMPO DECORRIDO</dt><dd className="mt-1 font-black text-slate-800">{fmtHHMMSS(Math.max(0, Math.floor((Date.now() - Date.parse(activeMaintenance?.startedAt || "")) / 1000)))}</dd></div>
+              <div className="rounded-xl bg-orange-50 p-3"><dt className="font-black text-slate-400">NOVO STATUS</dt><dd className="mt-1 font-black text-slate-800">{finishStatusPending || "—"}</dd></div>
+            </dl>
+            <label className="mt-3 grid gap-1 text-xs font-black text-slate-600">
+              Observação de encerramento (opcional)
+              <textarea
+                className="min-h-20 rounded-xl border border-[rgba(47,55,125,.16)] p-3 text-sm text-slate-800 resize-none"
+                value={finishNotes}
+                onChange={(event) => setFinishNotes(event.target.value)}
+                maxLength={1000}
+                disabled={salvandoStatus}
+              />
+            </label>
+            {manutError ? <div className="mt-2 text-xs font-bold text-red-600">{manutError}</div> : null}
+            <div className="mt-4 flex gap-2">
+              <button
+                className="flex-1 h-11 rounded-xl border border-[rgba(47,55,125,.12)] text-sm font-bold text-[#2f377d]"
+                disabled={salvandoStatus}
+                onClick={() => { setFinishModalOpen(false); setFinishStatusPending(""); setFinishNotes(""); setManutError(""); }}
+              >Cancelar</button>
+              <button
+                className="flex-1 h-11 rounded-xl bg-orange-600 hover:bg-orange-500 disabled:opacity-40 text-sm font-black text-white"
+                disabled={salvandoStatus || !finishStatusPending}
+                onClick={confirmarEncerramentoManutencao}
+              >{salvandoStatus ? "Encerrando..." : "Encerrar manutenção"}</button>
             </div>
           </div>
         </>
