@@ -3531,6 +3531,49 @@ body::after{
   color-scheme: dark;
 }
 
+.pgThemeDark .pgVisualTabBtn,
+.pgThemeDark .pgDashFilter,
+.pgThemeDark .pgBtn {
+  background: #111827;
+  color: #f8fafc;
+  border-color: #334155;
+  box-shadow: none;
+}
+
+.pgThemeDark .pgVisualTabBtn:hover,
+.pgThemeDark .pgDashFilter:hover,
+.pgThemeDark .pgBtn:hover {
+  background: #1e293b;
+  color: #ffffff;
+  border-color: #64748b;
+}
+
+.pgThemeDark .pgVisualTabBtn.active,
+.pgThemeDark .pgDashFilter.active {
+  background: linear-gradient(180deg, #313b86 0%, #222b68 100%);
+  color: #ffffff;
+  border-color: #4654ad;
+  box-shadow: 0 0 0 3px rgba(70, 84, 173, 0.18);
+}
+
+.pgThemeDark .pgBtnPrimary {
+  background: linear-gradient(180deg, #313b86 0%, #252e70 100%);
+  color: #ffffff;
+  border-color: #4654ad;
+}
+
+.pgThemeDark .pgBtnPrimary:hover {
+  background: linear-gradient(180deg, #3d4999 0%, #2d387f 100%);
+  border-color: #6070d0;
+}
+
+.pgThemeDark .pgVisualTabBtn:focus-visible,
+.pgThemeDark .pgDashFilter:focus-visible,
+.pgThemeDark .pgBtn:focus-visible {
+  outline: 2px solid #818cf8;
+  outline-offset: 2px;
+}
+
 .pgThemeLight {
   color-scheme: light;
   --bg0: #f4f7fb;
