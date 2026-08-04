@@ -1,6 +1,5 @@
 from datetime import datetime
 from backend.db import get_conn
-from backend.maintenance import ensure_maintenance_schema
 
 def main():
     conn = get_conn()
@@ -113,7 +112,6 @@ def main():
         data_hora TEXT NOT NULL
     )
     """)
-    ensure_maintenance_schema(conn)
     cur.execute("""
 CREATE TABLE IF NOT EXISTS chat_mensagens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

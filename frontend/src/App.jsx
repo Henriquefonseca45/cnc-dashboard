@@ -7,7 +7,6 @@ import AlmoxarifadoTvPage from "./AlmoxarifadoTvPage.jsx";
 import AdminStatusApontamentos from "./AdminStatusApontamentos.jsx";
 import AdminRoutesPortal from "./AdminRoutesPortal.jsx";
 import AssistenteCncPage from "./AssistenteCncPage.jsx";
-import MaintenanceTvPage from "./MaintenanceTvPage.jsx";
 
 export default function App() {
   return (
@@ -21,7 +20,6 @@ export default function App() {
         <Route path="/visual" element={<ProgramadorDashboard />} />
         <Route path="/almoxarifado" element={<AlmoxarifadoPage />} />
         <Route path="/almoxarifado-tv" element={<AlmoxarifadoTvPage />} />
-        <Route path="/manutencao-tv" element={<MaintenanceTvPage />} />
         <Route path="/almoxarifado-chat" element={<AlmoxarifadoChatPage />} />
         <Route path="/almoxarifado-chat/:solicitacaoId" element={<AlmoxarifadoChatPage />} />
         <Route path="/assistente-cnc" element={<AssistenteCncPage />} />

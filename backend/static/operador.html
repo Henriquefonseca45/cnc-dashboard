@@ -112,12 +112,7 @@
   async function apiPost(path, body){
     const r = await fetch(BACKEND + path, {
       method:"POST",
-      headers: {
-        "accept":"application/json",
-        "content-type":"application/json",
-        "X-User-Name": `Operador ${maquinaId}`,
-        "X-User-Role": "OPERADOR"
-      },
+      headers: { "accept":"application/json", "content-type":"application/json" },
       body: JSON.stringify(body || {})
     });
     const t = await r.text();
