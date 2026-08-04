@@ -1275,6 +1275,14 @@ def _normalize_status_compare(status: str) -> str:
     return (status or "").strip().upper()
 
 
+def _local_naive_datetime(value: str | datetime) -> datetime:
+    """Compatibiliza registros antigos sem fuso e registros ISO com fuso do servidor."""
+    parsed = value if isinstance(value, datetime) else datetime.fromisoformat(str(value))
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone().replace(tzinfo=None)
+    return parsed
+
+
 def _normalize_match_text(value: str) -> str:
     text = unicodedata.normalize("NFD", value or "")
     text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
@@ -1582,8 +1590,8 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
             continue
 
         try:
-            seg_ini = datetime.fromisoformat(r["inicio_em"])
-            seg_fim = datetime.fromisoformat(r["fim_em"] or now_dt.isoformat(timespec="seconds"))
+            seg_ini = _local_naive_datetime(r["inicio_em"])
+            seg_fim = _local_naive_datetime(r["fim_em"] or now_dt.isoformat(timespec="seconds"))
         except Exception:
             continue
 
@@ -2776,8 +2784,8 @@ def dashboard_manutencao(
             continue
 
         try:
-            seg_ini = datetime.fromisoformat(r["inicio_em"])
-            seg_fim = datetime.fromisoformat(r["fim_em"] or now_dt.isoformat(timespec="seconds"))
+            seg_ini = _local_naive_datetime(r["inicio_em"])
+            seg_fim = _local_naive_datetime(r["fim_em"] or now_dt.isoformat(timespec="seconds"))
         except Exception:
             continue
 
