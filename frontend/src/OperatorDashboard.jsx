@@ -161,8 +161,9 @@ function toInt(n, fallback = 0) {
 }
 
 function fmtHHMMSS(sec) {
-  if (sec == null) return "—";
-  const s = Math.max(0, Math.floor(sec));
+  const numeric = Number(sec);
+  if (!Number.isFinite(numeric)) return "—";
+  const s = Math.max(0, Math.floor(numeric));
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const ss = s % 60;
@@ -776,10 +777,12 @@ export default function OperatorDashboard() {
   const [manutModalOpen, setManutModalOpen] = useState(false);
   const [manutMotivo, setManutMotivo] = useState("");
   const [maintenanceTypes, setMaintenanceTypes] = useState([]);
+  const [maintenanceTypesLoading, setMaintenanceTypesLoading] = useState(false);
   const [manutWorkOrder, setManutWorkOrder] = useState("");
   const [manutOpeningNotes, setManutOpeningNotes] = useState("");
   const [activeMaintenance, setActiveMaintenance] = useState(null);
   const [finishModalOpen, setFinishModalOpen] = useState(false);
+  const [finishLoading, setFinishLoading] = useState(false);
   const [finishStatusPending, setFinishStatusPending] = useState("");
   const [finishNotes, setFinishNotes] = useState("");
   const [manutError, setManutError] = useState("");
@@ -1199,22 +1202,64 @@ export default function OperatorDashboard() {
     setManutError("");
   }
 
-  async function abrirPopupManutencao() {
+  async function carregarTiposManutencao() {
+    if (maintenanceTypesLoading) return;
+    setMaintenanceTypesLoading(true);
+    setManutError("");
+    try {
+      const response = await http.get("/api/maintenance/types");
+      const items = Array.isArray(response.data) ? response.data.filter((type) => type?.id && type?.name) : [];
+      setMaintenanceTypes(items);
+      if (items.length === 0) {
+        setManutError("Nenhum tipo de manutenção ativo foi retornado pelo servidor.");
+      }
+      return items;
+    } catch (error) {
+      setMaintenanceTypes([]);
+      setManutError("Não foi possível carregar os tipos de manutenção: " + getErrMsg(error));
+      return [];
+    } finally {
+      setMaintenanceTypesLoading(false);
+    }
+  }
+
+  async function abrirPopupManutencao(initialError = "") {
     setManutMotivo("");
     setManutWorkOrder("");
     setManutOpeningNotes("");
     setManutError("");
     setManutModalOpen(true);
-    try {
-      const response = await http.get("/api/maintenance/types");
-      setMaintenanceTypes(Array.isArray(response.data) ? response.data : []);
-    } catch {
-      setManutError("Não foi possível carregar os tipos de manutenção.");
-    }
+    const loadedTypes = await carregarTiposManutencao();
+    if (initialError && loadedTypes.length > 0) setManutError(initialError);
   }
 
   function actorConfig() {
     return { headers: { "X-User-Name": String(operadorNome || "").trim(), "X-User-Role": "OPERADOR" } };
+  }
+
+  async function abrirEncerramentoManutencao(novoStatus) {
+    if (finishLoading) return;
+    setFinishLoading(true);
+    setManutError("");
+    try {
+      const response = await http.get(`/api/cncs/${cnc}/maintenance/active`);
+      const activeCall = response.data?.item || null;
+      setActiveMaintenance(activeCall);
+      if (!activeCall?.id || !activeCall?.startedAt) {
+        await abrirPopupManutencao(
+          "Esta CNC já estava em manutenção sem um chamado registrado. Informe Tipo e Ordem de Serviço para regularizar; depois selecione o novo status novamente."
+        );
+        return;
+      }
+      setFinishStatusPending(novoStatus);
+      setFinishNotes("");
+      setFinishModalOpen(true);
+    } catch (error) {
+      alert("Não foi possível carregar o chamado de manutenção: " + getErrMsg(error));
+      await carregarTudo(true);
+    } finally {
+      setFinishLoading(false);
+    }
   }
 
   async function atualizarStatusMaquina(novo) {
@@ -1226,10 +1271,7 @@ export default function OperatorDashboard() {
       return false;
     }
     if (isManutencaoStatus(currentStatus) && !isManutencaoStatus(novoStatus)) {
-      setFinishStatusPending(novoStatus);
-      setFinishNotes("");
-      setManutError("");
-      setFinishModalOpen(true);
+      abrirEncerramentoManutencao(novoStatus);
       return false;
     }
 
@@ -1897,7 +1939,7 @@ export default function OperatorDashboard() {
                   style={{ color: "#1e293b", WebkitTextFillColor: "#1e293b" }}
                   value={statusMaquina}
                   onChange={(e) => atualizarStatusMaquina(e.target.value)}
-                  disabled={salvandoStatus}
+                  disabled={salvandoStatus || finishLoading}
                 >
                   <option value="DESLIGADA">DESLIGADA</option>
                   <option value="USINANDO">USINANDO</option>
@@ -2541,12 +2583,28 @@ export default function OperatorDashboard() {
                   className="h-11 rounded-xl border border-[rgba(47,55,125,.16)] bg-white px-3 text-sm text-slate-800"
                   value={manutMotivo}
                   onChange={(event) => { setManutMotivo(event.target.value); setManutError(""); }}
-                  disabled={salvandoStatus}
+                  disabled={salvandoStatus || maintenanceTypesLoading || maintenanceTypes.length === 0}
                 >
-                  <option value="">Selecione o tipo</option>
+                  <option value="">
+                    {maintenanceTypesLoading
+                      ? "Carregando tipos..."
+                      : maintenanceTypes.length === 0
+                        ? "Nenhum tipo disponível"
+                        : "Selecione o tipo"}
+                  </option>
                   {maintenanceTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
                 </select>
               </label>
+              {!maintenanceTypesLoading && maintenanceTypes.length === 0 ? (
+                <button
+                  type="button"
+                  className="h-10 rounded-xl border border-orange-500/50 bg-orange-500/10 px-3 text-xs font-black text-orange-500"
+                  onClick={carregarTiposManutencao}
+                  disabled={salvandoStatus}
+                >
+                  Tentar carregar os tipos novamente
+                </button>
+              ) : null}
               <label className="grid gap-1 text-xs font-black text-slate-600">
                 Ordem de Serviço
                 <input
@@ -2590,7 +2648,7 @@ export default function OperatorDashboard() {
               <button
                 className="flex-1 h-11 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-sm font-black text-white transition"
                 onClick={confirmarManutencao}
-                disabled={salvandoStatus || !String(manutMotivo || "").trim() || !String(manutWorkOrder || "").trim() || !String(operadorNome || "").trim()}
+                disabled={salvandoStatus || maintenanceTypesLoading || maintenanceTypes.length === 0 || !String(manutMotivo || "").trim() || !String(manutWorkOrder || "").trim() || !String(operadorNome || "").trim()}
               >
                 {salvandoStatus ? "Iniciando..." : "Iniciar manutenção"}
               </button>
@@ -2623,15 +2681,16 @@ export default function OperatorDashboard() {
               ><X size={16} /></button>
             </div>
             <dl className="mt-4 grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded-xl bg-orange-50 p-3"><dt className="font-black text-slate-400">TIPO</dt><dd className="mt-1 font-black text-slate-800">{activeMaintenance?.type || "—"}</dd></div>
-              <div className="rounded-xl bg-orange-50 p-3"><dt className="font-black text-slate-400">ORDEM DE SERVIÇO</dt><dd className="mt-1 font-black text-orange-700">{activeMaintenance?.workOrder || "—"}</dd></div>
-              <div className="rounded-xl bg-orange-50 p-3"><dt className="font-black text-slate-400">TEMPO DECORRIDO</dt><dd className="mt-1 font-black text-slate-800">{fmtHHMMSS(Math.max(0, Math.floor((Date.now() - Date.parse(activeMaintenance?.startedAt || "")) / 1000)))}</dd></div>
-              <div className="rounded-xl bg-orange-50 p-3"><dt className="font-black text-slate-400">NOVO STATUS</dt><dd className="mt-1 font-black text-slate-800">{finishStatusPending || "—"}</dd></div>
+              <div className="rounded-xl p-3" style={{ backgroundColor: themeMode === "dark" ? "#1e293b" : "#fff7ed" }}><dt className="font-black" style={{ color: themeMode === "dark" ? "#94a3b8" : "#64748b" }}>TIPO</dt><dd className="mt-1 font-black" style={{ color: themeMode === "dark" ? "#f8fafc" : "#1e293b" }}>{activeMaintenance?.type || "—"}</dd></div>
+              <div className="rounded-xl p-3" style={{ backgroundColor: themeMode === "dark" ? "#1e293b" : "#fff7ed" }}><dt className="font-black" style={{ color: themeMode === "dark" ? "#94a3b8" : "#64748b" }}>ORDEM DE SERVIÇO</dt><dd className="mt-1 font-black" style={{ color: themeMode === "dark" ? "#fdba74" : "#c2410c" }}>{activeMaintenance?.workOrder || "—"}</dd></div>
+              <div className="rounded-xl p-3" style={{ backgroundColor: themeMode === "dark" ? "#1e293b" : "#fff7ed" }}><dt className="font-black" style={{ color: themeMode === "dark" ? "#94a3b8" : "#64748b" }}>TEMPO DECORRIDO</dt><dd className="mt-1 font-black" style={{ color: themeMode === "dark" ? "#f8fafc" : "#1e293b" }}>{fmtHHMMSS((Date.now() - Date.parse(activeMaintenance?.startedAt || "")) / 1000)}</dd></div>
+              <div className="rounded-xl p-3" style={{ backgroundColor: themeMode === "dark" ? "#1e293b" : "#fff7ed" }}><dt className="font-black" style={{ color: themeMode === "dark" ? "#94a3b8" : "#64748b" }}>NOVO STATUS</dt><dd className="mt-1 font-black" style={{ color: themeMode === "dark" ? "#f8fafc" : "#1e293b" }}>{finishStatusPending || "—"}</dd></div>
             </dl>
             <label className="mt-3 grid gap-1 text-xs font-black text-slate-600">
               Observação de encerramento (opcional)
               <textarea
                 className="min-h-20 rounded-xl border border-[rgba(47,55,125,.16)] p-3 text-sm text-slate-800 resize-none"
+                style={{ backgroundColor: themeMode === "dark" ? "#0f172a" : "#ffffff", color: themeMode === "dark" ? "#f8fafc" : "#1e293b" }}
                 value={finishNotes}
                 onChange={(event) => setFinishNotes(event.target.value)}
                 maxLength={1000}

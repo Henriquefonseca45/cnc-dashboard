@@ -199,20 +199,30 @@ def change_machine_status(
             raise MaintenanceError(404, "Máquina não encontrada.")
         machine = dict(machine_row)
         old_status = str(machine.get("status") or "")
+        repair_missing_maintenance = False
         if old_status.strip().upper() == status_clean.upper():
             if require_new_maintenance_for_start:
-                raise MaintenanceError(409, "Já existe uma manutenção aberta para esta CNC.")
+                if conn.execute(
+                    "SELECT id FROM cnc_maintenance_calls WHERE cnc_id = ? AND status = 'OPEN'",
+                    (cnc_id,),
+                ).fetchone():
+                    raise MaintenanceError(409, "Já existe uma manutenção aberta para esta CNC.")
+                if is_maintenance_status(status_clean):
+                    repair_missing_maintenance = True
+                else:
+                    raise MaintenanceError(409, "O status informado já está ativo nesta CNC.")
             if require_open_maintenance_for_finish:
                 raise MaintenanceError(409, "Esta manutenção já foi encerrada.")
-            conn.commit()
-            return {"ok": True, "machine": machine, "status_unchanged": True, "maintenance": None}
+            if not repair_missing_maintenance:
+                conn.commit()
+                return {"ok": True, "machine": machine, "status_unchanged": True, "maintenance": None}
 
         now_iso = now_factory()
         was_maintenance = is_maintenance_status(old_status)
         will_maintenance = is_maintenance_status(status_clean)
         call = None
 
-        if will_maintenance and not was_maintenance:
+        if will_maintenance and (not was_maintenance or repair_missing_maintenance):
             work_order_clean = str(work_order or "").strip()
             if maintenance_type_id is None:
                 raise MaintenanceError(422, "Tipo da manutenção é obrigatório.")
@@ -294,18 +304,23 @@ def change_machine_status(
             }
             _audit(conn, "MAINTENANCE_CLOSED", open_call["id"], cnc_id, actor_clean, open_call, call, now_iso)
 
-        conn.execute(
-            "UPDATE maquinas SET status = ?, status_desde = ? WHERE id = ?",
-            (status_clean, now_iso, cnc_id),
-        )
-        if legacy_hook:
-            legacy_hook(conn, machine, status_clean, now_iso)
-        _audit(conn, "MACHINE_STATUS_CHANGED", call and call.get("id"), cnc_id, actor_clean, old_status, status_clean, now_iso)
+        if not repair_missing_maintenance:
+            conn.execute(
+                "UPDATE maquinas SET status = ?, status_desde = ? WHERE id = ?",
+                (status_clean, now_iso, cnc_id),
+            )
+            if legacy_hook:
+                legacy_hook(conn, machine, status_clean, now_iso)
+            _audit(conn, "MACHINE_STATUS_CHANGED", call and call.get("id"), cnc_id, actor_clean, old_status, status_clean, now_iso)
         conn.commit()
         return {
             "ok": True,
-            "machine": {**machine, "status": status_clean, "status_desde": now_iso},
-            "status_unchanged": False,
+            "machine": {
+                **machine,
+                "status": status_clean,
+                "status_desde": machine.get("status_desde") if repair_missing_maintenance else now_iso,
+            },
+            "status_unchanged": repair_missing_maintenance,
             "maintenance": call,
             "serverNow": now_iso,
         }

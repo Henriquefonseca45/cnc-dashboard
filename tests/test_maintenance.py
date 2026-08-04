@@ -101,6 +101,20 @@ class MaintenanceServiceTests(unittest.TestCase):
         self.assertEqual(duplicate.exception.status_code, 409)
         self.assertEqual(len(self.rows("SELECT id FROM cnc_maintenance_calls")), 1)
 
+    def test_regularizes_legacy_maintenance_without_resetting_original_status_time(self):
+        conn = self.connect()
+        conn.execute(
+            "UPDATE maquinas SET status = 'MANUTENÇÃO', status_desde = '2026-08-04T07:30:00-03:00' WHERE id = 'CNC01'"
+        )
+        conn.commit()
+        conn.close()
+        result = self.start()
+        self.assertTrue(result["status_unchanged"])
+        self.assertEqual(result["machine"]["status_desde"], "2026-08-04T07:30:00-03:00")
+        self.assertEqual(len(self.rows("SELECT id FROM cnc_maintenance_calls WHERE status = 'OPEN'")), 1)
+        events = self.rows("SELECT event_type FROM maintenance_audit_events ORDER BY id")
+        self.assertEqual([row["event_type"] for row in events], ["MAINTENANCE_OPENED"])
+
     def test_concurrent_start_creates_only_one_call(self):
         def attempt(_):
             try:
