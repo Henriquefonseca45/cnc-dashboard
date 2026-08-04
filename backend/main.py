@@ -505,14 +505,24 @@ def _abrir_arquivo_no_vcarve(caminho_arquivo: Path):
 
 def _ensure_maquinas_cols(conn):
     cur = conn.cursor()
-    try:
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS maquinas (
+            id TEXT PRIMARY KEY,
+            nome TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'PARADA',
+            status_desde TEXT,
+            arquivo_pendente_id INTEGER,
+            operador_nome TEXT,
+            ultima_comunicacao TEXT
+        )
+        """
+    )
+    columns = {row[1] for row in cur.execute("PRAGMA table_info(maquinas)").fetchall()}
+    if "operador_nome" not in columns:
         cur.execute("ALTER TABLE maquinas ADD COLUMN operador_nome TEXT")
-    except Exception:
-        pass
-    try:
+    if "ultima_comunicacao" not in columns:
         cur.execute("ALTER TABLE maquinas ADD COLUMN ultima_comunicacao TEXT")
-    except Exception:
-        pass
 
 
 def _touch_maquina_comunicacao(conn, maquina_id: str, quando_iso: str | None = None):
