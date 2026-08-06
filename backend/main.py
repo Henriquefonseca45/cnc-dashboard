@@ -1420,10 +1420,6 @@ def _dashboard_bucket_from_status(status: str, motivo: str | None = None) -> str
 
     if _is_machine_usinando(s):
         return "usinando"
-    if "RNC" in txt:
-        return "rnc"
-    if "ABERTURA" in txt and "MATERIAL" in txt:
-        return "abertura_material"
     if "USIN" in txt or "CORT" in txt:
         return "usinando"
     if "TROCA" in txt and "SACRIFIC" in txt:

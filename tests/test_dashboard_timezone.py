@@ -61,6 +61,12 @@ class DashboardTimezoneTests(unittest.TestCase):
         self.assertEqual(payload["totals"]["parada"]["tempo_seg"], 3600)
         self.assertEqual(payload["per_machine"][0]["parada_min"], 60.0)
 
+    def test_special_reason_does_not_become_an_invalid_general_bucket(self):
+        self.assertEqual(main._dashboard_bucket_from_status("RNC", None), "usinando")
+        self.assertEqual(main._dashboard_bucket_from_status("ABERTURA MATERIAL", None), "usinando")
+        self.assertEqual(main._dashboard_bucket_from_status("PARADA", "RNC"), "parada")
+        self.assertEqual(main._dashboard_special_bucket_from_status("PARADA", "RNC"), "rnc")
+
 
 if __name__ == "__main__":
     unittest.main()
