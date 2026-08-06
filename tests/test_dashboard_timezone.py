@@ -67,6 +67,9 @@ class DashboardTimezoneTests(unittest.TestCase):
         self.assertEqual(main._dashboard_bucket_from_status("PARADA", "RNC"), "parada")
         self.assertEqual(main._dashboard_special_bucket_from_status("PARADA", "RNC"), "rnc")
 
+    def test_dashboard_classifies_maintenance_with_server_timezone(self):
+        self.assertEqual(main._dashboard_bucket_from_status("MANUTENÇÃO", "MECANICO"), "manutencao")
+
 
 if __name__ == "__main__":
     unittest.main()
