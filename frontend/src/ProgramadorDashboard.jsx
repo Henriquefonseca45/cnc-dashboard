@@ -1698,13 +1698,19 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
     rangeStartMs,
     rangeEndMs,
   });
+  const capacidadeTotalMin = Number(capacidadeInfo.totalMin || parametros.capacidade_total_min || 0);
+  const tempoUsinandoMin = Number(iefObj.tempo_usinando_min || 0);
+  const iefCalculado =
+    capacidadeTotalMin > 0
+      ? Number(((tempoUsinandoMin / capacidadeTotalMin) * 100).toFixed(2))
+      : 0;
 
   return {
     turnoAtual: getTurnoInfo(getNowDateSafe(nowTick)),
     total,
     usinandoAgora,
     filaTotal,
-    ief: Number(iefObj.percentual || 0),
+    ief: iefCalculado,
     disponibilidade: Number(disponibilidadeObj.percentual || 0),
     totalSetups: Number(setupObj.quantidade_setups || 0),
     setupMedioAtualMin: Number(setupObj.tempo_medio_setup_min || 0),
@@ -1712,9 +1718,9 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
     faltaMaterialMedioAtualMin: Number(faltaMaterialObj.tempo_medio_falta_material_min || 0),
     capacidadePlanejadaPorMaquinaMin: MINUTOS_DIA_MAQUINA,
     capacidadePlanejadaPorMaquina: capacidadeInfo.perMachineMinutes,
-    capacidadePlanejadaTotalMin: Number(capacidadeInfo.totalMin || parametros.capacidade_total_min || 0),
+    capacidadePlanejadaTotalMin: capacidadeTotalMin,
     capacidadeInfo,
-    tempoUsinandoMin: Number(iefObj.tempo_usinando_min || 0),
+    tempoUsinandoMin,
     tempoSetupMin: Number(setupObj.tempo_total_setup_min || 0),
     tempoFaltaMaterialMin: Number(faltaMaterialObj.tempo_total_falta_material_min || totals.falta_material || 0),
 
