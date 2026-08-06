@@ -272,37 +272,39 @@ def change_machine_status(
                 (cnc_id,),
             ).fetchone()
             if not open_row:
-                raise MaintenanceError(409, "Não existe manutenção aberta para encerrar nesta CNC.")
-            open_call = dict(open_row)
-            duration = _elapsed_seconds(open_call["started_at"], now_iso)
-            updated = conn.execute(
-                """
-                UPDATE cnc_maintenance_calls
-                SET status = 'CLOSED', finished_at = ?, duration_seconds = ?, closing_notes = ?,
-                    finished_by_user_id = ?, finished_by_name = ?, updated_at = ?
-                WHERE id = ? AND status = 'OPEN'
-                """,
-                (
-                    now_iso,
-                    duration,
-                    str(closing_notes or "").strip() or None,
-                    actor_clean["id"],
-                    actor_clean["name"],
-                    now_iso,
-                    open_call["id"],
-                ),
-            )
-            if updated.rowcount != 1:
-                raise MaintenanceError(409, "Esta manutenção já foi encerrada.")
-            call = {
-                "id": open_call["id"],
-                "type": open_call["type_name"],
-                "workOrder": open_call["work_order"],
-                "startedAt": open_call["started_at"],
-                "finishedAt": now_iso,
-                "durationSeconds": duration,
-            }
-            _audit(conn, "MAINTENANCE_CLOSED", open_call["id"], cnc_id, actor_clean, open_call, call, now_iso)
+                if require_open_maintenance_for_finish:
+                    raise MaintenanceError(409, "Não existe manutenção aberta para encerrar nesta CNC.")
+            else:
+                open_call = dict(open_row)
+                duration = _elapsed_seconds(open_call["started_at"], now_iso)
+                updated = conn.execute(
+                    """
+                    UPDATE cnc_maintenance_calls
+                    SET status = 'CLOSED', finished_at = ?, duration_seconds = ?, closing_notes = ?,
+                        finished_by_user_id = ?, finished_by_name = ?, updated_at = ?
+                    WHERE id = ? AND status = 'OPEN'
+                    """,
+                    (
+                        now_iso,
+                        duration,
+                        str(closing_notes or "").strip() or None,
+                        actor_clean["id"],
+                        actor_clean["name"],
+                        now_iso,
+                        open_call["id"],
+                    ),
+                )
+                if updated.rowcount != 1:
+                    raise MaintenanceError(409, "Esta manutenção já foi encerrada.")
+                call = {
+                    "id": open_call["id"],
+                    "type": open_call["type_name"],
+                    "workOrder": open_call["work_order"],
+                    "startedAt": open_call["started_at"],
+                    "finishedAt": now_iso,
+                    "durationSeconds": duration,
+                }
+                _audit(conn, "MAINTENANCE_CLOSED", open_call["id"], cnc_id, actor_clean, open_call, call, now_iso)
 
         if not repair_missing_maintenance:
             conn.execute(

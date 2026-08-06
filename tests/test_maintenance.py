@@ -138,6 +138,34 @@ class MaintenanceServiceTests(unittest.TestCase):
         self.assertEqual(closed[0]["duration_seconds"], 3723)
         self.assertEqual(closed[0]["finished_by_name"], ACTOR["name"])
 
+    def test_regular_status_change_closes_maintenance_automatically(self):
+        self.start()
+        result = change_machine_status(
+            self.connect,
+            "CNC01",
+            "SETUP",
+            ACTOR,
+            now_factory=lambda: "2026-08-04T10:02:03-03:00",
+        )
+        self.assertEqual(result["machine"]["status"], "SETUP")
+        self.assertEqual(result["maintenance"]["durationSeconds"], 3723)
+        self.assertEqual(self.rows("SELECT * FROM cnc_maintenance_calls WHERE status='OPEN'"), [])
+
+    def test_legacy_maintenance_without_open_call_can_change_status(self):
+        conn = self.connect()
+        conn.execute("UPDATE maquinas SET status = 'MANUTENÇÃO' WHERE id = 'CNC01'")
+        conn.commit()
+        conn.close()
+        result = change_machine_status(
+            self.connect,
+            "CNC01",
+            "OCIOSA",
+            ACTOR,
+            now_factory=lambda: "2026-08-04T10:02:03-03:00",
+        )
+        self.assertEqual(result["machine"]["status"], "OCIOSA")
+        self.assertIsNone(result["maintenance"])
+
     def test_duplicate_finish_is_rejected(self):
         self.start()
         self.finish()

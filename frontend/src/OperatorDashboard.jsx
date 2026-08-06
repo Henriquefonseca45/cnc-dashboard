@@ -1240,25 +1240,27 @@ export default function OperatorDashboard() {
   async function abrirEncerramentoManutencao(novoStatus) {
     if (finishLoading) return;
     setFinishLoading(true);
-    setManutError("");
+    setSalvandoStatus(true);
+    setStatusMaquina(novoStatus);
     try {
-      const response = await http.get(`/api/cncs/${cnc}/maintenance/active`);
-      const activeCall = response.data?.item || null;
-      setActiveMaintenance(activeCall);
-      if (!activeCall?.id || !activeCall?.startedAt) {
-        await abrirPopupManutencao(
-          "Esta CNC já estava em manutenção sem um chamado registrado. Informe Tipo e Ordem de Serviço para regularizar; depois selecione o novo status novamente."
-        );
-        return;
+      await http.post(`/maquinas/${cnc}/status`, { status: novoStatus }, actorConfig());
+
+      if (String(novoStatus).toUpperCase() === "DESLIGADA") {
+        await http.post(`/maquinas/${cnc}/operador`, { nome: "" });
+        setOperadorNome("");
+        setOperadorDraft("");
+        setOperadorEdit(false);
       }
-      setFinishStatusPending(novoStatus);
-      setFinishNotes("");
-      setFinishModalOpen(true);
+
+      await carregarTudo();
+      return true;
     } catch (error) {
-      alert("Não foi possível carregar o chamado de manutenção: " + getErrMsg(error));
+      alert("Não foi possível alterar o status e encerrar a manutenção: " + getErrMsg(error));
       await carregarTudo(true);
+      return false;
     } finally {
       setFinishLoading(false);
+      setSalvandoStatus(false);
     }
   }
 
@@ -1271,8 +1273,7 @@ export default function OperatorDashboard() {
       return false;
     }
     if (isManutencaoStatus(currentStatus) && !isManutencaoStatus(novoStatus)) {
-      abrirEncerramentoManutencao(novoStatus);
-      return false;
+      return abrirEncerramentoManutencao(novoStatus);
     }
 
     if (USINAGEM_TIPOS.some((tipo) => tipo.value === novoStatus)) {
