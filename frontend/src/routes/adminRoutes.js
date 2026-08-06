@@ -12,6 +12,13 @@ export const adminRoutes = [
         ativo: true,
       },
       {
+        nome: "Painel de Manutenção",
+        rota: `${BASE_URL}/manutencao-tv`,
+        descricao: "Painel de manutenção das CNCs para exibição em TV.",
+        perfis: ["admin", "gestao", "supervisor", "manutencao"],
+        ativo: true,
+      },
+      {
         nome: "Facilitador",
         rota: `${BASE_URL}/facilitador`,
         descricao: "Tela do facilitador para acompanhamento e apoio da produção.",

@@ -18,6 +18,7 @@ export default function App() {
         <Route path="/programador" element={<ProgramadorDashboard />} />
         <Route path="/facilitador" element={<ProgramadorDashboard mode="facilitador" />} />
         <Route path="/visual" element={<ProgramadorDashboard />} />
+        <Route path="/manutencao-tv" element={<ProgramadorDashboard mode="maintenance-tv" />} />
         <Route path="/almoxarifado" element={<AlmoxarifadoPage />} />
         <Route path="/almoxarifado-tv" element={<AlmoxarifadoTvPage />} />
         <Route path="/almoxarifado-chat" element={<AlmoxarifadoChatPage />} />

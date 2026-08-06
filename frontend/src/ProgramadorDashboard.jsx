@@ -1752,10 +1752,11 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
 
 export default function ProgramadorDashboard({ mode = "programador" }) {
   const isFacilitador = mode === "facilitador";
+  const isMaintenanceTv = mode === "maintenance-tv";
   const readOnly = useMemo(() => {
     const qs = new URLSearchParams(window.location.search);
-    return isFacilitador || qs.get("readonly") === "1";
-  }, [isFacilitador]);
+    return isFacilitador || isMaintenanceTv || qs.get("readonly") === "1";
+  }, [isFacilitador, isMaintenanceTv]);
   const isVisual = readOnly && !isFacilitador;
   const dashboardRef = useRef(null);
   const grafico7PrintRef = useRef(null);
@@ -1805,7 +1806,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
 
   const [view, setView] = useState("dashboard");
   const [sidebarFilesTab, setSidebarFilesTab] = useState("novos");
- const [visualTab, setVisualTab] = useState("producao");
+ const [visualTab, setVisualTab] = useState(() => (isMaintenanceTv ? "dashmanut" : "producao"));
 
   const [historicoAll, setHistoricoAll] = useState([]);
   const [histLoading, setHistLoading] = useState(false);
@@ -4716,7 +4717,7 @@ const limparLista = (lista) =>
   <div>
     <div className="pgTitleWrap">
       <div className="pgTitle">
-        Painel de Produção
+        {isMaintenanceTv ? "Painel de Manutenção" : "Painel de Produção"}
         {isFacilitador && (
           <span className="pgTopChatBadge">Facilitador</span>
         )}
@@ -4731,7 +4732,7 @@ const limparLista = (lista) =>
       </div>
     </div>
 
-    {isVisual && (
+    {isVisual && !isMaintenanceTv && (
       <div className="pgVisualTabs">
         <button
           className={`pgVisualTabBtn ${visualTab === "producao" ? "active" : ""}`}
