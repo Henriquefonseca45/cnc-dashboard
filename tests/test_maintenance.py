@@ -4,7 +4,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from backend.maintenance import MaintenanceError, change_machine_status, ensure_maintenance_schema
+from backend.maintenance import (
+    MaintenanceError,
+    change_machine_status,
+    close_orphaned_maintenance_calls,
+    ensure_maintenance_schema,
+)
 
 
 ACTOR = {"id": 7, "name": "Operador Teste", "role": "OPERADOR"}
@@ -165,6 +170,25 @@ class MaintenanceServiceTests(unittest.TestCase):
         )
         self.assertEqual(result["machine"]["status"], "OCIOSA")
         self.assertIsNone(result["maintenance"])
+
+    def test_orphaned_open_call_is_closed_when_machine_has_another_status(self):
+        self.start()
+        conn = self.connect()
+        conn.execute("UPDATE maquinas SET status = 'USINANDO' WHERE id = 'CNC01'")
+        closed = close_orphaned_maintenance_calls(
+            conn,
+            now_factory=lambda: "2026-08-04T10:02:03-03:00",
+        )
+        conn.commit()
+        conn.close()
+
+        self.assertEqual(closed, 1)
+        self.assertEqual(self.rows("SELECT * FROM cnc_maintenance_calls WHERE status='OPEN'"), [])
+        call = self.rows("SELECT * FROM cnc_maintenance_calls WHERE status='CLOSED'")[0]
+        self.assertEqual(call["duration_seconds"], 3723)
+        self.assertEqual(call["finished_by_name"], "Sistema")
+        events = self.rows("SELECT event_type FROM maintenance_audit_events ORDER BY id")
+        self.assertEqual(events[-1]["event_type"], "MAINTENANCE_CLOSED_AUTOMATICALLY")
 
     def test_duplicate_finish_is_rejected(self):
         self.start()

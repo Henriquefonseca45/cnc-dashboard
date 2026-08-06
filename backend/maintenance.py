@@ -362,3 +362,70 @@ def maintenance_row_to_dict(row) -> dict:
         "finishedByUserId": data.get("finished_by_user_id"),
         "finishedByName": data.get("finished_by_name"),
     }
+
+
+def close_orphaned_maintenance_calls(
+    conn: sqlite3.Connection,
+    *,
+    now_factory: Callable[[], str] = iso_now,
+) -> int:
+    """Fecha chamados abertos cuja CNC já saiu do status de manutenção."""
+    ensure_maintenance_schema(conn)
+    rows = conn.execute(
+        """
+        SELECT c.*, m.status AS machine_status
+        FROM cnc_maintenance_calls c
+        JOIN maquinas m ON m.id = c.cnc_id
+        WHERE c.status = 'OPEN'
+        ORDER BY c.id
+        """
+    ).fetchall()
+    now_iso = now_factory()
+    system_actor = {"id": None, "name": "Sistema"}
+    closed_count = 0
+
+    for row in rows:
+        previous = dict(row)
+        if is_maintenance_status(previous.get("machine_status")):
+            continue
+
+        duration = _elapsed_seconds(previous["started_at"], now_iso)
+        updated = conn.execute(
+            """
+            UPDATE cnc_maintenance_calls
+            SET status = 'CLOSED', finished_at = ?, duration_seconds = ?,
+                closing_notes = COALESCE(closing_notes, ?),
+                finished_by_user_id = NULL, finished_by_name = ?, updated_at = ?
+            WHERE id = ? AND status = 'OPEN'
+            """,
+            (
+                now_iso,
+                duration,
+                "Encerrado automaticamente: a CNC já estava em outro status.",
+                system_actor["name"],
+                now_iso,
+                previous["id"],
+            ),
+        )
+        if updated.rowcount != 1:
+            continue
+
+        closed = {
+            "id": previous["id"],
+            "finishedAt": now_iso,
+            "durationSeconds": duration,
+            "reason": "ORPHANED_ACTIVE_CALL",
+        }
+        _audit(
+            conn,
+            "MAINTENANCE_CLOSED_AUTOMATICALLY",
+            previous["id"],
+            previous["cnc_id"],
+            system_actor,
+            previous,
+            closed,
+            now_iso,
+        )
+        closed_count += 1
+
+    return closed_count

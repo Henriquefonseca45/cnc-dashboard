@@ -29,6 +29,7 @@ from backend.audit import log_action
 from backend.maintenance import (
     MaintenanceError,
     change_machine_status,
+    close_orphaned_maintenance_calls,
     ensure_maintenance_schema,
     iso_now as maintenance_iso_now,
     maintenance_row_to_dict,
@@ -2705,6 +2706,7 @@ def active_maintenance_calls():
     conn = get_conn()
     try:
         ensure_maintenance_schema(conn)
+        close_orphaned_maintenance_calls(conn)
         rows = conn.execute(_maintenance_select_base() + " WHERE c.status = 'OPEN' ORDER BY c.started_at ASC, c.id ASC").fetchall()
         conn.commit()
         return {"serverNow": maintenance_iso_now(), "items": [maintenance_row_to_dict(r) for r in rows]}
