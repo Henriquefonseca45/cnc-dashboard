@@ -18,6 +18,19 @@
   color:#1e293b;
 }
 
+.opThemeLight select{
+  color:#1e293b !important;
+  -webkit-text-fill-color:#1e293b !important;
+  background-color:#fff !important;
+  border-color:rgba(47,55,125,.16) !important;
+  color-scheme:light;
+}
+
+.opThemeLight select option{
+  color:#1e293b !important;
+  background-color:#fff !important;
+}
+
 .opThemeDark{
   color:#e5edf8;
   background:

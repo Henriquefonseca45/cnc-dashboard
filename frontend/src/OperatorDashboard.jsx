@@ -851,18 +851,13 @@ export default function OperatorDashboard() {
     [maquinas, cnc]
   );
 
-  const maquinaDesligada = U(maquinaAtual?.status || statusMaquina) === "DESLIGADA";
-
   useEffect(() => {
     const s = String(maquinaAtual?.status || "").trim();
     setStatusMaquina(normalizeUsinagemStatusValue(s || "OCIOSA"));
   }, [maquinaAtual?.status, cnc]);
 
   useEffect(() => {
-    const statusAtual = String(maquinaAtual?.status || "").trim().toUpperCase();
-    const nome = statusAtual === "DESLIGADA"
-      ? ""
-      : String(maquinaAtual?.operador_nome || "").trim();
+    const nome = String(maquinaAtual?.operador_nome || "").trim();
 
     setOperadorNome(nome);
     setOperadorDraft(nome);
@@ -1223,14 +1218,13 @@ export default function OperatorDashboard() {
     }
   }
 
-  async function abrirPopupManutencao(initialError = "") {
+  async function abrirPopupManutencao() {
     setManutMotivo("");
     setManutWorkOrder("");
     setManutOpeningNotes("");
     setManutError("");
     setManutModalOpen(true);
-    const loadedTypes = await carregarTiposManutencao();
-    if (initialError && loadedTypes.length > 0) setManutError(initialError);
+    await carregarTiposManutencao();
   }
 
   function actorConfig() {
@@ -1269,7 +1263,7 @@ export default function OperatorDashboard() {
     const currentStatus = String(maquinaAtual?.status || statusMaquina || "");
 
     if (isManutencaoStatus(novoStatus) && !isManutencaoStatus(currentStatus)) {
-      abrirPopupManutencao(novoStatus);
+      abrirPopupManutencao();
       return false;
     }
     if (isManutencaoStatus(currentStatus) && !isManutencaoStatus(novoStatus)) {
@@ -1357,14 +1351,6 @@ export default function OperatorDashboard() {
   }
 
   async function salvarOperador() {
-    if (String(statusMaquina || "").toUpperCase() === "DESLIGADA") {
-      alert("Máquina desligada não pode ter operador.");
-      setOperadorNome("");
-      setOperadorDraft("");
-      setOperadorEdit(false);
-      return;
-    }
-
     const nome = String(operadorDraft || "").trim();
 
     try {
@@ -1852,7 +1838,7 @@ export default function OperatorDashboard() {
                 <StatBox
                   icon={<User2 size={14} className="text-slate-500" />}
                   label="Operador"
-                  value={maquinaDesligada ? "Sem operador" : operadorNome || "Não informado"}
+                  value={operadorNome || "Não informado"}
                 />
                 <StatBox
                   icon={<FileText size={14} className="text-slate-500" />}
@@ -1869,12 +1855,7 @@ export default function OperatorDashboard() {
                       setOperadorDraft(operadorNome || "");
                       setOperadorEdit(true);
                     }}
-                    title={
-                      maquinaDesligada
-                        ? "Máquina desligada não pode ter operador"
-                        : "Definir operador"
-                    }
-                    disabled={maquinaDesligada}
+                    title="Definir operador"
                   >
                     {operadorNome ? "Trocar operador" : "Definir operador"}
                   </button>
@@ -1886,7 +1867,7 @@ export default function OperatorDashboard() {
                       className="flex-1 min-w-0 h-10 rounded-xl bg-white border border-[rgba(47,55,125,.12)] px-3 text-sm text-[#2f377d] font-semibold outline-none appearance-auto"
                       style={{ color: "#2f377d", WebkitTextFillColor: "#2f377d" }}
                       autoFocus
-                      disabled={salvandoOperador || maquinaDesligada}
+                      disabled={salvandoOperador}
                     >
                       <option value="" style={{ color: "#2f377d", backgroundColor: "#ffffff" }}>
                         Selecione o operador
@@ -1904,8 +1885,7 @@ export default function OperatorDashboard() {
                         onClick={salvarOperador}
                         disabled={
                           !String(operadorDraft || "").trim() ||
-                          salvandoOperador ||
-                          maquinaDesligada
+                          salvandoOperador
                         }
                         title="Salvar"
                       >
@@ -1920,12 +1900,6 @@ export default function OperatorDashboard() {
                         Cancelar
                       </button>
                     </div>
-                  </div>
-                )}
-
-                {maquinaDesligada && (
-                  <div className="mt-2 text-[11px] text-slate-400">
-                    Máquina desligada não pode ter operador atribuído.
                   </div>
                 )}
               </div>
