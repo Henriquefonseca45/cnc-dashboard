@@ -1205,6 +1205,13 @@ export default function OperatorDashboard() {
     setManutError("");
   }
 
+  function selecionarTipoManutencao(typeId) {
+    const nextType = maintenanceTypes.find((type) => String(type?.id) === String(typeId));
+    setManutMotivo(typeId);
+    if (isLubricationMaintenanceType(nextType?.name)) setManutWorkOrder("");
+    setManutError("");
+  }
+
   async function carregarTiposManutencao() {
     if (maintenanceTypesLoading) return;
     setMaintenanceTypesLoading(true);
@@ -2547,7 +2554,7 @@ export default function OperatorDashboard() {
                   {cnc}
                 </div>
                 <div className="mt-2 text-xs font-semibold text-slate-400 leading-snug">
-                  Informe o tipo e a Ordem de Serviço. Para lubrificação, a OS é opcional.
+                  Preencha os dados da manutenção. O status só mudará após a confirmação.
                 </div>
               </div>
 
@@ -2569,7 +2576,7 @@ export default function OperatorDashboard() {
                 <select
                   className="h-11 rounded-xl border border-[rgba(47,55,125,.16)] bg-white px-3 text-sm text-slate-800"
                   value={manutMotivo}
-                  onChange={(event) => { setManutMotivo(event.target.value); setManutError(""); }}
+                  onChange={(event) => selecionarTipoManutencao(event.target.value)}
                   disabled={salvandoStatus || maintenanceTypesLoading || maintenanceTypes.length === 0}
                 >
                   <option value="">
@@ -2592,18 +2599,20 @@ export default function OperatorDashboard() {
                   Tentar carregar os tipos novamente
                 </button>
               ) : null}
-              <label className="grid gap-1 text-xs font-black text-slate-600">
-                Ordem de Serviço{manutWorkOrderRequired ? "" : " (opcional)"}
-                <input
-                  className="h-11 rounded-xl border border-[rgba(47,55,125,.16)] px-3 text-sm text-slate-800"
-                  value={manutWorkOrder}
-                  onChange={(event) => { setManutWorkOrder(event.target.value); setManutError(""); }}
-                  placeholder="Ex.: OS-2026-00154"
-                  maxLength={80}
-                  disabled={salvandoStatus}
-                  autoFocus
-                />
-              </label>
+              {manutWorkOrderRequired ? (
+                <label className="grid gap-1 text-xs font-black text-slate-600">
+                  Ordem de Serviço
+                  <input
+                    className="h-11 rounded-xl border border-[rgba(47,55,125,.16)] px-3 text-sm text-slate-800"
+                    value={manutWorkOrder}
+                    onChange={(event) => { setManutWorkOrder(event.target.value); setManutError(""); }}
+                    placeholder="Ex.: OS-2026-00154"
+                    maxLength={80}
+                    disabled={salvandoStatus}
+                    autoFocus
+                  />
+                </label>
+              ) : null}
               <label className="grid gap-1 text-xs font-black text-slate-600">
                 Observação de abertura (opcional)
                 <textarea
