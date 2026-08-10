@@ -107,6 +107,10 @@ function isManutencaoStatus(status = "") {
   return U(status).includes("MANUT");
 }
 
+function isLubricationMaintenanceType(typeName = "") {
+  return U(typeName).startsWith("LUBRIFIC");
+}
+
 function isUsinandoMachineStatus(machineStatus = "") {
   const s = U(machineStatus);
   return (
@@ -786,6 +790,10 @@ export default function OperatorDashboard() {
   const [finishStatusPending, setFinishStatusPending] = useState("");
   const [finishNotes, setFinishNotes] = useState("");
   const [manutError, setManutError] = useState("");
+  const selectedMaintenanceType = maintenanceTypes.find(
+    (type) => String(type?.id) === String(manutMotivo)
+  );
+  const manutWorkOrderRequired = !isLubricationMaintenanceType(selectedMaintenanceType?.name);
 
   const [operadorNome, setOperadorNome] = useState("");
   const [operadorEdit, setOperadorEdit] = useState(false);
@@ -1307,8 +1315,12 @@ export default function OperatorDashboard() {
   async function confirmarManutencao() {
     const typeId = Number(manutMotivo);
     const workOrder = String(manutWorkOrder || "").trim();
-    if (!typeId || !workOrder || salvandoStatus) {
-      setManutError("Informe o tipo e a Ordem de Serviço.");
+    if (!typeId || salvandoStatus) {
+      setManutError("Informe o tipo da manutenção.");
+      return;
+    }
+    if (manutWorkOrderRequired && !workOrder) {
+      setManutError("Informe a Ordem de Serviço.");
       return;
     }
     if (!String(operadorNome || "").trim()) {
@@ -1319,7 +1331,7 @@ export default function OperatorDashboard() {
       setSalvandoStatus(true);
       await http.post(`/api/cncs/${cnc}/maintenance/start`, {
         maintenance_type_id: typeId,
-        work_order: workOrder,
+        work_order: workOrder || null,
         opening_notes: String(manutOpeningNotes || "").trim() || null,
       }, actorConfig());
       fecharPopupManutencao();
@@ -2535,7 +2547,7 @@ export default function OperatorDashboard() {
                   {cnc}
                 </div>
                 <div className="mt-2 text-xs font-semibold text-slate-400 leading-snug">
-                  Informe o tipo e a Ordem de Serviço. O status só mudará após a confirmação.
+                  Informe o tipo e a Ordem de Serviço. Para lubrificação, a OS é opcional.
                 </div>
               </div>
 
@@ -2581,7 +2593,7 @@ export default function OperatorDashboard() {
                 </button>
               ) : null}
               <label className="grid gap-1 text-xs font-black text-slate-600">
-                Ordem de Serviço
+                Ordem de Serviço{manutWorkOrderRequired ? "" : " (opcional)"}
                 <input
                   className="h-11 rounded-xl border border-[rgba(47,55,125,.16)] px-3 text-sm text-slate-800"
                   value={manutWorkOrder}
@@ -2623,7 +2635,7 @@ export default function OperatorDashboard() {
               <button
                 className="flex-1 h-11 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-sm font-black text-white transition"
                 onClick={confirmarManutencao}
-                disabled={salvandoStatus || maintenanceTypesLoading || maintenanceTypes.length === 0 || !String(manutMotivo || "").trim() || !String(manutWorkOrder || "").trim() || !String(operadorNome || "").trim()}
+                disabled={salvandoStatus || maintenanceTypesLoading || maintenanceTypes.length === 0 || !String(manutMotivo || "").trim() || (manutWorkOrderRequired && !String(manutWorkOrder || "").trim()) || !String(operadorNome || "").trim()}
               >
                 {salvandoStatus ? "Iniciando..." : "Iniciar manutenção"}
               </button>

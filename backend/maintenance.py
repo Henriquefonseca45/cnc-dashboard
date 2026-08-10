@@ -40,6 +40,12 @@ def is_maintenance_status(value: str | None) -> bool:
     return "MANUT" in text.upper()
 
 
+def is_lubrication_type(value: str | None) -> bool:
+    text = unicodedata.normalize("NFD", str(value or ""))
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+    return text.upper().startswith("LUBRIFIC")
+
+
 def ensure_maintenance_schema(conn: sqlite3.Connection) -> None:
     cur = conn.cursor()
     cur.execute(
@@ -226,14 +232,14 @@ def change_machine_status(
             work_order_clean = str(work_order or "").strip()
             if maintenance_type_id is None:
                 raise MaintenanceError(422, "Tipo da manutenção é obrigatório.")
-            if not work_order_clean:
-                raise MaintenanceError(422, "Ordem de Serviço é obrigatória.")
             type_row = conn.execute(
                 "SELECT id, name FROM maintenance_types WHERE id = ? AND active = 1",
                 (maintenance_type_id,),
             ).fetchone()
             if not type_row:
                 raise MaintenanceError(422, "Tipo de manutenção inválido ou inativo.")
+            if not work_order_clean and not is_lubrication_type(type_row["name"]):
+                raise MaintenanceError(422, "Ordem de Serviço é obrigatória.")
             if conn.execute(
                 "SELECT id FROM cnc_maintenance_calls WHERE cnc_id = ? AND status = 'OPEN'",
                 (cnc_id,),

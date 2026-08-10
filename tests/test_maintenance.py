@@ -27,6 +27,9 @@ class MaintenanceServiceTests(unittest.TestCase):
         ensure_maintenance_schema(conn)
         conn.commit()
         self.type_id = conn.execute("SELECT id FROM maintenance_types ORDER BY display_order LIMIT 1").fetchone()[0]
+        self.lubrication_type_id = conn.execute(
+            "SELECT id FROM maintenance_types WHERE name LIKE 'Lubrifica%'"
+        ).fetchone()[0]
         conn.close()
 
     def tearDown(self):
@@ -70,6 +73,11 @@ class MaintenanceServiceTests(unittest.TestCase):
     def test_rejects_start_without_work_order(self):
         with self.assertRaisesRegex(MaintenanceError, "Ordem"):
             self.start(work_order="  ")
+
+    def test_lubrication_allows_start_without_work_order(self):
+        result = self.start(maintenance_type_id=self.lubrication_type_id, work_order=None)
+        self.assertEqual(result["maintenance"]["workOrder"], "")
+        self.assertEqual(self.rows("SELECT work_order FROM cnc_maintenance_calls")[0]["work_order"], "")
 
     def test_requires_responsible_authorized_user(self):
         with self.assertRaises(MaintenanceError) as missing:
