@@ -126,16 +126,21 @@ export default function MaintenanceTvPage() {
           const call = machine.maintenance;
           return (
             <article className={`maintenanceMachineCard ${maintenanceCardTone(machine)}`} key={machine.id}>
-              <div className="maintenanceMachineCard__head">
+              <div className={`maintenanceMachineCard__head ${call ? "has-maintenance" : ""}`}>
                 <strong>{machine.id}</strong>
+                {call ? (
+                  <div className="maintenanceMachineCard__type" title={call.type || "Manutenção"}>
+                    <small>TIPO</small>
+                    <b>{call.type || "Manutenção"}</b>
+                  </div>
+                ) : null}
                 {call ? <time>{elapsed(call.startedAt)}</time> : <span>{machine.status || "—"}</span>}
               </div>
               {call ? (
                 <>
                   <div className="maintenanceMachineCard__badge"><Wrench size={14} /> MANUTENÇÃO</div>
                   <dl>
-                    <div><dt>TIPO</dt><dd>{call.type || "—"}</dd></div>
-                    <div><dt>ORDEM DE SERVIÇO</dt><dd className="work-order">{call.workOrder}</dd></div>
+                    {call.workOrder ? <div><dt>ORDEM DE SERVIÇO</dt><dd className="work-order">{call.workOrder}</dd></div> : null}
                     <div><dt>INÍCIO</dt><dd>{formatStart(call.startedAt)}</dd></div>
                   </dl>
                   {call.openingNotes ? <p title={call.openingNotes}>{call.openingNotes}</p> : null}
