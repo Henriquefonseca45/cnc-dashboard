@@ -20,3 +20,13 @@ export function buildMaintenanceCards(machines, activeCalls) {
     .sort((a, b) => String(a.id).localeCompare(String(b.id), "pt-BR", { numeric: true }))
     .map((machine) => ({ ...machine, maintenance: activeByCnc.get(String(machine.id).toUpperCase()) || null }));
 }
+
+export function maintenanceCardTone(machine) {
+  const status = String(machine?.status || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+  if (machine?.maintenance || status.includes("MANUT")) return "is-maintenance";
+  if (status.includes("USINANDO")) return "is-machining";
+  return "";
+}

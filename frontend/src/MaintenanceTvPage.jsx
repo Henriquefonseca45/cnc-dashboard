@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Moon, Sun, WifiOff, Wrench } from "lucide-react";
 import { http } from "./http";
 import { useAppTheme } from "./theme";
-import { buildMaintenanceCards, elapsedFromServer, formatElapsed } from "./maintenanceTvUtils";
+import { buildMaintenanceCards, elapsedFromServer, formatElapsed, maintenanceCardTone } from "./maintenanceTvUtils";
 import "./MaintenanceTvPage.css";
 
 const POLL_MS = 4000;
@@ -125,7 +125,7 @@ export default function MaintenanceTvPage() {
         {cards.map((machine) => {
           const call = machine.maintenance;
           return (
-            <article className={`maintenanceMachineCard ${call ? "is-active" : ""}`} key={machine.id}>
+            <article className={`maintenanceMachineCard ${maintenanceCardTone(machine)}`} key={machine.id}>
               <div className="maintenanceMachineCard__head">
                 <strong>{machine.id}</strong>
                 {call ? <time>{elapsed(call.startedAt)}</time> : <span>{machine.status || "—"}</span>}

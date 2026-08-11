@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildMaintenanceCards, elapsedFromServer, formatElapsed } from "./maintenanceTvUtils.js";
+import { buildMaintenanceCards, elapsedFromServer, formatElapsed, maintenanceCardTone } from "./maintenanceTvUtils.js";
 
 test("cards are generated dynamically for newly registered CNCs", () => {
   const machines = [
@@ -23,4 +23,11 @@ test("elapsed counter derives from persisted startedAt and server clock after re
 test("machines without maintenance receive no zero counter source", () => {
   const [card] = buildMaintenanceCards([{ id: "CNC01", status: "OCIOSA" }], []);
   assert.equal(card.maintenance, null);
+});
+
+test("machine cards receive machining and maintenance tones", () => {
+  assert.equal(maintenanceCardTone({ status: "USINANDO" }), "is-machining");
+  assert.equal(maintenanceCardTone({ status: "MANUTENÇÃO" }), "is-maintenance");
+  assert.equal(maintenanceCardTone({ status: "USINANDO", maintenance: { id: 1 } }), "is-maintenance");
+  assert.equal(maintenanceCardTone({ status: "OCIOSA" }), "");
 });
