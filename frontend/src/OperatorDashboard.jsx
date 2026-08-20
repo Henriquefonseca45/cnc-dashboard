@@ -67,6 +67,7 @@ const OPERADORES = [
   "MATHEUS",
   "ERIK",
   "YURI",
+  "DANIEL",
 ];
 
 function cn(...s) {
