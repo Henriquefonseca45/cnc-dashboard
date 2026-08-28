@@ -13,6 +13,7 @@ import json
 import re
 import unicodedata
 import time
+import threading
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,6 +42,12 @@ from backend.cnc_assistant import (
     find_cnc_id,
     normalize_machine,
 )
+from backend.status_confirmation import (
+    StatusConfirmationError,
+    confirm_current_status,
+    get_pending_status_confirmation,
+    process_status_confirmations,
+)
 
 # =========================
 # APP
@@ -52,6 +59,8 @@ FRONT_ASSETS = FRONT_DIST / "assets"
 TEST_MACHINE_ID = "CNC_TESTE"
 ASSISTANT_RATE_BUCKET: dict[str, list[float]] = {}
 logger = logging.getLogger("cnc_dashboard")
+STATUS_CONFIRMATION_STOP = threading.Event()
+STATUS_CONFIRMATION_THREAD: threading.Thread | None = None
 
 # =========================
 # UI (Painel + Dashboard + Agente + Visual)
@@ -2676,6 +2685,75 @@ def atualizar_status(maquina_id: str, req: StatusRequest, actor: dict = Depends(
         "desde": result["machine"].get("status_desde"),
         "status_inalterado": result["status_unchanged"],
     }
+
+
+def _automatic_shutdown_machine(maquina_id: str) -> None:
+    _run_status_change(
+        maquina_id,
+        "DESLIGADA",
+        {"id": None, "name": "Sistema", "role": "ADMIN"},
+    )
+    conn = get_conn()
+    try:
+        conn.execute("UPDATE maquinas SET operador_nome = '' WHERE id = ?", (maquina_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _process_nightly_status_confirmations() -> dict:
+    return process_status_confirmations(get_conn, _automatic_shutdown_machine)
+
+
+def _status_confirmation_worker() -> None:
+    while not STATUS_CONFIRMATION_STOP.is_set():
+        try:
+            _process_nightly_status_confirmations()
+        except Exception:
+            logger.exception("Falha ao processar confirmações noturnas de status")
+        now = datetime.now().astimezone()
+        current_minute = now.hour * 60 + now.minute
+        in_confirmation_window = (23 * 60 + 18) <= current_minute <= (23 * 60 + 25)
+        STATUS_CONFIRMATION_STOP.wait(1 if in_confirmation_window else 30)
+
+
+@app.on_event("startup")
+def start_status_confirmation_worker():
+    global STATUS_CONFIRMATION_THREAD
+    if STATUS_CONFIRMATION_THREAD and STATUS_CONFIRMATION_THREAD.is_alive():
+        return
+    STATUS_CONFIRMATION_STOP.clear()
+    STATUS_CONFIRMATION_THREAD = threading.Thread(
+        target=_status_confirmation_worker,
+        name="status-confirmation-worker",
+        daemon=True,
+    )
+    STATUS_CONFIRMATION_THREAD.start()
+
+
+@app.on_event("shutdown")
+def stop_status_confirmation_worker():
+    STATUS_CONFIRMATION_STOP.set()
+    if STATUS_CONFIRMATION_THREAD and STATUS_CONFIRMATION_THREAD.is_alive():
+        STATUS_CONFIRMATION_THREAD.join(timeout=2)
+
+
+@app.get("/api/cncs/{cnc_id}/status-confirmation")
+def api_pending_status_confirmation(cnc_id: str):
+    _process_nightly_status_confirmations()
+    return {"item": get_pending_status_confirmation(get_conn, cnc_id)}
+
+
+@app.post("/api/cncs/{cnc_id}/status-confirmation/confirm")
+def api_confirm_status_confirmation(cnc_id: str, actor: dict = Depends(_maintenance_actor)):
+    actor_name = str(actor.get("name") or "").strip()
+    if not actor_name:
+        raise HTTPException(status_code=422, detail="Selecione o operador antes de confirmar o status.")
+    _process_nightly_status_confirmations()
+    try:
+        return confirm_current_status(get_conn, cnc_id, actor_name)
+    except StatusConfirmationError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
 
 def _maintenance_select_base():

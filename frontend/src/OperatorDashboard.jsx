@@ -780,6 +780,8 @@ export default function OperatorDashboard() {
 
   const [statusMaquina, setStatusMaquina] = useState("OCIOSA");
   const [salvandoStatus, setSalvandoStatus] = useState(false);
+  const [statusConfirmation, setStatusConfirmation] = useState(null);
+  const [statusConfirmationSaving, setStatusConfirmationSaving] = useState(false);
   const [manutModalOpen, setManutModalOpen] = useState(false);
   const [manutMotivo, setManutMotivo] = useState("");
   const [maintenanceTypes, setMaintenanceTypes] = useState([]);
@@ -1131,7 +1133,7 @@ export default function OperatorDashboard() {
   async function carregarTudo(silent = false) {
     if (!silent) setLoading(true);
     try {
-      const [mRes, fRes, hRes, matRes, maintenanceRes] = await Promise.all([
+      const [mRes, fRes, hRes, matRes, maintenanceRes, confirmationRes] = await Promise.all([
         http.get("/maquinas"),
         http.get(`/fila/${cnc}`, { params: { include_done: true } }),
         http.get(`/historico/${cnc}`),
@@ -1139,6 +1141,7 @@ export default function OperatorDashboard() {
           params: { maquina_id: cnc, status: "TODAS", limit: 100 },
         }).catch(() => ({ data: [] })),
         http.get(`/api/cncs/${cnc}/maintenance/active`).catch(() => ({ data: { item: null } })),
+        http.get(`/api/cncs/${cnc}/status-confirmation`).catch(() => ({ data: { item: null } })),
       ]);
 
       const maquinasData = mRes.data || [];
@@ -1151,6 +1154,8 @@ export default function OperatorDashboard() {
       setHistorico(histData);
       setMaterialRequests(materialData);
       setActiveMaintenance(maintenanceRes.data?.item || null);
+      const confirmationItem = confirmationRes.data?.item || null;
+      setStatusConfirmation(confirmationItem ? { ...confirmationItem, receivedAt: Date.now() } : null);
 
       const atual = filaData.find(
         (x) => String(x.status || "").toUpperCase() === "EM_EXECUCAO"
@@ -1244,8 +1249,8 @@ export default function OperatorDashboard() {
     await carregarTiposManutencao();
   }
 
-  function actorConfig() {
-    return { headers: { "X-User-Name": String(operadorNome || "").trim(), "X-User-Role": "OPERADOR" } };
+  function actorConfig(nameOverride = operadorNome) {
+    return { headers: { "X-User-Name": String(nameOverride || "").trim(), "X-User-Role": "OPERADOR" } };
   }
 
   async function abrirEncerramentoManutencao(novoStatus) {
@@ -1384,6 +1389,47 @@ export default function OperatorDashboard() {
       alert("Erro ao salvar operador: " + getErrMsg(e));
     } finally {
       setSalvandoOperador(false);
+    }
+  }
+
+  async function confirmarContinuidadeStatus() {
+    if (!statusConfirmation || statusConfirmationSaving) return;
+    const actorName = String(operadorNome || operadorDraft || "").trim();
+    if (!actorName) return;
+    try {
+      setStatusConfirmationSaving(true);
+      if (!String(operadorNome || "").trim()) {
+        await http.post(`/maquinas/${cnc}/operador`, { nome: actorName });
+        setOperadorNome(actorName);
+        setOperadorDraft(actorName);
+      }
+      await http.post(`/api/cncs/${cnc}/status-confirmation/confirm`, {}, actorConfig(actorName));
+      setStatusConfirmation(null);
+      await carregarTudo(true);
+    } catch (error) {
+      alert("Não foi possível confirmar o status: " + getErrMsg(error));
+      await carregarTudo(true);
+    } finally {
+      setStatusConfirmationSaving(false);
+    }
+  }
+
+  async function desligarNaConfirmacaoNoturna() {
+    if (statusConfirmationSaving) return;
+    try {
+      setStatusConfirmationSaving(true);
+      const actorName = String(operadorNome || operadorDraft || "Operador").trim();
+      await http.post(`/maquinas/${cnc}/status`, { status: "DESLIGADA" }, actorConfig(actorName));
+      await http.post(`/maquinas/${cnc}/operador`, { nome: "" });
+      setOperadorNome("");
+      setOperadorDraft("");
+      setStatusConfirmation(null);
+      await carregarTudo(true);
+    } catch (error) {
+      alert("Não foi possível desligar a CNC: " + getErrMsg(error));
+      await carregarTudo(true);
+    } finally {
+      setStatusConfirmationSaving(false);
     }
   }
 
@@ -1827,6 +1873,13 @@ export default function OperatorDashboard() {
       null
     );
   }, [materialRequests]);
+
+  const statusConfirmationRemaining = statusConfirmation?.deadlineAt
+    ? Math.max(0, Math.ceil((
+        Date.parse(statusConfirmation.deadlineAt) -
+        (Date.now() + (Date.parse(statusConfirmation.serverNow) - statusConfirmation.receivedAt))
+      ) / 1000))
+    : 0;
 
   return (
     <Shell themeMode={themeMode}>
@@ -2534,6 +2587,74 @@ export default function OperatorDashboard() {
           </div>
         </>
       )}
+
+      {statusConfirmation ? (
+        <>
+          <div className="fixed inset-0 z-[115] bg-black/70 backdrop-blur-sm" />
+          <div
+            className="fixed z-[120] left-1/2 top-1/2 w-[min(92vw,500px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl border-2 border-amber-400 bg-white p-6 shadow-[0_30px_90px_-30px_rgba(0,0,0,.55)]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="status-confirmation-title"
+          >
+            <div className="flex items-start gap-4">
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-amber-500 text-white">
+                <Clock3 size={24} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] font-black tracking-[0.28em] text-amber-700">CONFIRMAÇÃO DE FIM DO DIA</div>
+                <h2 id="status-confirmation-title" className="mt-2 text-xl font-black text-slate-800">
+                  Deseja continuar em {statusConfirmation.status}?
+                </h2>
+                <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-500">
+                  Confirme até 23:24. Sem confirmação, a {cnc} será colocada automaticamente como DESLIGADA.
+                </p>
+              </div>
+            </div>
+
+            <div className="my-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-center">
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-700">Tempo para confirmar</div>
+              <div className="mt-1 text-3xl font-black tabular-nums text-amber-700">
+                {fmtHHMMSS(statusConfirmationRemaining)}
+              </div>
+            </div>
+
+            {!String(operadorNome || "").trim() ? (
+              <label className="mb-4 grid gap-2 text-xs font-black text-slate-600">
+                Operador responsável pela confirmação
+                <select
+                  className="h-11 rounded-xl border border-[rgba(47,55,125,.16)] bg-white px-3 text-sm font-bold text-slate-800"
+                  value={operadorDraft}
+                  onChange={(event) => setOperadorDraft(event.target.value)}
+                  disabled={statusConfirmationSaving}
+                >
+                  <option value="">Selecione o operador</option>
+                  {OPERADORES.map((nome) => <option key={nome} value={nome}>{nome}</option>)}
+                </select>
+              </label>
+            ) : null}
+
+            <div className="flex flex-col-reverse gap-3 sm:flex-row">
+              <button
+                type="button"
+                className="h-12 flex-1 rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                onClick={desligarNaConfirmacaoNoturna}
+                disabled={statusConfirmationSaving || salvandoStatus}
+              >
+                Desligar agora
+              </button>
+              <button
+                type="button"
+                className="h-12 flex-1 rounded-xl bg-emerald-600 px-4 text-sm font-black text-white transition hover:bg-emerald-500 disabled:opacity-40"
+                onClick={confirmarContinuidadeStatus}
+                disabled={statusConfirmationSaving || !String(operadorNome || operadorDraft || "").trim()}
+              >
+                {statusConfirmationSaving ? "Confirmando..." : "Sim, continuar"}
+              </button>
+            </div>
+          </div>
+        </>
+      ) : null}
 
       {manutModalOpen && (
         <>
