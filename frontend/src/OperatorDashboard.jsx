@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { http } from "./http";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAppTheme } from "./theme";
+import { getStatusReminder } from "./statusReminderUtils";
 import "./OperatorTheme.css";
 import {
   RefreshCw,
@@ -20,6 +21,7 @@ import {
   Send,
   ImagePlus,
   PackagePlus,
+  BellRing,
 } from "lucide-react";
 
 console.log("API_URL", http?.defaults?.baseURL);
@@ -780,6 +782,8 @@ export default function OperatorDashboard() {
 
   const [statusMaquina, setStatusMaquina] = useState("OCIOSA");
   const [salvandoStatus, setSalvandoStatus] = useState(false);
+  const [reminderSnoozedUntil, setReminderSnoozedUntil] = useState(0);
+  const statusSelectRef = useRef(null);
   const [manutModalOpen, setManutModalOpen] = useState(false);
   const [manutMotivo, setManutMotivo] = useState("");
   const [maintenanceTypes, setMaintenanceTypes] = useState([]);
@@ -1815,6 +1819,24 @@ export default function OperatorDashboard() {
     return progressoItem(executando);
   }, [executando, maquinaAtual?.status, statusMaquina, fila, tick]);
 
+  const statusReminder = useMemo(() => getStatusReminder({
+    status: maquinaAtual?.status || statusMaquina,
+    statusSince: maquinaAtual?.status_desde,
+    nowMs: Date.now(),
+    remainingSeconds: execProg.restanteSeg,
+    hasExecutingFile: Boolean(executando?.id),
+  }), [maquinaAtual?.status, maquinaAtual?.status_desde, statusMaquina, execProg.restanteSeg, executando?.id, tick]);
+
+  const statusReminderKey = `${cnc}|${maquinaAtual?.status || statusMaquina}|${maquinaAtual?.status_desde || ""}|${executando?.id || ""}`;
+
+  useEffect(() => {
+    setReminderSnoozedUntil(0);
+  }, [statusReminderKey]);
+
+  const visibleStatusReminder = statusReminder && Date.now() >= reminderSnoozedUntil
+    ? statusReminder
+    : null;
+
   const materialUnreadTotal = useMemo(
     () => (materialRequests || []).reduce((sum, req) => sum + Number(req?.nao_lidas_operador || 0), 0),
     [materialRequests]
@@ -1844,6 +1866,43 @@ export default function OperatorDashboard() {
         {loading && (
           <div className="text-xs text-slate-400 mb-3">carregando…</div>
         )}
+
+        {visibleStatusReminder ? (
+          <div className="mb-5 rounded-2xl border-2 border-amber-400 bg-amber-50 px-5 py-4 shadow-[0_16px_38px_rgba(217,119,6,.18)]">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-500 text-white">
+                  <BellRing size={20} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-black text-amber-800">Hora de conferir o status</div>
+                  <div className="mt-1 text-xs font-semibold leading-relaxed text-amber-800">
+                    {visibleStatusReminder.message}
+                  </div>
+                </div>
+              </div>
+              <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  className="h-10 rounded-xl bg-amber-600 px-4 text-xs font-black text-white transition hover:bg-amber-500"
+                  onClick={() => {
+                    statusSelectRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    statusSelectRef.current?.focus();
+                  }}
+                >
+                  Trocar status agora
+                </button>
+                <button
+                  type="button"
+                  className="h-10 rounded-xl border border-amber-400 bg-white px-4 text-xs font-black text-amber-800 transition hover:bg-amber-100"
+                  onClick={() => setReminderSnoozedUntil(Date.now() + 10 * 60 * 1000)}
+                >
+                  Lembrar em 10 min
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-12 gap-6 items-stretch auto-rows-min">
           <div className="col-span-12 md:col-span-4 flex flex-col gap-6">
@@ -1931,6 +1990,7 @@ export default function OperatorDashboard() {
                 </div>
 
                 <select
+                  ref={statusSelectRef}
                   className="w-full h-11 rounded-xl bg-white border border-[rgba(47,55,125,.12)] px-3 text-sm text-slate-800 outline-none disabled:opacity-60 appearance-auto"
                   style={{ color: "#1e293b", WebkitTextFillColor: "#1e293b" }}
                   value={statusMaquina}
