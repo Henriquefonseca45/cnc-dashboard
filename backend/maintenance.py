@@ -186,6 +186,7 @@ def change_machine_status(
     require_open_maintenance_for_finish: bool = False,
     now_factory: Callable[[], str] = iso_now,
     legacy_hook: Callable[[sqlite3.Connection, dict, str, str], None] | None = None,
+    transaction_guard: Callable[[sqlite3.Connection, dict], None] | None = None,
 ) -> dict:
     """Single transactional use case for every CNC status transition."""
     actor_clean = _clean_actor(actor)
@@ -204,6 +205,8 @@ def change_machine_status(
         if not machine_row:
             raise MaintenanceError(404, "Máquina não encontrada.")
         machine = dict(machine_row)
+        if transaction_guard:
+            transaction_guard(conn, machine)
         old_status = str(machine.get("status") or "")
         repair_missing_maintenance = False
         if old_status.strip().upper() == status_clean.upper():

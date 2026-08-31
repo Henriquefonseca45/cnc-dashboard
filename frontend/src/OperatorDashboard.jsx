@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { http } from "./http";
+import MorningStatusDialog from "./MorningStatusDialog";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAppTheme } from "./theme";
 import "./OperatorTheme.css";
@@ -782,6 +783,7 @@ export default function OperatorDashboard() {
   const [salvandoStatus, setSalvandoStatus] = useState(false);
   const [statusConfirmation, setStatusConfirmation] = useState(null);
   const [statusConfirmationSaving, setStatusConfirmationSaving] = useState(false);
+  const [morningConfirmation, setMorningConfirmation] = useState(null);
   const [manutModalOpen, setManutModalOpen] = useState(false);
   const [manutMotivo, setManutMotivo] = useState("");
   const [maintenanceTypes, setMaintenanceTypes] = useState([]);
@@ -1173,6 +1175,29 @@ export default function OperatorDashboard() {
     chatForceScrollRef.current = true;
     carregarTudo();
     fetchChat();
+  }, [cnc]);
+
+  useEffect(() => {
+    let active = true;
+    let fetching = false;
+    async function pollMorningConfirmation() {
+      if (fetching) return;
+      fetching = true;
+      try {
+        const { data } = await http.get(`/api/cncs/${cnc}/morning-status-confirmation`, { timeout: 10000 });
+        if (active) {
+          setMorningConfirmation(data?.item ? { ...data.item, receivedAt: Date.now() } : null);
+        }
+      } catch (error) {
+        // Preserve a visible prompt during outages; unrelated dashboard requests cannot hide it.
+        console.error("Falha ao consultar confirmação da manhã:", error);
+      } finally {
+        fetching = false;
+      }
+    }
+    pollMorningConfirmation();
+    const timer = setInterval(pollMorningConfirmation, 15000);
+    return () => { active = false; clearInterval(timer); };
   }, [cnc]);
 
   useEffect(() => {
@@ -2587,6 +2612,18 @@ export default function OperatorDashboard() {
           </div>
         </>
       )}
+
+      {morningConfirmation?.cncId === cnc ? (
+        <MorningStatusDialog
+          key={`${cnc}-${morningConfirmation.id}`}
+          confirmation={morningConfirmation}
+          operators={OPERADORES}
+          onConfirmed={async () => {
+            setMorningConfirmation(null);
+            await carregarTudo(true);
+          }}
+        />
+      ) : null}
 
       {statusConfirmation ? (
         <>

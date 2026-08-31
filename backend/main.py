@@ -48,6 +48,11 @@ from backend.status_confirmation import (
     get_pending_status_confirmation,
     process_status_confirmations,
 )
+from backend.morning_status_confirmation import (
+    confirm_morning_status,
+    get_pending_morning_status,
+    process_morning_status_confirmations,
+)
 
 # =========================
 # APP
@@ -2711,9 +2716,16 @@ def _status_confirmation_worker() -> None:
             _process_nightly_status_confirmations()
         except Exception:
             logger.exception("Falha ao processar confirmações noturnas de status")
+        try:
+            process_morning_status_confirmations(get_conn, legacy_hook=_legacy_machine_status_hook)
+        except Exception:
+            logger.exception("Falha ao processar confirmações da manhã")
         now = datetime.now().astimezone()
         current_minute = now.hour * 60 + now.minute
-        in_confirmation_window = (23 * 60 + 18) <= current_minute <= (23 * 60 + 25)
+        in_confirmation_window = (
+            (23 * 60 + 18) <= current_minute <= (23 * 60 + 25)
+            or (now.weekday() < 5 and (5 * 60 + 4) <= current_minute <= (5 * 60 + 16))
+        )
         STATUS_CONFIRMATION_STOP.wait(1 if in_confirmation_window else 30)
 
 
@@ -2753,6 +2765,30 @@ def api_confirm_status_confirmation(cnc_id: str, actor: dict = Depends(_maintena
     try:
         return confirm_current_status(get_conn, cnc_id, actor_name)
     except StatusConfirmationError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+
+class MorningStatusRequest(StatusRequest):
+    confirmation_id: int
+
+
+@app.get("/api/cncs/{cnc_id}/morning-status-confirmation")
+def api_pending_morning_status(cnc_id: str):
+    process_morning_status_confirmations(get_conn, legacy_hook=_legacy_machine_status_hook)
+    return {"item": get_pending_morning_status(get_conn, cnc_id)}
+
+
+@app.post("/api/cncs/{cnc_id}/morning-status-confirmation/confirm")
+def api_confirm_morning_status(cnc_id: str, req: MorningStatusRequest, actor: dict = Depends(_maintenance_actor)):
+    try:
+        return confirm_morning_status(
+            get_conn, cnc_id, req.confirmation_id, req.status, actor,
+            legacy_hook=_legacy_machine_status_hook,
+            maintenance_type_id=req.maintenance_type_id,
+            work_order=req.work_order, opening_notes=req.opening_notes,
+            closing_notes=req.closing_notes,
+        )
+    except MaintenanceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
 
