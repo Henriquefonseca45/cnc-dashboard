@@ -96,6 +96,12 @@
 .opThemeDark .text-emerald-700{ color:#86efac !important; }
 .opThemeDark .text-emerald-600{ color:#6ee7b7 !important; }
 .opThemeDark .text-amber-800{ color:#fde68a !important; }
+.opThemeDark .morningResumeCard{
+  background:#1e1738 !important;
+  border-color:#a78bfa !important;
+  color:#ddd6fe !important;
+}
+.opThemeDark .morningResumeCard p{ color:#c4b5fd !important; }
 .opThemeDark .text-red-700,
 .opThemeDark .text-red-600{ color:#fca5a5 !important; }
 

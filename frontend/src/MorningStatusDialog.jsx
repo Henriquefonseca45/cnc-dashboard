@@ -19,6 +19,7 @@ export default function MorningStatusDialog({ confirmation, operators, onConfirm
   const [error, setError] = useState("");
   const [clock, setClock] = useState(Date.now);
   const openingMaintenance = status === "MANUTENÇÃO" && confirmation.status !== "MANUTENÇÃO";
+  const resumingMaintenance = openingMaintenance && Boolean(confirmation.maintenanceResume);
   const selectedType = types.find((type) => String(type.id) === typeId);
   const lubrication = selectedType?.name?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().startsWith("LUBRIFIC");
   const remaining = Math.max(0, Math.ceil((Date.parse(confirmation.deadlineAt)
@@ -30,7 +31,7 @@ export default function MorningStatusDialog({ confirmation, operators, onConfirm
   }, []);
 
   useEffect(() => {
-    if (!openingMaintenance) return;
+    if (!openingMaintenance || resumingMaintenance) return;
     let active = true;
     http.get("/api/maintenance/types").then(({ data }) => {
       if (!active) return;
@@ -41,7 +42,7 @@ export default function MorningStatusDialog({ confirmation, operators, onConfirm
       if (active) setTypesError("Não foi possível carregar os tipos de manutenção.");
     });
     return () => { active = false; };
-  }, [openingMaintenance, retry]);
+  }, [openingMaintenance, resumingMaintenance, retry]);
 
   async function confirm(event) {
     event.preventDefault();
@@ -52,7 +53,7 @@ export default function MorningStatusDialog({ confirmation, operators, onConfirm
       await http.post(`/api/cncs/${confirmation.cncId}/morning-status-confirmation/confirm`, {
         confirmation_id: confirmation.id,
         status,
-        ...(openingMaintenance ? {
+        ...(openingMaintenance && !resumingMaintenance ? {
           maintenance_type_id: Number(typeId),
           work_order: lubrication ? null : workOrder.trim(),
           opening_notes: notes.trim() || null,
@@ -115,7 +116,19 @@ export default function MorningStatusDialog({ confirmation, operators, onConfirm
           </label>
           {openingMaintenance ? (
             <>
-              <label className="grid gap-2 text-xs font-black text-slate-600">
+              {resumingMaintenance ? (
+                <div className="morningResumeCard rounded-xl border-2 border-violet-400 bg-violet-50 p-4 text-violet-900">
+                  <div className="text-xs font-black tracking-wide">RETOMAR MANUTENÇÃO DO TURNO ANTERIOR</div>
+                  <div className="mt-2 text-sm font-bold">{confirmation.maintenanceResume.type}</div>
+                  <div className="mt-1 text-sm font-black">
+                    {confirmation.maintenanceResume.workOrder
+                      ? `Ordem de Serviço: ${confirmation.maintenanceResume.workOrder}`
+                      : "Lubrificação — sem Ordem de Serviço"}
+                  </div>
+                  <p className="mt-2 text-xs font-semibold">O mesmo tipo e a mesma OS serão usados automaticamente.</p>
+                </div>
+              ) : <>
+                <label className="grid gap-2 text-xs font-black text-slate-600">
                 Tipo da manutenção
                 <select required value={typeId} onChange={(e) => { setTypeId(e.target.value); setWorkOrder(""); }} className={fieldClass}>
                   <option value="">Selecione o tipo</option>
@@ -131,10 +144,11 @@ export default function MorningStatusDialog({ confirmation, operators, onConfirm
                 Observação de abertura (opcional)
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className={`${fieldClass} h-20 py-2`} />
               </label>
+              </>}
             </>
           ) : null}
-          <button type="submit" disabled={!status || !operator || (openingMaintenance && (!selectedType || (!lubrication && !workOrder.trim())))} className="h-12 rounded-xl bg-emerald-600 px-4 text-sm font-black text-white hover:bg-emerald-500 disabled:opacity-40">
-            {saving ? "Confirmando..." : "Confirmar status"}
+          <button type="submit" disabled={!status || !operator || (openingMaintenance && !resumingMaintenance && (!selectedType || (!lubrication && !workOrder.trim())))} className="h-12 rounded-xl bg-emerald-600 px-4 text-sm font-black text-white hover:bg-emerald-500 disabled:opacity-40">
+            {saving ? "Confirmando..." : resumingMaintenance ? "Retomar manutenção" : "Confirmar status"}
           </button>
         </fieldset>
         {error ? <p role="alert" className="mt-3 text-sm text-red-600">{error}</p> : null}

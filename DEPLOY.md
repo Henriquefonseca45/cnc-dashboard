@@ -63,6 +63,8 @@ para as mudanças automáticas; precisa estar aberto para o operador ver e respo
   status. Sem resposta até 05:15, muda para `FALTA DE OPERADOR` e limpa o operador.
 - A seleção da manhã mantém as validações de usinagem e manutenção. Lubrificação
   não exige OS. Escolher o mesmo status confirma sem reiniciar seu tempo.
+- Se a CNC estava em manutenção no aviso das 23:19, às 05:05 o operador pode
+  retomar a manutenção com o mesmo tipo e a mesma OS, preenchidos pelo servidor.
 - Uma troca manual de status durante um aviso pendente também conta como resposta.
   A máquina de teste não participa dessas rotinas.
 - Os avisos e as respostas ficam persistidos no SQLite. Um aviso da manhã já

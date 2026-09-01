@@ -1,5 +1,5 @@
 """Weekday start-of-shift prompts; responses and automatic transitions are atomic."""
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 from backend.maintenance import MaintenanceError, change_machine_status
@@ -41,6 +41,39 @@ def _changed(row, machine):
     )
 
 
+def _maintenance_resume_candidate(conn, cnc_id, confirmation_date):
+    """Return the call that was open when the previous 23:19 prompt was created."""
+    required_tables = {"machine_status_confirmations", "cnc_maintenance_calls", "maintenance_types"}
+    tables = {
+        row["name"] for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?, ?)", tuple(required_tables)
+        )
+    }
+    if tables != required_tables:
+        return None
+    previous_date = (datetime.fromisoformat(confirmation_date).date() - timedelta(days=1)).isoformat()
+    row = conn.execute("""
+        SELECT c.maintenance_type_id, t.name AS type_name, c.work_order
+        FROM machine_status_confirmations s
+        JOIN cnc_maintenance_calls c
+          ON c.cnc_id = s.cnc_id
+         AND c.started_at <= s.prompted_at
+         AND (c.finished_at IS NULL OR c.finished_at >= s.prompted_at)
+        JOIN maintenance_types t ON t.id = c.maintenance_type_id
+        WHERE s.confirmation_date = ? AND s.cnc_id = ?
+          AND UPPER(s.status_at_prompt) LIKE '%MANUT%'
+        ORDER BY c.started_at DESC, c.id DESC
+        LIMIT 1
+    """, (previous_date, cnc_id)).fetchone()
+    if not row:
+        return None
+    return {
+        "maintenanceTypeId": row["maintenance_type_id"],
+        "type": row["type_name"],
+        "workOrder": row["work_order"] or "",
+    }
+
+
 def _resolve(get_connection, cnc_id, confirmation_id, status, actor, *,
              automatic=False, now=None, legacy_hook=None, **maintenance_data):
     # Read the clock after acquiring the write lock, not when the request arrived.
@@ -80,6 +113,20 @@ def confirm_morning_status(get_connection, cnc_id, confirmation_id, status, acto
                            now=None, legacy_hook=None, **maintenance_data):
     if status not in STATUSES:
         raise MaintenanceError(422, "Selecione um status válido para a CNC.")
+    if status == "MANUTENÇÃO":
+        current = now or _local_now()
+        conn = get_connection()
+        try:
+            candidate = _maintenance_resume_candidate(conn, cnc_id, current.date().isoformat())
+        finally:
+            conn.close()
+        if candidate:
+            # A client cannot replace the authorized type/OS with different values.
+            maintenance_data.update(
+                maintenance_type_id=candidate["maintenanceTypeId"],
+                work_order=candidate["workOrder"],
+                opening_notes="Retomada da manutenção do turno anterior.",
+            )
     return _resolve(get_connection, cnc_id, confirmation_id, status, actor,
                     now=now, legacy_hook=legacy_hook, **maintenance_data)
 
@@ -151,10 +198,12 @@ def get_pending_morning_status(get_connection, cnc_id, *, now=None):
         """, (current.date().isoformat(), cnc_id)).fetchone()
         if not row:
             return None
+        resume = _maintenance_resume_candidate(conn, cnc_id, current.date().isoformat())
         return {
             "id": row["id"], "cncId": cnc_id, "status": row["status_at_prompt"],
             "promptedAt": row["prompted_at"], "deadlineAt": row["deadline_at"],
             "serverNow": current.isoformat(timespec="seconds"), "statuses": STATUSES,
+            "maintenanceResume": resume,
         }
     finally:
         conn.close()

@@ -9,6 +9,7 @@ from backend.maintenance import MaintenanceError, change_machine_status, ensure_
 from backend.morning_status_confirmation import (
     confirm_morning_status, get_pending_morning_status, process_morning_status_confirmations,
 )
+from backend.status_confirmation import process_status_confirmations
 
 ACTOR = {"id": None, "name": "YURI", "role": "OPERADOR"}
 
@@ -201,6 +202,45 @@ class MorningStatusTests(unittest.TestCase):
         with self.assertRaises(MaintenanceError):
             confirm_morning_status(self.connect, "CNC01", self.pending()["id"], "SETUP", {}, now=self.at("05:10:00"))
         self.assertIsNotNone(self.pending())
+
+    def test_maintenance_at_2319_can_resume_same_type_and_work_order_at_0505(self):
+        type_id = self.rows("SELECT id FROM maintenance_types WHERE name LIKE 'Mec%'")[0]["id"]
+        change_machine_status(
+            self.connect, "CNC01", "MANUTENÇÃO", ACTOR,
+            maintenance_type_id=type_id, work_order="OS-38406",
+            now_factory=lambda: "2026-08-30T22:00:00-03:00",
+        )
+        process_status_confirmations(
+            self.connect, lambda _cnc: None,
+            now=self.at("23:19:00", "2026-08-30"),
+        )
+        change_machine_status(
+            self.connect, "CNC01", "DESLIGADA",
+            {"id": None, "name": "Sistema", "role": "ADMIN"},
+            now_factory=lambda: "2026-08-30T23:24:00-03:00",
+        )
+
+        self.process()
+        resume = self.pending()["maintenanceResume"]
+        self.assertEqual(resume["maintenanceTypeId"], type_id)
+        self.assertEqual(resume["workOrder"], "OS-38406")
+
+        # Client values are deliberately different: the server must retain the prior OS/type.
+        self.answer(
+            status="MANUTENÇÃO", maintenance_type_id=999,
+            work_order="OS-ALTERADA", opening_notes="Alterada no cliente",
+        )
+        calls = self.rows("SELECT * FROM cnc_maintenance_calls ORDER BY id")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[-1]["maintenance_type_id"], type_id)
+        self.assertEqual(calls[-1]["work_order"], "OS-38406")
+        self.assertEqual(calls[-1]["opening_notes"], "Retomada da manutenção do turno anterior.")
+
+    def test_ordinary_morning_maintenance_still_requires_type_and_os(self):
+        self.process()
+        self.assertIsNone(self.pending()["maintenanceResume"])
+        with self.assertRaisesRegex(MaintenanceError, "Tipo"):
+            self.answer(status="MANUTENÇÃO")
 
 
 if __name__ == "__main__":
