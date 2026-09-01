@@ -1,6 +1,7 @@
 from datetime import datetime
 from backend.db import get_conn
 from backend.maintenance import ensure_maintenance_schema
+from backend.plan_classification import ensure_plan_classification_schema
 
 def main():
     conn = get_conn()
@@ -18,7 +19,6 @@ def main():
         arquivo_pendente_id INTEGER
     )
     """)
-
     # =========================
     # TABELA ARQUIVOS DXF
     # =========================
@@ -32,6 +32,7 @@ def main():
         deleted_em TEXT
     )
     """)
+    ensure_plan_classification_schema(conn)
 
     # =========================
     # TABELA FILA_ITENS

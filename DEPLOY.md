@@ -76,3 +76,12 @@ O frontend consulta os avisos a cada 15 segundos. No servidor, a verificação �
 feita a cada segundo próximo aos horários de confirmação. As tabelas são criadas
 automaticamente, sem apagar dados existentes. Após atualizar o código, recompile
 e reinicie o container para ativar a melhoria.
+
+## Classificação dos planos CNC
+
+Na tela do Programador, novos DXF são classificados antes da importação. A
+prioridade fica em `arquivos_dxf.priority` (`normal`, `medium` ou `high`) e as
+CNCs compatíveis ficam em `arquivo_cnc_compatibilidade`, relacionadas pelos IDs
+do plano e da máquina. O `init_db` cria a coluna, a tabela e o índice necessários
+automaticamente ao reiniciar o container. Planos anteriores à mudança continuam
+sem restrição de CNC até que o Programador edite sua classificação.

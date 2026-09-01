@@ -1,0 +1,22 @@
+.planClassOverlay{position:fixed;inset:0;z-index:160;background:rgba(3,7,18,.76);backdrop-filter:blur(6px);display:grid;place-items:center;padding:20px}
+.planClassModal{width:min(920px,96vw);max-height:92vh;display:flex;flex-direction:column;background:var(--bg2);color:var(--text);border:1px solid var(--stroke2);border-radius:20px;box-shadow:0 32px 90px rgba(0,0,0,.42);overflow:hidden}
+.planClassHeader{display:flex;justify-content:space-between;gap:20px;padding:22px 24px;border-bottom:1px solid var(--stroke)}
+.planClassHeader h2{margin:3px 0 5px;font-size:24px;color:var(--brand)}.planClassHeader p{margin:0;color:var(--muted)}
+.planClassEyebrow{font-size:10px;font-weight:900;letter-spacing:.24em;color:var(--muted2)}
+.planClassClose{width:38px;height:38px;border-radius:11px;border:1px solid var(--stroke2);background:var(--card);color:var(--text);font-size:25px;cursor:pointer}
+.planClassBulk{padding:16px 24px;background:var(--brand-soft);border-bottom:1px solid var(--stroke)}.planClassBulk>strong{display:block;color:var(--brand);margin-bottom:10px}
+.planClassBulkControls{display:flex;align-items:end;gap:14px;flex-wrap:wrap}.planClassBulkControls>label,.planClassBulkMachines{display:grid;gap:5px;font-size:11px;font-weight:800;color:var(--muted)}
+.planClassBulk select{height:36px;min-width:130px;border:1px solid var(--stroke2);border-radius:9px;background:var(--card);color:var(--text)!important;-webkit-text-fill-color:var(--text);padding:0 10px}.planClassBulk select option{background:var(--bg2);color:var(--text)}
+.planClassBulkMachines>div{min-height:36px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}.planClassBulkMachines label{color:var(--text);font-size:12px}
+.planClassList{overflow:auto;padding:18px 24px;display:grid;gap:14px}.planClassItem{padding:17px;border-radius:15px;border:1px solid var(--stroke);background:var(--card)}.planClassItem.hasError{border-color:#ef4444}
+.planClassFileName{font-size:15px;font-weight:900;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:14px}
+.planClassLabel{font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:11px 0 7px}
+.planClassPriorities{display:flex;gap:8px;flex-wrap:wrap}.planPriority{height:34px;border-radius:999px;border:1px solid var(--stroke2);padding:0 15px;background:transparent;color:var(--muted);font-weight:900;cursor:pointer}.planPriority.active.normal{background:#64748b;color:#fff}.planPriority.active.medium{background:#d97706;color:#fff}.planPriority.active.high{background:#dc2626;color:#fff}
+.planClassMachines{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:8px}.planClassMachines label{display:flex;align-items:center;gap:7px;min-height:42px;padding:8px 10px;border:1px solid var(--stroke);border-radius:10px;background:var(--card2);cursor:pointer}.planClassMachines label.checked{border-color:var(--brand);background:var(--brand-soft)}.planClassMachines span{font-size:12px;font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.planClassMachines small{margin-left:auto;color:var(--muted2)}
+.planClassError,.planClassServerError{color:#dc2626;font-size:12px;font-weight:800}.planClassError{margin:9px 0 0}.planClassServerError{margin:0 24px 12px;padding:10px;border-radius:10px;background:rgba(220,38,38,.1)}
+.planClassActions{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid var(--stroke);background:var(--card2)}
+.planClassActions .pgBtn{min-height:40px;padding:0 18px}
+.pgThemeDark .planClassModal{--bg2:#0f172a;--card:rgba(30,41,59,.96);--card2:rgba(15,23,42,.88);--text:#f8fafc;--muted:#a8b3c7;--muted2:#94a3b8;--stroke:rgba(148,163,184,.22);--stroke2:rgba(148,163,184,.34);--brand:#a5b4fc;--brand-soft:rgba(99,102,241,.16)}
+@media(max-width:640px){.planClassOverlay{padding:8px}.planClassHeader,.planClassList,.planClassActions{padding-left:14px;padding-right:14px}.planClassBulk{padding:13px 14px}.planClassActions{position:sticky;bottom:0}.planClassMachines{grid-template-columns:1fr 1fr}}
+.planPoolPriority{flex:0 0 auto;border-radius:999px;padding:3px 7px;font-size:9px;font-weight:900;letter-spacing:.05em;background:#64748b;color:#fff}.planPoolPriority.medium{background:#d97706}.planPoolPriority.high{background:#dc2626}
+.planPoolCncs{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:9px;font-weight:800}

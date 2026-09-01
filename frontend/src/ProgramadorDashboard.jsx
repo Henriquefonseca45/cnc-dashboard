@@ -5,6 +5,8 @@ import "./ProgramadorDashboardFiles.css";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { ImagePlus } from "lucide-react";
+import PlanClassificationModal from "./PlanClassificationModal";
+import { priorityLabel } from "./planClassification";
 
 const CHAT_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 const VCARVE_AGENT_URL = "http://127.0.0.1:8765/abrir-vcarve";
@@ -1800,6 +1802,8 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
 
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
+  const [classificationModal, setClassificationModal] = useState(null);
+  const [classificationError, setClassificationError] = useState("");
 
   const [draggingId, setDraggingId] = useState(null);
 
@@ -3329,7 +3333,7 @@ function imprimirGrafico7() {
     if (readOnly) return;
     const files = Array.from(e.target.files || []);
     e.target.value = "";
-    uploadToPool(files);
+    openPlanClassification(files);
   }
 
   function onPoolDropUpload(e) {
@@ -3337,46 +3341,75 @@ function imprimirGrafico7() {
     e.preventDefault();
     e.stopPropagation();
     const files = Array.from(e.dataTransfer.files || []);
-    uploadToPool(files);
+    openPlanClassification(files);
   }
 
-  async function uploadToPool(files) {
+  function openPlanClassification(files) {
     if (readOnly) return;
     if (!files || files.length === 0) return;
+    const invalid = files.find((file) => !String(file?.name || "").toLowerCase().endsWith(".dxf"));
+    if (invalid) {
+      setErr(`Arquivo inválido: "${invalid.name}". Envie apenas .DXF`);
+      return;
+    }
+    setClassificationError("");
+    setClassificationModal({
+      mode: "import",
+      items: files.map((file, index) => ({ key: `${file.name}-${index}`, name: file.name, file, priority: "normal", compatible_cnc_ids: [] })),
+    });
+  }
+
+  function editPlanClassification(plan) {
+    setClassificationError("");
+    setClassificationModal({
+      mode: "edit",
+      planId: plan.id,
+      items: [{
+        key: `plan-${plan.id}`,
+        name: plan.arquivo_nome || plan.nome,
+        priority: plan.priority || "normal",
+        compatible_cnc_ids: plan.compatible_cnc_ids || (plan.compatible_cncs || []).map((cncItem) => cncItem.id),
+      }],
+    });
+  }
+
+  async function savePlanClassification(items) {
+    if (!classificationModal || uploading) return;
 
     setErr("");
     setMsg("");
+    setClassificationError("");
     setUploading(true);
 
     try {
-      for (const file of files) {
-        const name = String(file?.name || "");
-        if (!name.toLowerCase().endsWith(".dxf")) {
-          throw new Error(`Arquivo inválido: "${name}". Envie apenas .DXF`);
-        }
-
-        const form = new FormData();
-        form.append("file", file);
-
-        const up = await api.post("/arquivos/upload", form, {
-          headers: { "Content-Type": "multipart/form-data" },
+      let successMessage = "";
+      if (classificationModal.mode === "edit") {
+        const item = items[0];
+        await api.put(`/arquivos/${classificationModal.planId}/classification`, {
+          priority: item.priority,
+          compatible_cnc_ids: item.compatible_cnc_ids,
         });
-
-        const arquivo = up.data || {};
-        const arquivo_id = arquivo?.id ?? arquivo?.arquivo_id;
-
-        if (!arquivo_id) {
-          throw new Error(`Upload OK, mas não veio id. Resposta: ${JSON.stringify(up.data)}`);
-        }
-
-        setMsg(`Upload OK: "${arquivo.arquivo_nome || file.name}" entrou na fila geral.`);
+        successMessage = `Classificação de "${item.name}" atualizada.`;
+      } else {
+        const form = new FormData();
+        items.forEach((item) => form.append("files", item.file));
+        form.append("classifications", JSON.stringify(items.map((item) => ({
+          name: item.name,
+          priority: item.priority,
+          compatible_cnc_ids: item.compatible_cnc_ids,
+        }))));
+        const response = await api.post("/arquivos/upload-classified", form);
+        const imported = response.data?.items || [];
+        if (imported.length !== items.length) throw new Error("O servidor não confirmou todos os planos importados.");
+        successMessage = `${imported.length} plano(s) classificado(s) e importado(s) para a fila geral.`;
       }
-
-      await fetchPool();
+      setClassificationModal(null);
+      await reloadAll();
+      setMsg(successMessage);
       setLastUpdate(new Date().toISOString());
     } catch (e) {
       const msgErro = getErrMsg(e);
-      setErr(msgErro);
+      setClassificationError(msgErro);
       mostrarAvisoArquivoBloqueado(e);
     } finally {
       setUploading(false);
@@ -4580,6 +4613,18 @@ const limparLista = (lista) =>
                         </div>
                         <div className="rowMeta" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                           <span className="pgMono">id:{a.id}</span>
+                          <span className={`planPoolPriority ${a.priority || "normal"}`}>{priorityLabel(a.priority)}</span>
+                          <span className="planPoolCncs" title="CNCs compatíveis">
+                            {(a.compatible_cncs || []).length ? (a.compatible_cncs || []).map((cncItem) => cncItem.id).join(" · ") : "Legado: todas"}
+                          </span>
+                          <button
+                            type="button"
+                            className="pgBtn pgBtnGhost"
+                            style={{ padding: "6px 10px" }}
+                            onClick={(e) => { e.stopPropagation(); editPlanClassification(a); }}
+                          >
+                            Editar
+                          </button>
                           <button
                             type="button"
                             className="pgBtn pgBtnGhost"
@@ -5079,10 +5124,22 @@ const limparLista = (lista) =>
                                 <span className="pgMono">item:{it.id}</span>
                                 <span className="pgDotSep">•</span>
                                 <span className="pgMono">arquivo:{it.arquivo_id}</span>
+                                <span className={`planPoolPriority ${it.priority || "normal"}`}>{priorityLabel(it.priority)}</span>
+                                <span className="planPoolCncs">{(it.compatible_cncs || []).length ? it.compatible_cncs.map((cncItem) => cncItem.id).join(" · ") : "Legado: todas"}</span>
                               </div>
                             </div>
 
                             <div className="pgQueueRight">
+                              {!readOnly ? (
+                                <button
+                                  type="button"
+                                  className="pgBtn pgBtnGhost"
+                                  style={{ height: 30, padding: "0 10px", fontSize: 11 }}
+                                  onClick={(e) => { e.stopPropagation(); editPlanClassification({ ...it, id: it.arquivo_id, nome: it.arquivo_nome }); }}
+                                >
+                                  Classificar
+                                </button>
+                              ) : null}
                               {readOnly && (
                                 <button
                                   type="button"
@@ -7002,6 +7059,19 @@ const limparLista = (lista) =>
           </div>
         </div>
       )}
+
+      {classificationModal ? (
+        <PlanClassificationModal
+          key={`${classificationModal.mode}-${classificationModal.planId || classificationModal.items.map((item) => item.key).join("|")}`}
+          files={classificationModal.items}
+          machines={(maquinas || []).filter(isProductionMachine)}
+          mode={classificationModal.mode}
+          saving={uploading}
+          error={classificationError}
+          onCancel={() => { if (!uploading) setClassificationModal(null); }}
+          onConfirm={savePlanClassification}
+        />
+      ) : null}
 
       {previewItem && (
         <>

@@ -53,6 +53,15 @@ from backend.morning_status_confirmation import (
     get_pending_morning_status,
     process_morning_status_confirmations,
 )
+from backend.plan_classification import (
+    PlanClassificationError,
+    classifications_by_plan,
+    ensure_plan_classification_schema,
+    normalize_priority,
+    plan_is_compatible_with,
+    set_plan_classification,
+    validate_compatible_cnc_ids,
+)
 
 # =========================
 # APP
@@ -165,6 +174,11 @@ class MaintenanceFinishRequest(BaseModel):
 
 class AddFilaRequest(BaseModel):
     arquivo_id: int
+
+
+class PlanClassificationRequest(BaseModel):
+    priority: str = "normal"
+    compatible_cnc_ids: List[str]
 
 
 class AbrirVCarveRequest(BaseModel):
@@ -436,6 +450,7 @@ def _ensure_arquivos_cols(conn):
         cur.execute("ALTER TABLE arquivos_dxf ADD COLUMN status TEXT")
     except Exception:
         pass
+    ensure_plan_classification_schema(conn)
     try:
         cur.execute("ALTER TABLE arquivos_dxf ADD COLUMN deleted_em TEXT")
     except Exception:
@@ -3372,6 +3387,110 @@ async def upload_dxf(file: UploadFile = File(...)):
     return {"ok": True, "id": arquivo_id, "nome": safe_name, "stored": stored_name}
 
 
+@app.post("/arquivos/upload-classified")
+async def upload_classified_plans(
+    files: List[UploadFile] = File(...),
+    classifications: str = Form(...),
+):
+    try:
+        metadata = json.loads(classifications)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Classificação dos planos inválida.") from exc
+    if not isinstance(metadata, list) or len(metadata) != len(files):
+        raise HTTPException(status_code=400, detail="Informe a classificação de cada plano selecionado.")
+    if not files:
+        raise HTTPException(status_code=400, detail="Selecione pelo menos um arquivo DXF.")
+
+    prepared = []
+    conn = get_conn()
+    try:
+        _ensure_fila_itens_cols(conn)
+        _ensure_arquivos_cols(conn)
+        seen_names = set()
+        for index, (file, item) in enumerate(zip(files, metadata)):
+            safe_name = Path(file.filename or "").name
+            if not safe_name.lower().endswith(".dxf"):
+                raise HTTPException(status_code=400, detail=f'Arquivo inválido: "{safe_name}". Envie apenas .DXF.')
+            name_key = safe_name.strip().lower()
+            if name_key in seen_names:
+                raise HTTPException(status_code=409, detail=f'O arquivo "{safe_name}" foi selecionado mais de uma vez.')
+            seen_names.add(name_key)
+            if not isinstance(item, dict) or (item.get("name") and Path(str(item["name"])).name != safe_name):
+                raise HTTPException(status_code=400, detail=f'Classificação não corresponde ao arquivo "{safe_name}".')
+            try:
+                priority = normalize_priority(item.get("priority"))
+                cnc_ids = validate_compatible_cnc_ids(conn, item.get("compatible_cnc_ids"))
+            except PlanClassificationError as exc:
+                raise HTTPException(status_code=422, detail=f'{safe_name}: {exc}') from exc
+            if _arquivo_ja_cortado_por_nome(conn, safe_name):
+                raise HTTPException(status_code=409, detail=_detalhe_arquivo_ja_cortado(safe_name))
+            if _arquivo_ja_em_fila_por_nome(conn, safe_name):
+                raise HTTPException(status_code=409, detail=_detalhe_arquivo_ja_em_fila(safe_name))
+            content = await file.read()
+            if not content:
+                raise HTTPException(status_code=400, detail=f'O arquivo "{safe_name}" está vazio.')
+            if len(content) > 50 * 1024 * 1024:
+                raise HTTPException(status_code=400, detail=f'O arquivo "{safe_name}" excede o limite de 50MB.')
+            prepared.append((index, safe_name, content, priority, cnc_ids))
+    finally:
+        conn.close()
+
+    stored_paths: list[Path] = []
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        _ensure_fila_itens_cols(conn)
+        _ensure_arquivos_cols(conn)
+        results = []
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        for index, safe_name, content, priority, cnc_ids in prepared:
+            if _arquivo_ja_cortado_por_nome(conn, safe_name):
+                raise HTTPException(status_code=409, detail=_detalhe_arquivo_ja_cortado(safe_name))
+            if _arquivo_ja_em_fila_por_nome(conn, safe_name):
+                raise HTTPException(status_code=409, detail=_detalhe_arquivo_ja_em_fila(safe_name))
+            stored_name = f"{stamp}_{index}__{safe_name}"
+            dest = DXF_DIR / stored_name
+            dest.write_bytes(content)
+            stored_paths.append(dest)
+            cursor = conn.execute(
+                "INSERT INTO arquivos_dxf (nome, path, criado_em, status, priority) VALUES (?, ?, ?, 'DISPONIVEL', ?)",
+                (safe_name, str(dest), datetime.now().isoformat(timespec="seconds"), priority),
+            )
+            arquivo_id = cursor.lastrowid
+            set_plan_classification(conn, arquivo_id, priority, cnc_ids)
+            results.append({"id": arquivo_id, "nome": safe_name, "priority": priority, "compatible_cnc_ids": cnc_ids})
+        conn.commit()
+        return {"ok": True, "items": results}
+    except Exception:
+        conn.rollback()
+        for path in stored_paths:
+            try:
+                path.unlink(missing_ok=True)
+            except Exception:
+                logger.exception("Falha ao remover arquivo após rollback de importação: %s", path)
+        raise
+    finally:
+        conn.close()
+
+
+@app.put("/arquivos/{arquivo_id}/classification")
+def update_plan_classification(arquivo_id: int, req: PlanClassificationRequest):
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            result = set_plan_classification(conn, arquivo_id, req.priority, req.compatible_cnc_ids)
+        except PlanClassificationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        conn.commit()
+        return {"ok": True, **result}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 @app.get("/arquivos")
 def listar_arquivos():
     conn = get_conn()
@@ -3379,13 +3498,15 @@ def listar_arquivos():
     cur = conn.cursor()
     rows = cur.execute(
         """
-        SELECT id, nome, status, criado_em, deleted_em
+        SELECT id, nome, status, criado_em, deleted_em, priority
         FROM arquivos_dxf
         ORDER BY id DESC
         """
     ).fetchall()
+    compatibility = classifications_by_plan(conn, [row["id"] for row in rows])
+    result = [{**dict(row), "compatible_cncs": compatibility.get(row["id"], [])} for row in rows]
     conn.close()
-    return [dict(r) for r in rows]
+    return result
 
 
 @app.get("/arquivos/disponiveis")
@@ -3402,6 +3523,7 @@ def listar_arquivos_disponiveis():
             a.nome,
             a.status,
             a.criado_em,
+            a.priority,
             (
                 SELECT
                     CASE
@@ -3465,12 +3587,22 @@ def listar_arquivos_disponiveis():
                 OR fic.id IS NOT NULL
               )
         )
-        ORDER BY a.id DESC
+        ORDER BY
+          CASE a.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
+          a.criado_em ASC,
+          a.id ASC
         """
     ).fetchall()
 
+    compatibility = classifications_by_plan(conn, [row["id"] for row in rows])
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["compatible_cncs"] = compatibility.get(row["id"], [])
+        item["compatible_cnc_ids"] = [cnc["id"] for cnc in item["compatible_cncs"]]
+        result.append(item)
     conn.close()
-    return [dict(r) for r in rows]
+    return result
 
 
 @app.get("/arquivos/{arquivo_id}/download")
@@ -3710,6 +3842,7 @@ def excluir_arquivo(arquivo_id: int):
 def get_fila_db(maquina_id: str, include_done: bool = Query(False)):
     conn = get_conn()
     _ensure_fila_itens_cols(conn)
+    _ensure_arquivos_cols(conn)
     cur = conn.cursor()
 
     if include_done:
@@ -3723,7 +3856,7 @@ def get_fila_db(maquina_id: str, include_done: bool = Query(False)):
                fi.started_em, fi.finalizado_em,
                fi.tempo_estimado_seg, fi.tempo_inicio_em,
                fi.tempo_pausado_seg, fi.tempo_pausa_inicio_em,
-               a.nome as arquivo_nome
+               a.nome as arquivo_nome, a.priority
         FROM fila_itens fi
         JOIN arquivos_dxf a ON a.id = fi.arquivo_id
         WHERE fi.maquina_id = ?
@@ -3740,8 +3873,15 @@ def get_fila_db(maquina_id: str, include_done: bool = Query(False)):
         (maquina_id, *status_list),
     ).fetchall()
 
+    compatibility = classifications_by_plan(conn, [row["arquivo_id"] for row in itens])
+    result = []
+    for row in itens:
+        item = dict(row)
+        item["compatible_cncs"] = compatibility.get(row["arquivo_id"], [])
+        item["compatible_cnc_ids"] = [cnc["id"] for cnc in item["compatible_cncs"]]
+        result.append(item)
     conn.close()
-    return [dict(x) for x in itens]
+    return result
 
 
 @app.post("/fila/{maquina_id}/add")
@@ -3779,6 +3919,15 @@ def add_fila(maquina_id: str, req: AddFilaRequest):
     if arq_status == "CORTADO":
         conn.close()
         raise HTTPException(status_code=409, detail=_detalhe_arquivo_ja_cortado(arq["nome"]))
+
+    if not plan_is_compatible_with(conn, req.arquivo_id, maquina_id):
+        compatible = classifications_by_plan(conn, [req.arquivo_id]).get(req.arquivo_id, [])
+        labels = " · ".join(item["id"] for item in compatible)
+        conn.close()
+        raise HTTPException(
+            status_code=409,
+            detail=f"Este plano não é compatível com {maquina_id}. CNCs permitidas: {labels}.",
+        )
 
     ja_cortado = cur.execute(
         """
@@ -4093,6 +4242,11 @@ def mover_item_para_outra_cnc(item_id: int, dest_maquina_id: str, req: MoveFilaI
     if (arq["status"] or "").upper() == "EXCLUIDO":
         conn.close()
         raise HTTPException(status_code=409, detail="Arquivo está EXCLUIDO e não pode ser movido.")
+    if not plan_is_compatible_with(conn, arquivo_id, dest):
+        compatible = classifications_by_plan(conn, [arquivo_id]).get(arquivo_id, [])
+        labels = " · ".join(entry["id"] for entry in compatible)
+        conn.close()
+        raise HTTPException(status_code=409, detail=f"Este plano não é compatível com {dest}. CNCs permitidas: {labels}.")
 
     last = cur.execute(
         """
