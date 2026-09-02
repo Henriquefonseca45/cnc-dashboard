@@ -15,7 +15,7 @@ import unicodedata
 import time
 import threading
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request, Header, Depends
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request, Response, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -61,6 +61,22 @@ from backend.plan_classification import (
     plan_is_compatible_with,
     set_plan_classification,
     validate_compatible_cnc_ids,
+)
+from backend.programador_auth import (
+    SESSION_COOKIE_NAME,
+    SESSION_HOURS,
+    authenticate_programador,
+    create_session,
+    ensure_programador_auth_schema,
+    revoke_session,
+    session_user_from_request,
+)
+from backend.programador_audit import (
+    audit_filter_options,
+    decode_audit_row,
+    ensure_programador_audit_schema,
+    list_programador_audit,
+    record_programador_audit,
 )
 
 # =========================
@@ -131,6 +147,151 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class ProgramadorLoginRequest(BaseModel):
+    login: str
+    senha: str
+
+
+def _programador_cookie_secure() -> bool:
+    explicit = os.environ.get("CNC_PROGRAMADOR_COOKIE_SECURE")
+    if explicit is not None:
+        return explicit.strip().lower() in {"1", "true", "yes", "sim"}
+    return os.environ.get("CNC_ENV", "").strip().lower() in {"production", "producao", "produção"}
+
+
+def optional_programador_auth(request: Request) -> dict | None:
+    return session_user_from_request(request)
+
+
+def require_programador_auth(request: Request) -> dict:
+    user = optional_programador_auth(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Autenticação necessária para o módulo Programador.")
+    return user
+
+
+def require_lider(request: Request) -> dict:
+    user = require_programador_auth(request)
+    if user["role"] != "lider":
+        raise HTTPException(status_code=403, detail="Apenas Líderes podem acessar o histórico de movimentações.")
+    return user
+
+
+@app.post("/programador/auth/login")
+def programador_login(body: ProgramadorLoginRequest, response: Response):
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        user = authenticate_programador(conn, body.login, body.senha)
+        if not user:
+            conn.rollback()
+            raise HTTPException(status_code=401, detail="Usuário ou senha inválidos.")
+        token, expires_at = create_session(conn, user["id"])
+        conn.commit()
+    except HTTPException:
+        raise
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    response.set_cookie(
+        SESSION_COOKIE_NAME,
+        token,
+        max_age=SESSION_HOURS * 60 * 60,
+        httponly=True,
+        secure=_programador_cookie_secure(),
+        samesite="lax",
+        path="/",
+    )
+    return {"user": user, "expires_at": expires_at}
+
+
+@app.post("/programador/auth/logout")
+def programador_logout(request: Request, response: Response):
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        revoke_session(conn, request.cookies.get(SESSION_COOKIE_NAME))
+        conn.commit()
+    finally:
+        conn.close()
+    response.delete_cookie(SESSION_COOKIE_NAME, path="/", samesite="lax")
+    return {"ok": True}
+
+
+@app.get("/programador/auth/me")
+def programador_me(user: dict = Depends(require_programador_auth)):
+    return {"user": user}
+
+
+@app.get("/programador/auditoria/opcoes")
+def programador_auditoria_opcoes(_user: dict = Depends(require_lider)):
+    conn = get_conn()
+    try:
+        return audit_filter_options(conn)
+    finally:
+        conn.close()
+
+
+@app.get("/programador/auditoria/plano/{arquivo_id}")
+def programador_auditoria_plano(arquivo_id: int, _user: dict = Depends(require_lider)):
+    conn = get_conn()
+    try:
+        result = list_programador_audit(conn, arquivo_id=arquivo_id, page=1, page_size=100)
+        return result["items"]
+    finally:
+        conn.close()
+
+
+@app.get("/programador/auditoria/{audit_id}")
+def programador_auditoria_detalhe(audit_id: int, _user: dict = Depends(require_lider)):
+    conn = get_conn()
+    try:
+        ensure_programador_audit_schema(conn)
+        row = conn.execute("SELECT * FROM programador_auditoria WHERE id = ?", (audit_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Atividade não encontrada.")
+        return decode_audit_row(row)
+    finally:
+        conn.close()
+
+
+@app.get("/programador/auditoria")
+def programador_auditoria_lista(
+    data_inicio: str | None = Query(None),
+    data_fim: str | None = Query(None),
+    usuario_id: int | None = Query(None),
+    acao: str | None = Query(None),
+    cnc: str | None = Query(None),
+    arquivo: str | None = Query(None),
+    remessa: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    _user: dict = Depends(require_lider),
+):
+    conn = get_conn()
+    try:
+        try:
+            return list_programador_audit(
+                conn,
+                data_inicio=data_inicio,
+                data_fim=data_fim,
+                usuario_id=usuario_id,
+                acao=acao,
+                cnc=cnc,
+                arquivo=arquivo,
+                remessa=remessa,
+                page=page,
+                page_size=page_size,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="Período inválido. Use datas no formato AAAA-MM-DD.") from exc
+    finally:
+        conn.close()
 
 # =========================
 # STORAGE
@@ -286,6 +447,14 @@ class AssistantChatResponse(BaseModel):
     ferramentas: list[str]
     ultima_atualizacao: str | None = None
     dados_desatualizados: bool = False
+
+
+def _programador_audit_actor(user) -> dict:
+    if isinstance(user, dict):
+        return user
+    # Compatibilidade apenas para chamadas unitárias diretas. Pela API, o Depends
+    # exige uma sessão válida antes de a função de rota ser executada.
+    return {"id": None, "nome": "Sistema / legado", "role": "sistema"}
 
 
 # =========================
@@ -2747,6 +2916,13 @@ def _status_confirmation_worker() -> None:
 @app.on_event("startup")
 def start_status_confirmation_worker():
     global STATUS_CONFIRMATION_THREAD
+    conn = get_conn()
+    try:
+        ensure_programador_auth_schema(conn)
+        ensure_programador_audit_schema(conn)
+        conn.commit()
+    finally:
+        conn.close()
     if STATUS_CONFIRMATION_THREAD and STATUS_CONFIRMATION_THREAD.is_alive():
         return
     STATUS_CONFIRMATION_STOP.clear()
@@ -3337,7 +3513,7 @@ def rebuild_dashboard_snapshots(
 # ARQUIVOS DXF
 # =========================
 @app.post("/arquivos/upload")
-async def upload_dxf(file: UploadFile = File(...)):
+async def upload_dxf(file: UploadFile = File(...), user: dict = Depends(require_programador_auth)):
     nome = file.filename or ""
     if not nome.lower().endswith(".dxf"):
         raise HTTPException(status_code=400, detail="Apenas arquivos .dxf são permitidos")
@@ -3375,13 +3551,31 @@ async def upload_dxf(file: UploadFile = File(...)):
 
     conn = get_conn()
     _ensure_arquivos_cols(conn)
+    ensure_programador_audit_schema(conn)
     cur = conn.cursor()
+    actor = _programador_audit_actor(user)
     cur.execute(
-        "INSERT INTO arquivos_dxf (nome, path, criado_em, status) VALUES (?, ?, ?, ?)",
-        (safe_name, str(dest), datetime.now().isoformat(timespec="seconds"), "DISPONIVEL"),
+        """
+        INSERT INTO arquivos_dxf
+            (nome, path, criado_em, status, criado_por_usuario_id, criado_por_nome_snapshot)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            safe_name, str(dest), datetime.now().isoformat(timespec="seconds"), "DISPONIVEL",
+            actor.get("id"), actor.get("nome"),
+        ),
+    )
+    arquivo_id = cur.lastrowid
+    record_programador_audit(
+        conn,
+        actor,
+        "ARQUIVO_IMPORTADO",
+        arquivo_id=arquivo_id,
+        arquivo_nome=safe_name,
+        entidade_id=arquivo_id,
+        valor_novo={"priority": "normal", "compatible_cnc_ids": []},
     )
     conn.commit()
-    arquivo_id = cur.lastrowid
     conn.close()
 
     return {"ok": True, "id": arquivo_id, "nome": safe_name, "stored": stored_name}
@@ -3391,6 +3585,7 @@ async def upload_dxf(file: UploadFile = File(...)):
 async def upload_classified_plans(
     files: List[UploadFile] = File(...),
     classifications: str = Form(...),
+    user: dict = Depends(require_programador_auth),
 ):
     try:
         metadata = json.loads(classifications)
@@ -3441,7 +3636,9 @@ async def upload_classified_plans(
         conn.execute("BEGIN IMMEDIATE")
         _ensure_fila_itens_cols(conn)
         _ensure_arquivos_cols(conn)
+        ensure_programador_audit_schema(conn)
         results = []
+        actor = _programador_audit_actor(user)
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         for index, safe_name, content, priority, cnc_ids in prepared:
             if _arquivo_ja_cortado_por_nome(conn, safe_name):
@@ -3453,11 +3650,27 @@ async def upload_classified_plans(
             dest.write_bytes(content)
             stored_paths.append(dest)
             cursor = conn.execute(
-                "INSERT INTO arquivos_dxf (nome, path, criado_em, status, priority) VALUES (?, ?, ?, 'DISPONIVEL', ?)",
-                (safe_name, str(dest), datetime.now().isoformat(timespec="seconds"), priority),
+                """
+                INSERT INTO arquivos_dxf
+                    (nome, path, criado_em, status, priority, criado_por_usuario_id, criado_por_nome_snapshot)
+                VALUES (?, ?, ?, 'DISPONIVEL', ?, ?, ?)
+                """,
+                (
+                    safe_name, str(dest), datetime.now().isoformat(timespec="seconds"), priority,
+                    actor.get("id"), actor.get("nome"),
+                ),
             )
             arquivo_id = cursor.lastrowid
             set_plan_classification(conn, arquivo_id, priority, cnc_ids)
+            record_programador_audit(
+                conn,
+                actor,
+                "ARQUIVO_IMPORTADO",
+                arquivo_id=arquivo_id,
+                arquivo_nome=safe_name,
+                entidade_id=arquivo_id,
+                valor_novo={"priority": priority, "compatible_cnc_ids": cnc_ids},
+            )
             results.append({"id": arquivo_id, "nome": safe_name, "priority": priority, "compatible_cnc_ids": cnc_ids})
         conn.commit()
         return {"ok": True, "items": results}
@@ -3474,14 +3687,58 @@ async def upload_classified_plans(
 
 
 @app.put("/arquivos/{arquivo_id}/classification")
-def update_plan_classification(arquivo_id: int, req: PlanClassificationRequest):
+def update_plan_classification(
+    arquivo_id: int,
+    req: PlanClassificationRequest,
+    user: dict = Depends(require_programador_auth),
+):
     conn = get_conn()
     try:
         conn.execute("BEGIN IMMEDIATE")
+        plan = conn.execute("SELECT id, nome, priority FROM arquivos_dxf WHERE id = ?", (arquivo_id,)).fetchone()
+        previous_cncs = [item["id"] for item in classifications_by_plan(conn, [arquivo_id]).get(arquivo_id, [])]
         try:
             result = set_plan_classification(conn, arquivo_id, req.priority, req.compatible_cnc_ids)
         except PlanClassificationError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        actor = _programador_audit_actor(user)
+        if plan and str(plan["priority"] or "normal") != result["priority"]:
+            record_programador_audit(
+                conn,
+                actor,
+                "PRIORIDADE_ALTERADA",
+                arquivo_id=arquivo_id,
+                arquivo_nome=plan["nome"],
+                entidade_id=arquivo_id,
+                valor_anterior=str(plan["priority"] or "normal"),
+                valor_novo=result["priority"],
+            )
+        previous_set = set(previous_cncs)
+        current_set = set(result["compatible_cnc_ids"])
+        if current_set - previous_set:
+            record_programador_audit(
+                conn,
+                actor,
+                "CNC_ADICIONADA",
+                arquivo_id=arquivo_id,
+                arquivo_nome=plan["nome"] if plan else None,
+                entidade_id=arquivo_id,
+                valor_anterior=previous_cncs,
+                valor_novo=result["compatible_cnc_ids"],
+                metadata={"adicionadas": sorted(current_set - previous_set)},
+            )
+        if previous_set - current_set:
+            record_programador_audit(
+                conn,
+                actor,
+                "CNC_REMOVIDA",
+                arquivo_id=arquivo_id,
+                arquivo_nome=plan["nome"] if plan else None,
+                entidade_id=arquivo_id,
+                valor_anterior=previous_cncs,
+                valor_novo=result["compatible_cnc_ids"],
+                metadata={"removidas": sorted(previous_set - current_set)},
+            )
         conn.commit()
         return {"ok": True, **result}
     except Exception:
@@ -3606,7 +3863,7 @@ def listar_arquivos_disponiveis():
 
 
 @app.get("/arquivos/{arquivo_id}/download")
-def download_arquivo_pool(arquivo_id: int):
+def download_arquivo_pool(arquivo_id: int, user: dict = Depends(require_programador_auth)):
     conn = get_conn()
     _ensure_arquivos_cols(conn)
     cur = conn.cursor()
@@ -3634,6 +3891,20 @@ def download_arquivo_pool(arquivo_id: int):
 
     if not arquivo_path or not os.path.exists(arquivo_path):
         raise HTTPException(status_code=404, detail="Arquivo físico não encontrado no servidor")
+
+    audit_conn = get_conn()
+    try:
+        record_programador_audit(
+            audit_conn,
+            _programador_audit_actor(user),
+            "DOWNLOAD_ARQUIVO",
+            arquivo_id=arquivo_id,
+            arquivo_nome=arquivo_nome,
+            entidade_id=arquivo_id,
+        )
+        audit_conn.commit()
+    finally:
+        audit_conn.close()
 
     return FileResponse(
         path=arquivo_path,
@@ -3781,7 +4052,7 @@ def facilitador_vcarve_download(maquina_id: str, fila_item_id: int):
 
 
 @app.delete("/arquivos/{arquivo_id}")
-def excluir_arquivo(arquivo_id: int):
+def excluir_arquivo(arquivo_id: int, user: dict = Depends(require_programador_auth)):
     conn = get_conn()
     _ensure_arquivos_cols(conn)
     cur = conn.cursor()
@@ -3820,6 +4091,16 @@ def excluir_arquivo(arquivo_id: int):
     cur.execute(
         "UPDATE arquivos_dxf SET status='EXCLUIDO', deleted_em=? WHERE id=?",
         (agora, arquivo_id),
+    )
+    record_programador_audit(
+        conn,
+        _programador_audit_actor(user),
+        "ARQUIVO_EXCLUIDO",
+        arquivo_id=arquivo_id,
+        arquivo_nome=arq["nome"],
+        entidade_id=arquivo_id,
+        valor_anterior={"status": arq["status"]},
+        valor_novo={"status": "EXCLUIDO", "deleted_em": agora},
     )
 
     conn.commit()
@@ -3885,7 +4166,11 @@ def get_fila_db(maquina_id: str, include_done: bool = Query(False)):
 
 
 @app.post("/fila/{maquina_id}/add")
-def add_fila(maquina_id: str, req: AddFilaRequest):
+def add_fila(
+    maquina_id: str,
+    req: AddFilaRequest,
+    user: dict = Depends(require_programador_auth),
+):
     conn = get_conn()
     _ensure_fila_itens_cols(conn)
     _ensure_arquivos_cols(conn)
@@ -3975,6 +4260,17 @@ def add_fila(maquina_id: str, req: AddFilaRequest):
         status_destino="AGUARDANDO",
         detalhe="Arquivo enviado da fila geral para a CNC.",
     )
+    record_programador_audit(
+        conn,
+        _programador_audit_actor(user),
+        "ADICIONADO_FILA",
+        arquivo_id=req.arquivo_id,
+        arquivo_nome=arq["nome"],
+        entidade_tipo="fila_item",
+        entidade_id=item_id,
+        cnc_destino=maquina_id,
+        valor_novo={"posicao": pos, "status": "AGUARDANDO"},
+    )
 
     conn.commit()
     conn.close()
@@ -3990,7 +4286,12 @@ def add_fila(maquina_id: str, req: AddFilaRequest):
 
 
 @app.post("/fila/{maquina_id}/reorder")
-def reorder_fila(maquina_id: str, req: ReorderFilaRequest, request: Request):
+def reorder_fila(
+    maquina_id: str,
+    req: ReorderFilaRequest,
+    request: Request,
+    user: dict = Depends(require_programador_auth),
+):
     mid = (maquina_id or "").upper().strip()
     ids = req.ids()
     if not ids:
@@ -4079,6 +4380,19 @@ def reorder_fila(maquina_id: str, req: ReorderFilaRequest, request: Request):
                 status_destino=after.get("status"),
                 detalhe="Ordem da fila alterada.",
             )
+            record_programador_audit(
+                conn,
+                _programador_audit_actor(user),
+                "FILA_REORDENADA",
+                arquivo_id=after.get("arquivo_id"),
+                arquivo_nome=after.get("arquivo_nome"),
+                entidade_tipo="fila_item",
+                entidade_id=item_id,
+                cnc_origem=mid,
+                cnc_destino=mid,
+                valor_anterior={"posicao": old_pos},
+                valor_novo={"posicao": new_pos},
+            )
             try:
                 _log_cnc_queue_audit(
                     conn,
@@ -4111,7 +4425,7 @@ def reorder_fila(maquina_id: str, req: ReorderFilaRequest, request: Request):
 
 
 @app.post("/fila/item/{item_id}/to_pool")
-def fila_item_to_pool(item_id: int):
+def fila_item_to_pool(item_id: int, user: dict = Depends(require_programador_auth)):
     conn = get_conn()
     _ensure_fila_itens_cols(conn)
     cur = conn.cursor()
@@ -4144,6 +4458,18 @@ def fila_item_to_pool(item_id: int):
         status_origem=row["status"],
         detalhe="Item removido da fila da CNC e voltou para a fila geral.",
     )
+    record_programador_audit(
+        conn,
+        _programador_audit_actor(user),
+        "REMOVIDO_FILA",
+        arquivo_id=row["arquivo_id"],
+        arquivo_nome=row["arquivo_nome"],
+        entidade_tipo="fila_item",
+        entidade_id=item_id,
+        cnc_origem=row["maquina_id"],
+        valor_anterior={"posicao": row["posicao"], "status": row["status"]},
+        valor_novo={"fila": "GERAL"},
+    )
 
     conn.commit()
     conn.close()
@@ -4152,7 +4478,7 @@ def fila_item_to_pool(item_id: int):
 
 
 @app.delete("/fila/item/{item_id}/hard")
-def fila_item_hard_delete(item_id: int):
+def fila_item_hard_delete(item_id: int, user: dict = Depends(require_programador_auth)):
     conn = get_conn()
     _ensure_fila_itens_cols(conn)
     cur = conn.cursor()
@@ -4185,6 +4511,18 @@ def fila_item_hard_delete(item_id: int):
         status_origem=row["status"],
         detalhe="Item excluido da fila da CNC.",
     )
+    record_programador_audit(
+        conn,
+        _programador_audit_actor(user),
+        "REMOVIDO_FILA",
+        arquivo_id=row["arquivo_id"],
+        arquivo_nome=row["arquivo_nome"],
+        entidade_tipo="fila_item",
+        entidade_id=item_id,
+        cnc_origem=row["maquina_id"],
+        valor_anterior={"posicao": row["posicao"], "status": row["status"]},
+        valor_novo={"excluido_da_fila": True},
+    )
 
     conn.commit()
     conn.close()
@@ -4192,7 +4530,12 @@ def fila_item_hard_delete(item_id: int):
 
 
 @app.post("/fila/item/{item_id}/move/{dest_maquina_id}")
-def mover_item_para_outra_cnc(item_id: int, dest_maquina_id: str, req: MoveFilaItemRequest = MoveFilaItemRequest()):
+def mover_item_para_outra_cnc(
+    item_id: int,
+    dest_maquina_id: str,
+    req: MoveFilaItemRequest = MoveFilaItemRequest(),
+    user: dict = Depends(require_programador_auth),
+):
     dest = dest_maquina_id.upper().strip()
 
     conn = get_conn()
@@ -4287,6 +4630,19 @@ def mover_item_para_outra_cnc(item_id: int, dest_maquina_id: str, req: MoveFilaI
         status_origem=st,
         status_destino=new_status,
         detalhe=f"Movido da {origem} para {dest}. Item anterior: {item_id}.",
+    )
+    record_programador_audit(
+        conn,
+        _programador_audit_actor(user),
+        "PLANO_MOVIMENTADO",
+        arquivo_id=arquivo_id,
+        arquivo_nome=item["arquivo_nome"],
+        entidade_tipo="fila_item",
+        entidade_id=new_item_id,
+        cnc_origem=origem,
+        cnc_destino=dest,
+        valor_anterior={"fila_item_id": item_id, "posicao": item["posicao"], "status": st},
+        valor_novo={"fila_item_id": new_item_id, "posicao": new_pos, "status": new_status},
     )
 
     conn.commit()
@@ -4418,7 +4774,7 @@ def get_historico(maquina_id: str):
 
 
 @app.get("/historico/item/{item_id}/download")
-def baixar_arquivo_historico(item_id: int):
+def baixar_arquivo_historico(item_id: int, user: dict | None = Depends(optional_programador_auth)):
     conn = get_conn()
     _ensure_fila_itens_cols(conn)
     _ensure_arquivos_cols(conn)
@@ -4456,6 +4812,24 @@ def baixar_arquivo_historico(item_id: int):
 
     if not arquivo_path or not os.path.exists(arquivo_path):
         raise HTTPException(status_code=404, detail="Arquivo físico não encontrado no servidor")
+
+    if user:
+        audit_conn = get_conn()
+        try:
+            record_programador_audit(
+                audit_conn,
+                user,
+                "DOWNLOAD_ARQUIVO",
+                arquivo_id=row["arquivo_id"],
+                arquivo_nome=arquivo_nome,
+                entidade_tipo="fila_item",
+                entidade_id=item_id,
+                cnc_origem=row["maquina_id"],
+                metadata={"origem": "historico"},
+            )
+            audit_conn.commit()
+        finally:
+            audit_conn.close()
 
     return FileResponse(
         path=arquivo_path,

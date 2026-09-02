@@ -1,0 +1,94 @@
+:root {
+  --programador-navy: #1d2842;
+  --programador-purple: #4b46df;
+  --programador-border: #dce3ef;
+  --programador-muted: #71809a;
+}
+
+.programadorAuthLoading,
+.programadorLoginPage {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 20% 10%, #eef1ff, transparent 42%), #f3f6fb;
+  color: var(--programador-navy);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.programadorLoginCard {
+  width: min(420px, calc(100vw - 32px));
+  padding: 42px;
+  border: 1px solid var(--programador-border);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 28px 70px -36px rgba(29, 40, 66, 0.48);
+}
+
+.programadorLoginMark {
+  display: inline-grid;
+  place-items: center;
+  min-width: 68px;
+  height: 42px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #3f3bc7, #675cff);
+  color: white;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.programadorLoginEyebrow { margin-top: 28px; color: var(--programador-purple); font-size: 12px; font-weight: 900; letter-spacing: 0.2em; }
+.programadorLoginCard h1 { margin: 8px 0 6px; font-size: 30px; }
+.programadorLoginCard > p { margin: 0 0 28px; color: var(--programador-muted); line-height: 1.5; }
+.programadorLoginCard form { display: grid; gap: 18px; }
+.programadorLoginCard label { display: grid; gap: 8px; font-size: 13px; font-weight: 800; }
+.programadorLoginCard input { height: 48px; border: 1px solid #ccd5e4; border-radius: 12px; padding: 0 14px; color: #192238; background: white; font: inherit; outline: none; }
+.programadorLoginCard input:focus { border-color: var(--programador-purple); box-shadow: 0 0 0 3px rgba(75, 70, 223, 0.13); }
+.programadorLoginCard form > button { height: 50px; border: 0; border-radius: 13px; background: var(--programador-purple); color: white; font-weight: 900; cursor: pointer; }
+.programadorLoginCard form > button:disabled { opacity: 0.65; cursor: wait; }
+.programadorLoginError { padding: 11px 13px; border: 1px solid #fecaca; border-radius: 10px; background: #fff1f2; color: #b42318; font-size: 13px; }
+
+.programadorModule { min-height: 100vh; background: #eef2f7; }
+.programadorModuleBar { height: 64px; padding: 0 22px; display: grid; grid-template-columns: minmax(180px, 1fr) auto minmax(240px, 1fr); align-items: center; gap: 18px; border-bottom: 1px solid #d9e0ec; background: #fff; color: var(--programador-navy); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+.programadorModuleIdentity { display: flex; flex-direction: column; }
+.programadorModuleIdentity strong { font-size: 15px; }
+.programadorModuleIdentity span { margin-top: 2px; color: var(--programador-muted); font-size: 11px; }
+.programadorModuleBar nav { display: flex; gap: 6px; padding: 4px; border-radius: 12px; background: #edf1f7; }
+.programadorModuleBar nav button { min-width: 112px; height: 36px; border: 0; border-radius: 9px; background: transparent; color: #596780; font-weight: 800; cursor: pointer; }
+.programadorModuleBar nav button.active { background: white; color: var(--programador-purple); box-shadow: 0 2px 8px rgba(25, 34, 56, 0.1); }
+.programadorCurrentUser { justify-self: end; display: flex; align-items: center; gap: 10px; }
+.programadorCurrentUser > span:nth-child(2) { display: flex; flex-direction: column; min-width: 120px; }
+.programadorCurrentUser strong { max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.programadorCurrentUser small { color: var(--programador-muted); font-size: 11px; }
+.programadorCurrentUser > button { height: 34px; padding: 0 13px; border: 1px solid #d5ddeb; border-radius: 9px; background: white; color: #3f4d68; font-weight: 800; cursor: pointer; }
+.programadorAvatar { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: #ecebff; color: #423dc4; font-size: 12px; font-weight: 900; }
+.programadorModuleContent .pgShell { height: calc(100vh - 64px); min-height: calc(100vh - 64px); }
+
+@media (max-width: 760px) {
+  .programadorModuleBar { height: auto; min-height: 72px; padding: 10px 12px; grid-template-columns: 1fr auto; }
+  .programadorModuleIdentity { display: none; }
+  .programadorModuleBar nav { justify-self: start; }
+  .programadorCurrentUser > span:nth-child(2) { display: none; }
+  .programadorModuleContent .pgShell { height: calc(100vh - 72px); min-height: calc(100vh - 72px); }
+  .programadorLoginCard { padding: 30px 24px; }
+}
+
+@media (prefers-color-scheme: dark) {
+  .programadorLoginPage { background: radial-gradient(circle at 20% 10%, #252451, transparent 42%), #0c1020; color: #f5f7ff; }
+  .programadorLoginCard { border-color: #303854; background: #141a2d; }
+  .programadorLoginCard input { border-color: #39435f; background: #0e1425; color: #f7f8ff; }
+  .programadorLoginCard > p { color: #9da9c0; }
+}
+
+.programadorLoginPage.theme-light { background: radial-gradient(circle at 20% 10%, #eef1ff, transparent 42%), #f3f6fb; color: var(--programador-navy); }
+.programadorLoginPage.theme-light .programadorLoginCard { border-color: var(--programador-border); background: rgba(255, 255, 255, .97); }
+.programadorLoginPage.theme-light .programadorLoginCard input { border-color: #ccd5e4; background: white; color: #192238; }
+.programadorLoginPage.theme-dark { background: radial-gradient(circle at 20% 10%, #252451, transparent 42%), #0c1020; color: #f5f7ff; }
+.programadorLoginPage.theme-dark .programadorLoginCard { border-color: #303854; background: #141a2d; }
+.programadorLoginPage.theme-dark .programadorLoginCard input { border-color: #39435f; background: #0e1425; color: #f7f8ff; }
+.programadorModule.theme-dark .programadorModuleBar { border-color: #303850; background: #111729; color: #edf1ff; }
+.programadorModule.theme-dark .programadorModuleBar nav { background: #090f20; }
+.programadorModule.theme-dark .programadorModuleBar nav button { color: #9ca8bf; }
+.programadorModule.theme-dark .programadorModuleBar nav button.active { background: #242c43; color: #c6c3ff; }
+.programadorModule.theme-dark .programadorCurrentUser > button { border-color: #39435d; background: #171e32; color: #d6dced; }

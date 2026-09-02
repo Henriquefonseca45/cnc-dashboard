@@ -1782,6 +1782,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   useEffect(() => {
     try {
       localStorage.setItem(THEME_STORAGE_KEY, themeMode);
+      window.dispatchEvent(new CustomEvent("programador-theme-change", { detail: themeMode }));
     } catch {}
   }, [themeMode]);
 
@@ -3588,8 +3589,7 @@ function imprimirGrafico7() {
           const arquivo_id = Number(it?.arquivo_id);
           if (!arquivo_id) continue;
 
-          await api.post(`/fila/item/${item_id}/to_pool`);
-          await api.post(`/fila/${machineId}/add`, { arquivo_id });
+          await api.post(`/fila/item/${item_id}/move/${machineId}`, { manter_status: false });
 
           moved++;
         }

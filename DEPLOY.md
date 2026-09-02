@@ -85,3 +85,33 @@ CNCs compatíveis ficam em `arquivo_cnc_compatibilidade`, relacionadas pelos IDs
 do plano e da máquina. O `init_db` cria a coluna, a tabela e o índice necessários
 automaticamente ao reiniciar o container. Planos anteriores à mudança continuam
 sem restrição de CNC até que o Programador edite sua classificação.
+
+## Login e auditoria do Programador
+
+A autenticação é aplicada somente à rota `/programador` e às operações de
+programação que alteram arquivos e filas. As demais telas mantêm o acesso atual.
+
+Na primeira inicialização, o backend acrescenta em `usuarios` os campos
+`senha_hash`, `role`, `ativo` e `updated_at`, migra senhas legadas para `scrypt`
+e esvazia o antigo campo de senha em texto. Também cria `programador_sessions`
+e a tabela append-only `programador_auditoria`. Em `arquivos_dxf`, adiciona
+`criado_por_usuario_id` e `criado_por_nome_snapshot`; arquivos antigos ficam
+com esses campos vazios, sem inventar um responsável.
+
+Crie o primeiro Líder de forma interativa, sem colocar a senha no histórico do
+terminal:
+
+```bash
+python -m backend.manage_programador_users create --name "Nome do Líder" --login lider --role lider
+```
+
+Crie Programadores alterando somente o perfil:
+
+```bash
+python -m backend.manage_programador_users create --name "Nome do Programador" --login programador --role programador
+```
+
+O mesmo utilitário oferece `set-active`, `reset-password` e `set-role`. A sessão
+padrão dura 12 horas; pode ser alterada com `CNC_PROGRAMADOR_SESSION_HOURS`. Em
+produção HTTPS, configure `CNC_PROGRAMADOR_COOKIE_SECURE=1` ou
+`CNC_ENV=production` para exigir cookie seguro.

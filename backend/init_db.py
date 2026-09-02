@@ -2,6 +2,8 @@ from datetime import datetime
 from backend.db import get_conn
 from backend.maintenance import ensure_maintenance_schema
 from backend.plan_classification import ensure_plan_classification_schema
+from backend.programador_auth import ensure_programador_auth_schema
+from backend.programador_audit import ensure_programador_audit_schema
 
 def main():
     conn = get_conn()
@@ -99,6 +101,7 @@ def main():
       criado_em TEXT NOT NULL
     )
     """)
+    ensure_programador_auth_schema(conn)
 
     # =========================
     # TABELA LOGS_OPERACAO
@@ -227,25 +230,28 @@ CREATE TABLE IF NOT EXISTS chat_mensagens (
 
     # admin
     cur.execute("""
-    INSERT OR IGNORE INTO usuarios (id, nome, login, senha, nivel, maquina_id, criado_em)
-    VALUES (1, 'Administrador', 'admin', 'admin123', 'ADMIN', NULL, ?)
+    INSERT OR IGNORE INTO usuarios (id, nome, login, senha, senha_hash, nivel, role, ativo, maquina_id, criado_em)
+    VALUES (1, 'Administrador', 'admin', '', NULL, 'ADMIN', NULL, 1, NULL, ?)
     """, (now,))
 
     operadores = [
-        ("Operador CNC01", "op01", "123", "OPERADOR", "CNC01"),
-        ("Operador CNC02", "op02", "123", "OPERADOR", "CNC02"),
-        ("Operador CNC03", "op03", "123", "OPERADOR", "CNC03"),
-        ("Operador CNC04", "op04", "123", "OPERADOR", "CNC04"),
-        ("Operador CNC05", "op05", "123", "OPERADOR", "CNC05"),
-        ("Operador CNC06", "op06", "123", "OPERADOR", "CNC06"),
-        ("Operador CNC07", "op07", "123", "OPERADOR", "CNC07"),
-        ("Operador CNC TESTE", "opteste", "123", "OPERADOR", "CNC_TESTE"),
+        ("Operador CNC01", "op01", "OPERADOR", "CNC01"),
+        ("Operador CNC02", "op02", "OPERADOR", "CNC02"),
+        ("Operador CNC03", "op03", "OPERADOR", "CNC03"),
+        ("Operador CNC04", "op04", "OPERADOR", "CNC04"),
+        ("Operador CNC05", "op05", "OPERADOR", "CNC05"),
+        ("Operador CNC06", "op06", "OPERADOR", "CNC06"),
+        ("Operador CNC07", "op07", "OPERADOR", "CNC07"),
+        ("Operador CNC TESTE", "opteste", "OPERADOR", "CNC_TESTE"),
     ]
-    for nome, login, senha, nivel, maquina_id in operadores:
+    for nome, login, nivel, maquina_id in operadores:
         cur.execute("""
-        INSERT OR IGNORE INTO usuarios (nome, login, senha, nivel, maquina_id, criado_em)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """, (nome, login, senha, nivel, maquina_id, now))
+        INSERT OR IGNORE INTO usuarios
+            (nome, login, senha, senha_hash, nivel, role, ativo, maquina_id, criado_em)
+        VALUES (?, ?, '', NULL, ?, NULL, 1, ?, ?)
+        """, (nome, login, nivel, maquina_id, now))
+
+    ensure_programador_audit_schema(conn)
 
     conn.commit()
     conn.close()

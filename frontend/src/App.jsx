@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import OperatorDashboard from "./OperatorDashboard.jsx";
 import ProgramadorDashboard from "./ProgramadorDashboard.jsx";
+import ProgramadorAccess from "./ProgramadorAccess.jsx";
 import AlmoxarifadoChatPage from "./AlmoxarifadoChatPage.jsx";
 import AlmoxarifadoPage from "./AlmoxarifadoPage.jsx";
 import AlmoxarifadoTvPage from "./AlmoxarifadoTvPage.jsx";
@@ -16,7 +17,7 @@ export default function App() {
         <Route path="/" element={<Navigate to="/operador" replace />} />
         <Route path="/operador" element={<OperatorDashboard />} />
         <Route path="/operador/:cncId" element={<OperatorDashboard />} />
-        <Route path="/programador" element={<ProgramadorDashboard />} />
+        <Route path="/programador/*" element={<ProgramadorAccess />} />
         <Route path="/facilitador" element={<ProgramadorDashboard mode="facilitador" />} />
         <Route path="/visual" element={<ProgramadorDashboard />} />
         <Route path="/almoxarifado" element={<AlmoxarifadoPage />} />
