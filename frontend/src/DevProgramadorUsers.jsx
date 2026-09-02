@@ -27,7 +27,7 @@ function UserDialog({ mode, user, onClose, onSaved }) {
     try {
       const payload = { nome: form.nome, login: form.login, role: form.role };
       if (create) { payload.senha_temporaria = form.senha_temporaria; payload.confirmar_senha_temporaria = form.confirmar_senha_temporaria; }
-      await (create ? api.post("/dev/programador/usuarios", payload) : api.put(`/dev/programador/usuarios/${user.id}`, payload));
+      await (create ? api.post("/dev/programador/api/usuarios", payload) : api.put(`/dev/programador/api/usuarios/${user.id}`, payload));
       onSaved();
     } catch (err) { setError(getErrMsg(err)); } finally { setSaving(false); }
   }
@@ -56,8 +56,8 @@ function ActionDialog({ action, onClose, onSaved }) {
   async function submit(event) {
     event.preventDefault(); setSaving(true); setError("");
     try {
-      if (reset) await api.post(`/dev/programador/usuarios/${action.user.id}/redefinir-senha`, { senha_temporaria: password, confirmar_senha_temporaria: confirmation });
-      else await api.patch(`/dev/programador/usuarios/${action.user.id}/status`, { ativo: !action.user.ativo });
+      if (reset) await api.post(`/dev/programador/api/usuarios/${action.user.id}/redefinir-senha`, { senha_temporaria: password, confirmar_senha_temporaria: confirmation });
+      else await api.patch(`/dev/programador/api/usuarios/${action.user.id}/status`, { ativo: !action.user.ativo });
       onSaved();
     } catch (err) { setError(getErrMsg(err)); } finally { setSaving(false); }
   }
@@ -90,7 +90,7 @@ export default function DevProgramadorUsers() {
   const load = useCallback(async () => {
     if (auth.user?.role !== "dev") return;
     setLoading(true); setError("");
-    try { const response = await api.get("/dev/programador/usuarios", { params: filters }); setData(response.data); }
+    try { const response = await api.get("/dev/programador/api/usuarios", { params: filters }); setData(response.data); }
     catch (err) { setError(getErrMsg(err)); } finally { setLoading(false); }
   }, [auth.user, filters]);
   useEffect(() => { const timer = setTimeout(load, 180); return () => clearTimeout(timer); }, [load]);

@@ -311,7 +311,7 @@ def programador_primeiro_acesso(body: ProgramadorFirstAccessRequest, request: Re
         conn.close()
 
 
-@app.get("/dev/programador/usuarios")
+@app.get("/dev/programador/api/usuarios")
 def dev_programador_usuarios(
     busca: str = Query(""), role: str | None = Query(None), status: str | None = Query(None),
     _dev: dict = Depends(require_dev),
@@ -326,7 +326,7 @@ def dev_programador_usuarios(
         conn.close()
 
 
-@app.post("/dev/programador/usuarios")
+@app.post("/dev/programador/api/usuarios")
 def dev_programador_criar(body: DevProgramadorUserCreate, dev: dict = Depends(require_dev)):
     if body.senha_temporaria != body.confirmar_senha_temporaria:
         raise HTTPException(status_code=422, detail="As senhas temporárias não coincidem.")
@@ -346,7 +346,7 @@ def dev_programador_criar(body: DevProgramadorUserCreate, dev: dict = Depends(re
         conn.close()
 
 
-@app.put("/dev/programador/usuarios/{usuario_id}")
+@app.put("/dev/programador/api/usuarios/{usuario_id}")
 def dev_programador_editar(usuario_id: int, body: DevProgramadorUserUpdate, dev: dict = Depends(require_dev)):
     conn = get_conn()
     try:
@@ -366,7 +366,7 @@ def dev_programador_editar(usuario_id: int, body: DevProgramadorUserUpdate, dev:
         conn.close()
 
 
-@app.patch("/dev/programador/usuarios/{usuario_id}/status")
+@app.patch("/dev/programador/api/usuarios/{usuario_id}/status")
 def dev_programador_status(usuario_id: int, body: DevProgramadorStatusUpdate, dev: dict = Depends(require_dev)):
     conn = get_conn()
     try:
@@ -384,7 +384,7 @@ def dev_programador_status(usuario_id: int, body: DevProgramadorStatusUpdate, de
         conn.close()
 
 
-@app.post("/dev/programador/usuarios/{usuario_id}/redefinir-senha")
+@app.post("/dev/programador/api/usuarios/{usuario_id}/redefinir-senha")
 def dev_programador_redefinir_senha(usuario_id: int, body: DevProgramadorPasswordReset, dev: dict = Depends(require_dev)):
     if body.senha_temporaria != body.confirmar_senha_temporaria:
         raise HTTPException(status_code=422, detail="As senhas temporárias não coincidem.")
@@ -406,7 +406,7 @@ def dev_programador_redefinir_senha(usuario_id: int, body: DevProgramadorPasswor
         conn.close()
 
 
-@app.get("/dev/programador/auditoria")
+@app.get("/dev/programador/api/auditoria")
 def dev_programador_auditoria(limit: int = Query(100, ge=1, le=200), _dev: dict = Depends(require_dev)):
     conn = get_conn()
     try:
