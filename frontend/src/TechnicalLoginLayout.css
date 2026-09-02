@@ -62,7 +62,7 @@
 .technicalLoginRestricted { display: flex; justify-content: center; align-items: center; gap: 9px; margin-top: 25px; color: var(--tl-muted); font-size: 11px; line-height: 1.5; }
 .technicalLoginRestricted svg { flex-shrink: 0; color: #729cc8; }
 .technicalLoginArtwork { position: relative; min-width: 0; width: 100%; }
-.technicalLoginMachine { width: 116%; max-width: none; max-height: min(62vh, 1000px); object-fit: contain; display: block; margin-left: -8%; filter: drop-shadow(0 0 15px #087bff18); }
+.technicalLoginMachine { width: 100%; max-width: min(72.47vh, 1035px); height: auto; aspect-ratio: 880 / 850; display: block; margin: 0 auto; overflow: hidden; mask-image: linear-gradient(to right, transparent, #000 7%, #000 96%, transparent), linear-gradient(to bottom, transparent, #000 6%, #000 94%, transparent); mask-composite: intersect; }
 .technicalLoginDrawingLabel { margin: 0 0 -10px 6%; display: flex; flex-direction: column; gap: 8px; color: #5794c8; font: 11px/1.4 ui-monospace, Consolas, monospace; letter-spacing: .16em; }
 .technicalLoginDrawingLabel small { color: #64809d; font-size: 9px; }
 .technicalLoginCoordinates { position: absolute; right: 0; top: 12%; display: grid; gap: 9px; color: #5688b5; font: 11px/1.3 ui-monospace, Consolas, monospace; padding-left: 14px; border-left: 1px solid #2977b747; }
