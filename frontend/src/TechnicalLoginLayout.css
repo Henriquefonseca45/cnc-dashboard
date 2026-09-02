@@ -1,0 +1,97 @@
+.technicalLoginPage {
+  --tl-blue: #1496ff;
+  --tl-text: #f5f8ff;
+  --tl-muted: #91a4c0;
+  box-sizing: border-box;
+  min-height: 100vh;
+  min-height: 100svh;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(22px, 3vw, 64px) clamp(24px, 5vw, 120px);
+  color: var(--tl-text);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  background: radial-gradient(ellipse at 78% 53%, #08234b 0, transparent 53%), #020817;
+}
+.technicalLoginPage *, .technicalLoginPage *::before, .technicalLoginPage *::after { box-sizing: border-box; }
+.technicalLoginPage::before {
+  content: ""; position: absolute; inset: 0; z-index: -2; pointer-events: none;
+  background-image: linear-gradient(#3284cd0c 1px, transparent 1px), linear-gradient(90deg, #3284cd0c 1px, transparent 1px), radial-gradient(#3284cd32 .8px, transparent 1px);
+  background-size: 56px 56px, 56px 56px, 112px 112px;
+  mask-image: linear-gradient(90deg, #0003, #000);
+}
+.technicalLoginPage::after {
+  content: ""; position: absolute; left: 38%; right: -15%; bottom: 10%; height: 17%; z-index: -1; pointer-events: none;
+  border-top: 1px solid #1496ff40; border-bottom: 1px solid #1496ff18;
+  transform: skewY(-13deg); background: repeating-linear-gradient(0deg, transparent 0 30px, #1496ff18 31px, transparent 32px);
+}
+.technicalLoginTopline, .technicalLoginBottomline { display: flex; justify-content: space-between; gap: 20px; color: #6d88ad; font: 10px/1.5 ui-monospace, Consolas, monospace; letter-spacing: .18em; }
+.technicalLoginTopline { padding-bottom: 18px; border-bottom: 1px solid #2470b42b; }
+.technicalLoginBottomline { padding-top: 18px; margin-top: 30px; border-top: 1px solid #2470b42b; }
+.technicalLoginComposition { width: 100%; max-width: 2160px; margin: auto; display: grid; grid-template-columns: minmax(360px, .83fr) minmax(0, 1.17fr); align-items: center; gap: clamp(24px, 3vw, 80px); padding: 40px 0; }
+.technicalLoginPanel { width: 100%; max-width: 540px; justify-self: center; position: relative; padding: clamp(30px, 3vw, 54px); border: 1px solid #328cff59; border-radius: 24px; background: #030d1ef2; box-shadow: 0 26px 80px #0005, inset 0 1px #80bfff12; }
+.technicalLoginBrand { display: flex; align-items: center; gap: 22px; }
+.technicalLoginLogo { width: 147px; height: 68px; flex-shrink: 0; overflow: hidden; mix-blend-mode: screen; }
+.technicalLoginLogo img { display: block; max-width: none; width: 248px; transform: translate(-50px, -88px); filter: grayscale(1) brightness(1.08) invert(1) brightness(1.7); }
+.technicalLoginProduct { border-left: 1px solid #2d547c; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.technicalLoginProduct span { font-weight: 800; font-size: 27px; line-height: 1; letter-spacing: .06em; }
+.technicalLoginProduct strong { font-size: 13px; letter-spacing: .13em; color: var(--tl-blue); }
+.technicalLoginRule { height: 1px; background: linear-gradient(90deg, #218cfa7a, #218cfa0a); margin: 34px 0; }
+.technicalLoginEyebrow { margin: 0 0 13px; color: #35b7ff; font-size: 11px; font-weight: 700; letter-spacing: .19em; }
+.technicalLoginPanel h1 { margin: 0; font-size: clamp(24px, 2vw, 32px); line-height: 1.25; letter-spacing: -.035em; font-weight: 650; }
+.technicalLoginDescription { color: var(--tl-muted); font-size: 13px; margin: 12px 0 30px; line-height: 1.65; }
+.technicalLoginPanel form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.technicalLoginPanel label { font-size: 13px; font-weight: 600; color: #d5e0f2; }
+.technicalLoginInput { display: flex; align-items: center; min-width: 0; gap: 12px; padding: 0 15px; height: 54px; border: 1px solid #24476a; background: #061225; border-radius: 10px; margin-bottom: 13px; transition: border-color .15s, box-shadow .15s; color: #6990b9; }
+.technicalLoginInput:focus-within { border-color: #1496ff; box-shadow: 0 0 0 3px #006bff20; }
+.technicalLoginInput > svg { flex-shrink: 0; }
+.technicalLoginInput input { width: 100%; min-width: 0; height: 100%; padding: 0; border: 0; background: transparent; color: var(--tl-text); font: inherit; font-size: 14px; outline: none; box-shadow: none; }
+.technicalLoginInput input::placeholder { color: #8297b3; opacity: 1; }
+.technicalLoginInput input:autofill { box-shadow: 0 0 0 1000px #061225 inset; -webkit-text-fill-color: #f5f8ff; caret-color: #f5f8ff; }
+.technicalLoginEye { display: grid; place-items: center; flex-shrink: 0; width: 38px; height: 42px; margin-right: -8px; padding: 0; border: 0; background: transparent; color: #91a4c0; border-radius: 6px; cursor: pointer; }
+.technicalLoginEye:hover { color: #fff; }
+.technicalLoginPage button:focus-visible { outline: 2px solid #74cfff; outline-offset: 4px; }
+.technicalLoginSubmit { width: 100%; height: 54px; margin-top: 3px; border: 1px solid #258cff; border-radius: 10px; background: linear-gradient(100deg, #087bff, #0064e9); box-shadow: 0 8px 26px #006bff22; color: #fff; font: inherit; font-size: 14px; font-weight: 750; letter-spacing: .04em; cursor: pointer; transition: filter .15s, transform .15s; }
+.technicalLoginSubmit:hover:not(:disabled) { filter: brightness(1.12); }
+.technicalLoginSubmit:active:not(:disabled) { transform: translateY(1px); }
+.technicalLoginPage button:disabled { opacity: .65; cursor: wait; }
+.technicalLoginError { background: #351824; border: 1px solid #ad526777; color: #ffb9c8; padding: 12px; border-radius: 9px; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.technicalLoginRestricted { display: flex; justify-content: center; align-items: center; gap: 9px; margin-top: 25px; color: var(--tl-muted); font-size: 11px; line-height: 1.5; }
+.technicalLoginRestricted svg { flex-shrink: 0; color: #729cc8; }
+.technicalLoginArtwork { position: relative; min-width: 0; width: 100%; }
+.technicalLoginMachine { width: 116%; max-width: none; max-height: min(62vh, 1000px); object-fit: contain; display: block; margin-left: -8%; filter: drop-shadow(0 0 15px #087bff18); }
+.technicalLoginDrawingLabel { margin: 0 0 -10px 6%; display: flex; flex-direction: column; gap: 8px; color: #5794c8; font: 11px/1.4 ui-monospace, Consolas, monospace; letter-spacing: .16em; }
+.technicalLoginDrawingLabel small { color: #64809d; font-size: 9px; }
+.technicalLoginCoordinates { position: absolute; right: 0; top: 12%; display: grid; gap: 9px; color: #5688b5; font: 11px/1.3 ui-monospace, Consolas, monospace; padding-left: 14px; border-left: 1px solid #2977b747; }
+.technicalLoginCoordinates b { color: #689fcf; font-weight: 400; padding-left: 9px; }
+.technicalLoginCode { position: absolute; left: 0; bottom: 11%; color: #427398; font: 10px/1.8 ui-monospace, Consolas, monospace; }
+.technicalLoginDrawingFooter { display: flex; justify-content: space-between; gap: 16px; color: #6e94b7; font: 9px/1.5 ui-monospace, Consolas, monospace; letter-spacing: .13em; padding: 15px 0; border-top: 1px solid #2d79b638; }
+.technicalLoginDrawingFooter small { font-size: 8px; color: #52718f; }
+@media (min-width: 2100px) { .technicalLoginPanel { max-width: 600px; padding: 60px; } .technicalLoginComposition { gap: 5vw; } .technicalLoginInput, .technicalLoginSubmit { height: 60px; } .technicalLoginDescription { margin-bottom: 40px; } }
+@media (max-width: 1100px) { .technicalLoginPage { padding: 25px 28px; } .technicalLoginComposition { grid-template-columns: minmax(350px, 1fr) minmax(0, 1fr); gap: 18px; } .technicalLoginPanel { padding: 30px; } .technicalLoginCoordinates { display: none; } .technicalLoginProduct { padding-left: 14px; } .technicalLoginBrand { gap: 14px; } }
+@media (max-width: 760px) { .technicalLoginPage { padding: 20px; } .technicalLoginComposition { display: block; padding: 35px 0; } .technicalLoginPanel { margin: auto; max-width: 460px; padding: 32px 26px; } .technicalLoginArtwork { display: none; } .technicalLoginTopline span:last-child, .technicalLoginBottomline span:last-child { display: none; } .technicalLoginPage::after { left: 0; } }
+@media (max-width: 380px) { .technicalLoginPage { padding: 15px; } .technicalLoginPanel { padding: 28px 20px; } .technicalLoginBrand { gap: 12px; } .technicalLoginLogo { width: 120px; height: 57px; } .technicalLoginLogo img { width: 202px; transform: translate(-41px, -72px); } .technicalLoginProduct span { font-size: 23px; } .technicalLoginProduct strong { font-size: 10px; } }
+@media (min-width: 761px) and (max-height: 850px) {
+  .technicalLoginPage { padding-top: 18px; padding-bottom: 18px; }
+  .technicalLoginTopline { padding-bottom: 10px; }
+  .technicalLoginComposition { padding: 20px 0; }
+  .technicalLoginPanel { padding: 28px 36px; }
+  .technicalLoginRule { margin: 22px 0; }
+  .technicalLoginDescription { margin-bottom: 22px; }
+  .technicalLoginInput { height: 48px; margin-bottom: 8px; }
+  .technicalLoginRestricted { margin-top: 20px; }
+  .technicalLoginBottomline { padding-top: 10px; margin-top: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .technicalLoginPage *, .technicalLoginPage *::before, .technicalLoginPage *::after { transition: none !important; } }
+@media (max-width: 760px) and (max-height: 750px) {
+  .technicalLoginTopline, .technicalLoginBottomline { display: none; }
+  .technicalLoginComposition { padding: 0; }
+  .technicalLoginPanel { padding: 24px 22px; }
+  .technicalLoginRule { margin: 18px 0; }
+  .technicalLoginDescription { margin-bottom: 18px; }
+  .technicalLoginInput { height: 48px; margin-bottom: 8px; }
+  .technicalLoginRestricted { margin-top: 16px; }
+}

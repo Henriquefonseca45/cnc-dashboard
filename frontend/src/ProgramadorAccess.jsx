@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { Eye, EyeOff, LockKeyhole, UserRound } from "lucide-react";
+import TechnicalLoginLayout from "./TechnicalLoginLayout.jsx";
 import { useLocation, useNavigate } from "react-router-dom";
 import ProgramadorDashboard from "./ProgramadorDashboard.jsx";
 import ProgramadorAuditHistory from "./ProgramadorAuditHistory.jsx";
@@ -12,18 +14,22 @@ function roleLabel(role) {
 }
 
 
-export function ProgramadorLogin({ onAuthenticated, themeMode, eyebrow = "PROGRAMAÇÃO CNC", description = "Entre com seu usuário para acessar a operação de Programação." }) {
+export function ProgramadorLogin({ onAuthenticated, themeMode, technical = false, eyebrow = "PROGRAMAÇÃO CNC", description = "Entre com seu usuário para acessar a operação de Programação." }) {
   const [login, setLogin] = useState("");
   const [senha, setSenha] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const submitting = useRef(false);
 
   async function submit(event) {
     event.preventDefault();
+    if (submitting.current) return;
     if (!login.trim() || !senha) {
       setError("Informe usuário e senha.");
       return;
     }
+    submitting.current = true;
     setLoading(true);
     setError("");
     try {
@@ -32,9 +38,30 @@ export function ProgramadorLogin({ onAuthenticated, themeMode, eyebrow = "PROGRA
     } catch (err) {
       setError(err?.response?.status === 401 ? "Usuário ou senha inválidos." : getErrMsg(err));
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   }
+
+  const form = (
+    <form onSubmit={submit} aria-busy={loading} aria-describedby={error ? "programador-login-error" : undefined}>
+      <label htmlFor="programador-login-user">Usuário</label>
+      <div className={technical ? "technicalLoginInput" : undefined}>
+        {technical ? <UserRound size={18} aria-hidden="true" /> : null}
+        <input id="programador-login-user" name="username" autoFocus autoComplete="username" autoCapitalize="none" spellCheck={false} disabled={loading} placeholder={technical ? "Digite seu usuário" : undefined} value={login} onChange={(event) => setLogin(event.target.value)} />
+      </div>
+      <label htmlFor="programador-login-password">Senha</label>
+      <div className={technical ? "technicalLoginInput" : undefined}>
+        {technical ? <LockKeyhole size={18} aria-hidden="true" /> : null}
+        <input id="programador-login-password" name="password" type={technical && showPassword ? "text" : "password"} autoComplete="current-password" disabled={loading} placeholder={technical ? "Digite sua senha" : undefined} value={senha} onChange={(event) => setSenha(event.target.value)} />
+        {technical ? <button className="technicalLoginEye" type="button" disabled={loading} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} aria-pressed={showPassword} onClick={() => setShowPassword((current) => !current)}>{showPassword ? <EyeOff size={19} aria-hidden="true" /> : <Eye size={19} aria-hidden="true" />}</button> : null}
+      </div>
+      {error ? <div id="programador-login-error" className={technical ? "technicalLoginError" : "programadorLoginError"} role="alert">{error}</div> : null}
+      <button className={technical ? "technicalLoginSubmit" : undefined} type="submit" disabled={loading}>{loading ? "Entrando..." : "Entrar"}</button>
+    </form>
+  );
+
+  if (technical) return <TechnicalLoginLayout>{form}</TechnicalLoginLayout>;
 
   return (
     <main className={`programadorLoginPage theme-${themeMode}`}>
@@ -44,14 +71,8 @@ export function ProgramadorLogin({ onAuthenticated, themeMode, eyebrow = "PROGRA
         <h1 id="programador-login-title">Acesso ao módulo</h1>
         <p>{description}</p>
         <form onSubmit={submit}>
-          <label>
-            Usuário
-            <input autoFocus autoComplete="username" value={login} onChange={(event) => setLogin(event.target.value)} />
-          </label>
-          <label>
-            Senha
-            <input type="password" autoComplete="current-password" value={senha} onChange={(event) => setSenha(event.target.value)} />
-          </label>
+          <label>Usuário<input autoFocus autoComplete="username" value={login} onChange={(event) => setLogin(event.target.value)} /></label>
+          <label>Senha<input type="password" autoComplete="current-password" value={senha} onChange={(event) => setSenha(event.target.value)} /></label>
           {error ? <div className="programadorLoginError" role="alert">{error}</div> : null}
           <button type="submit" disabled={loading}>{loading ? "Entrando..." : "Entrar"}</button>
         </form>

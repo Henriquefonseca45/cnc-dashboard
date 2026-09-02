@@ -98,7 +98,7 @@ export default function DevProgramadorUsers() {
   async function logout() { await api.post("/programador/auth/logout").catch(() => {}); setAuth({ loading: false, user: null }); }
   function saved() { setDialog(null); load(); }
   if (auth.loading) return <main className="programadorAuthLoading">Validando acesso DEV...</main>;
-  if (!auth.user) return <ProgramadorLogin themeMode="light" eyebrow="ADMINISTRAÇÃO TÉCNICA" description="Entre com suas credenciais para continuar." onAuthenticated={(user) => setAuth({ loading: false, user })} />;
+  if (!auth.user) return <ProgramadorLogin technical onAuthenticated={(user) => setAuth({ loading: false, user })} />;
   if (auth.user.must_change_password) return <Navigate to="/programador/primeiro-acesso" replace />;
   if (auth.user.role !== "dev") return <main className="devUsersDenied"><section><h1>Acesso não autorizado</h1><p>Esta área é exclusiva do perfil DEV.</p><button onClick={logout}>Sair</button></section></main>;
 
