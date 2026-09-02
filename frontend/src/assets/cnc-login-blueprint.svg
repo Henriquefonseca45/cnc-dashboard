@@ -1,63 +1,174 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 740" fill="none">
+  <title>CNC Router — desenho técnico isométrico</title>
   <defs>
-    <linearGradient id="bed" x1="140" y1="400" x2="830" y2="420" gradientUnits="userSpaceOnUse"><stop stop-color="#006bff" stop-opacity=".02"/><stop offset=".55" stop-color="#087bff" stop-opacity=".14"/><stop offset="1" stop-color="#35b7ff" stop-opacity=".02"/></linearGradient>
-    <pattern id="slots" width="28" height="28" patternUnits="userSpaceOnUse" patternTransform="matrix(.88 .48 -.88 .48 0 0)"><path d="M0 0V28 M4 0V28" stroke="#1496ff" stroke-width=".8" opacity=".4"/></pattern>
+    <linearGradient id="frame" x1="110" y1="450" x2="820" y2="550" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#07182c"/><stop offset=".55" stop-color="#082039"/><stop offset="1" stop-color="#041326"/>
+    </linearGradient>
+    <linearGradient id="spindle" x1="526" y1="250" x2="583" y2="250" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#06172b"/><stop offset=".5" stop-color="#103552"/><stop offset="1" stop-color="#06182e"/>
+    </linearGradient>
+    <g id="slot" stroke="#279eea" stroke-width=".8">
+      <path fill="#06172b" d="M0 0H26V315H0Z"/>
+      <path d="M4 0V315 M22 0V315" opacity=".5"/>
+    </g>
+    <g id="rail-bolt" stroke="#4fb8f0" stroke-width=".8"><circle r="2.3"/><path d="M-1.2 0H1.2"/></g>
+    <g id="key" stroke="#3eaae9" stroke-width=".8"><rect width="5" height="6" rx="1"/></g>
+    <g id="key-row"><use href="#key"/><use href="#key" x="11"/><use href="#key" x="22"/><use href="#key" x="33"/><use href="#key" x="44"/><use href="#key" x="55"/><use href="#key" x="66"/><use href="#key" x="77"/></g>
   </defs>
-  <!-- Datum, work envelope and dimension references. Decorative, not live telemetry. -->
-  <g stroke="#2788cb" stroke-width=".8" opacity=".3">
-    <path d="M40 420 505 170 895 382 430 637Z M100 400V140L500 0 830 180V365 M430 580V320 M100 140 430 320 830 180" stroke-dasharray="5 9"/>
-    <path d="M85 487 427 674 856 441 M85 469V505 M427 656V693 M856 423V460 M76 487H94 M418 674H436 M847 441H865"/>
-    <path d="M54 396V182 M45 396H63 M45 182H63 M52 205 45 219 M52 374 59 360"/>
-    <circle cx="470" cy="401" r="150" stroke-dasharray="4 14" transform="matrix(1 0 0 .5 0 200)"/>
+
+  <!-- Construction plane, dimensions and restrained drafting references. -->
+  <g stroke="#2583bf" stroke-width=".8" opacity=".25">
+    <path d="M60 520 626 598 893 416 327 339Z M60 550 626 628 893 446 M60 580 626 658 893 476" stroke-dasharray="4 9"/>
+    <path d="M94 616 627 689 902 502 M94 605V627 M627 678V700 M902 491V513"/>
+    <path d="M86 615 102 617 M619 688 635 690 M894 507 910 497"/>
+    <path d="M231 335V165 M220 335H242 M220 165H242 M239 334 230 341 M230 165 239 158"/>
+    <path d="M65 470 308 305 858 380 M110 470V385 M625 540V455" stroke-dasharray="3 8"/>
+    <circle cx="764" cy="139" r="58"/><circle cx="764" cy="139" r="41"/><circle cx="764" cy="139" r="22"/>
+    <path d="M692 139H837 M764 67V211 M697 69H710 M697 69V82 M831 208H818 M831 208V195"/>
+    <path d="M103 243H190V219H223 M868 548H915V603H884"/>
   </g>
-  <!-- Welded frame and feet. -->
-  <g stroke="#1496ff" stroke-width="1.6" stroke-linejoin="round">
-    <path fill="#061b35" d="M100 400 500 185 830 365 430 580Z"/>
-    <path fill="url(#bed)" d="M100 400 430 580 830 365V400L430 615 100 435Z"/>
-    <path d="M430 580V615 M110 410 430 586 820 376 M110 428 430 604 820 394" opacity=".6"/>
-    <path fill="#061225" d="M120 446V507L145 521 160 513V468 M400 607V668L425 682 445 670V607 M773 429V490L798 504 817 493V410"/>
-    <path d="M145 460V521 M425 614V681 M798 417V504 M152 496 400 631 M446 648 773 472"/>
-    <path d="M110 509 144 528 171 513 M390 670 425 689 456 671 M764 492 798 511 827 494"/>
+
+  <!-- Rear structure, longitudinal members and four adjustable feet. -->
+  <g stroke="#238fd6" stroke-width="1.2" stroke-linejoin="round">
+    <path fill="#051326" d="M292 395V498L316 503 338 489V384 M766 454V542L789 547 811 533V438"/>
+    <path d="M316 396V503 M789 454V547 M294 472 772 537 M316 487 789 552"/>
+    <path fill="#06172b" d="M117 526V621L146 625 163 614V532 M587 591V685L616 689 637 675V577"/>
+    <path d="M146 531V625 M616 595V689 M122 542 141 545V609L122 606Z M593 605 612 608V674L593 671Z"/>
+    <path d="M153 573 594 633 M153 594 594 654 M169 575 570 650 M187 599 581 631" opacity=".65"/>
+    <path d="M637 634 779 537 M637 656 779 560 M646 641 766 555"/>
+    <path fill="#07182c" d="M115 623 146 627 169 613V624L146 640 115 635Z M584 687 616 691 642 674V686L616 704 584 699Z M296 500 316 505 340 489V501L316 518 296 514Z M770 544 789 549 814 532V544L789 562 770 558Z"/>
+    <path d="M128 635V643L144 646 153 640 M600 703V711L616 714 628 706 M303 515V522L318 525 M784 560V568L797 565"/>
   </g>
-  <!-- Slotted vacuum table and longitudinal linear rails. -->
-  <path d="M125 398 500 199 804 365 430 565Z" fill="url(#slots)" stroke="#35b7ff" stroke-width="1.2"/>
-  <g stroke="#1496ff" stroke-width="1.3">
-    <path d="M109 397 502 187 M120 404 513 194 M419 574 814 361 M430 580 828 366"/>
-    <path d="M164 417 509 230 758 365 414 550Z M205 395 454 531 M260 365 509 501 M315 335 564 471 M370 306 619 442 M425 276 674 412" opacity=".4"/>
+
+  <!-- Box-section chassis, inspection panels and folded edge returns. -->
+  <g stroke="#319fe7" stroke-width="1.3" stroke-linejoin="round">
+    <path fill="url(#frame)" d="M99 476 624 548 833 406V467L624 610 99 538Z"/>
+    <path d="M624 548V610 M105 485 619 555 827 414 M105 530 619 600 827 458"/>
+    <path fill="#061527" d="M151 494 571 551V581L151 524Z"/>
+    <path d="M162 500 560 554V574L162 520Z M106 499 139 504V526L106 521 M585 560 613 564V590L585 586"/>
+    <path d="M647 549 802 444V463L647 570Z M647 580 802 475" opacity=".75"/>
+    <path d="M115 541 621 611 816 478V493L621 626 115 556Z M621 611V626"/>
+    <use href="#rail-bolt" x="145" y="493"/><use href="#rail-bolt" x="578" y="552"/>
+    <use href="#rail-bolt" x="145" y="526"/><use href="#rail-bolt" x="578" y="585"/>
+    <use href="#rail-bolt" x="665" y="548"/><use href="#rail-bolt" x="790" y="463"/>
   </g>
-  <!-- Gantry uprights and cross beam. -->
-  <g stroke="#35b7ff" stroke-width="1.8" stroke-linejoin="round">
-    <path fill="#08203b" d="M288 306V157L316 141 348 159V286L320 304Z"/>
-    <path d="M316 141V290 M288 157 316 173 348 159 M316 173V290 M298 299V187L308 192V295"/>
-    <path fill="#08203b" d="M602 477V328L632 312 664 330V455L634 474Z"/>
-    <path d="M632 312V458 M602 328 634 346 664 330 M634 346V474 M613 466V358L624 364V466"/>
-    <path fill="#061a31" d="M275 147 311 127 682 329V377L646 397 275 195Z"/>
-    <path d="M275 147 646 349 682 329 M646 349V397 M285 164 637 356 M285 180 637 372 M285 190 637 382"/>
-    <path d="M304 148 632 326 M313 141 642 320" opacity=".65"/>
+  <text x="419" y="550" transform="rotate(7.7 419 550)" font-family="Arial, sans-serif" font-size="27" font-weight="600" letter-spacing="6" fill="none" stroke="#319fe7" stroke-width=".8">RVB</text>
+
+  <!-- Vacuum/T-slot table: repeated profiles share a single isometric plane. -->
+  <path fill="#06192d" stroke="#50b8f4" stroke-width="1.4" d="M110 470 305 337 820 407 625 540Z"/>
+  <g transform="matrix(1 .136 .62 -.423 110 470)">
+    <use href="#slot"/><use href="#slot" x="32"/><use href="#slot" x="64"/><use href="#slot" x="96"/>
+    <use href="#slot" x="128"/><use href="#slot" x="160"/><use href="#slot" x="192"/><use href="#slot" x="224"/>
+    <use href="#slot" x="256"/><use href="#slot" x="288"/><use href="#slot" x="320"/><use href="#slot" x="352"/>
+    <use href="#slot" x="384"/><use href="#slot" x="416"/><use href="#slot" x="448"/><use href="#slot" x="480"/>
   </g>
-  <!-- Z-axis carriage, spindle and tool. -->
-  <g stroke="#6acbff" stroke-width="1.6" stroke-linejoin="round">
-    <path fill="#082745" d="M440 217 470 201 522 229V299L492 315 440 287Z"/>
-    <path d="M440 217 492 245 522 229 M492 245V315 M451 226V282 M460 231V287"/>
-    <path fill="#071a32" d="M448 262 467 252 493 266V343L474 353 448 339Z"/>
-    <path d="M448 262 474 276 493 266 M474 276V353 M451 286 473 298 490 289 M451 314 473 326 490 317"/>
-    <path d="M459 345V367L473 375 484 369V349 M473 375V406 M466 402 473 409 480 405"/>
+  <g stroke="#39a9ed" stroke-width="1" stroke-linejoin="round">
+    <path d="M110 470V481L625 551 820 418V407 M625 540V551"/>
+    <path d="M116 474 621 543 M631 543 813 419" opacity=".6"/>
+    <path d="M143 474V484 M175 479V489 M207 483V493 M239 487V497 M271 492V502 M303 496V506 M335 500V510 M367 505V515 M399 509V519 M431 513V523 M463 518V528 M495 522V532 M527 526V536 M559 531V541 M591 535V545"/>
   </g>
-  <!-- Cable carrier, drive housings and fasteners. -->
-  <g stroke="#278ddb" stroke-width="1.3">
-    <path d="M339 146V126Q339 108 355 115L568 231Q584 240 584 258 M347 149V133Q347 124 357 129L566 243Q574 247 574 256"/>
-    <path d="M365 122 365 134 M387 134V146 M409 146V158 M431 158V170 M453 170V182 M475 182V194 M497 194V206 M519 206V218 M541 218V230 M563 230V242"/>
-    <path fill="#061b35" d="M269 285 294 272 332 293V318L309 331 269 309Z M585 455 610 442 648 463V486L624 501 585 479Z"/>
-    <path d="M269 285 309 307 332 293 M309 307V331 M585 455 624 477 648 463 M624 477V501"/>
-    <circle cx="296" cy="175" r="2"/><circle cx="295" cy="191" r="2"/><circle cx="624" cy="354" r="2"/><circle cx="623" cy="371" r="2"/>
+
+  <!-- Y-axis guides, bearing blocks and end drives. -->
+  <g stroke="#39a9ed" stroke-width="1.1" stroke-linejoin="round">
+    <path fill="#071b32" d="M97 458 298 321 312 324 111 461Z M618 535 819 398 832 401 631 538Z"/>
+    <path d="M104 461 306 324 M623 539 826 402 M100 464 296 331 M625 545 827 408"/>
+    <path fill="#08203a" d="M244 355 280 331 311 335V355L275 380 244 376Z M744 423 780 399 811 403V423L775 448 744 444Z"/>
+    <path d="M244 355 275 359 311 335 M275 359V380 M744 423 775 427 811 403 M775 427V448"/>
+    <path fill="#06172b" d="M286 319 308 303 339 308V332L319 347 286 342Z M802 390 824 374 853 379V403L833 418 802 413Z"/>
+    <path d="M286 319 319 324 339 308 M319 324V347 M802 390 833 395 853 379 M833 395V418"/>
+    <use href="#rail-bolt" x="258" y="366"/><use href="#rail-bolt" x="755" y="435"/>
   </g>
-  <!-- Fine leaders, axes and signal traces. -->
-  <g stroke="#35b7ff" stroke-width="1" opacity=".45">
-    <path d="M501 284 697 178H781 M658 385 791 313H881 M163 397 91 358H30"/>
-    <circle cx="501" cy="284" r="3"/><circle cx="658" cy="385" r="3"/>
-    <path d="M81 643V589 M81 643 120 665 M81 643 125 619 M76 596 81 589 86 596 M112 664 120 665 116 657 M118 619 125 619 122 626"/>
-    <path d="M2 664H196L276 707H546L777 579H929 M0 678H190L270 721H550L783 593H940" opacity=".65"/>
-    <circle cx="196" cy="664" r="3" fill="#35b7ff"/><circle cx="777" cy="579" r="3" fill="#35b7ff"/>
+
+  <!-- Gusseted gantry columns, with doubled outlines for wall thickness. -->
+  <g stroke="#48b4ef" stroke-width="1.4" stroke-linejoin="round">
+    <path fill="#071a2e" d="M248 351V300L270 255V175L302 179 323 165V319L293 363 248 357Z"/>
+    <path d="M270 255 302 259 280 304V356 M302 179V259 M302 259 323 245 M302 179 270 175 M302 185 318 175V315L289 353 M255 348V302L277 257V189"/>
+    <path fill="#071a2e" d="M748 419V368L770 323V243L802 247 823 233V387L793 431 748 425Z"/>
+    <path d="M770 323 802 327 780 372V424 M802 247V327 M802 327 823 313 M802 247 770 243 M802 253 818 243V383L789 421 M755 416V370L777 325V257"/>
+    <path d="M264 314V339L277 341V296 M764 382V407L777 409V364" opacity=".65"/>
   </g>
-  <g fill="#549bc8" font-family="monospace" font-size="10" letter-spacing="2" opacity=".65"><text x="710" y="169">Z / SPINDLE</text><text x="804" y="302">LINEAR AXIS</text><text x="68" y="580">Z</text><text x="127" y="675">X</text><text x="130" y="617">Y</text><text x="595" y="607" transform="rotate(-28 595 607)">WORK ENVELOPE</text></g>
+
+  <!-- Gantry beam with two linear guides, rack and mounting hardware. -->
+  <g stroke="#3ca9ec" stroke-width="1.25" stroke-linejoin="round">
+    <path fill="#06182d" d="M270 184 294 168 804 237V311L780 327 270 258Z"/>
+    <path d="M270 184 780 253 804 237 M780 253V327 M280 191 770 257 M280 249 770 315"/>
+    <path fill="#0b2541" d="M285 201 766 266V276L285 211Z M285 233 766 298V308L285 243Z"/>
+    <path d="M285 205 766 270 M285 237 766 302 M288 218 765 283 M288 222 765 287" opacity=".7"/>
+    <use href="#rail-bolt" x="308" y="205"/><use href="#rail-bolt" x="375" y="214"/><use href="#rail-bolt" x="442" y="223"/>
+    <use href="#rail-bolt" x="605" y="245"/><use href="#rail-bolt" x="672" y="254"/><use href="#rail-bolt" x="741" y="264"/>
+    <use href="#rail-bolt" x="308" y="237"/><use href="#rail-bolt" x="375" y="246"/><use href="#rail-bolt" x="442" y="255"/>
+    <use href="#rail-bolt" x="605" y="277"/><use href="#rail-bolt" x="672" y="286"/><use href="#rail-bolt" x="741" y="296"/>
+  </g>
+
+  <!-- Articulated cable carrier: return loop above the moving Z carriage. -->
+  <g stroke="#3fa6df" stroke-width="1.1">
+    <path fill="#05162a" d="M532 162V119C532 76 572 55 608 73C654 96 679 150 668 192C664 207 655 218 643 226L620 221C638 211 647 196 648 178C652 142 631 109 604 96C577 83 554 99 554 126V165Z"/>
+    <path d="M539 162V124C539 87 572 66 605 83C646 103 669 149 660 185C656 202 647 213 631 222"/>
+    <path d="M532 145 554 148 M532 131 554 134 M533 117 556 119 M537 103 560 105 M545 91 568 95 M558 80 579 90 M574 73 589 90 M592 71 603 95 M609 75 616 103 M624 85 628 116 M638 98 639 130 M650 112 646 144 M660 129 651 158 M667 146 651 173 M670 164 648 187 M668 182 642 199 M662 198 634 210 M654 211 624 219"/>
+    <path d="M551 142C578 123 606 146 609 176V212" opacity=".4"/>
+  </g>
+
+  <!-- Z slide, parallel guide rods, ball screw and machined carriage plates. -->
+  <g stroke="#58bcf1" stroke-width="1.3" stroke-linejoin="round">
+    <path fill="#08203a" d="M500 154 521 140 589 149V323L568 337 500 328Z"/>
+    <path d="M500 154 568 163 589 149 M568 163V337 M507 163 561 170V321L507 314Z M575 169 583 164V315L575 320Z"/>
+    <path d="M513 173V306 M518 174V307 M549 178V311 M554 179V312 M533 177V316 M537 178V316"/>
+    <path d="M531 186 539 183 M531 197 539 194 M531 208 539 205 M531 219 539 216 M531 230 539 227 M531 241 539 238" opacity=".55"/>
+    <path fill="#0b2741" d="M510 251 524 242 579 249V315L565 325 510 318Z"/>
+    <path d="M510 251 565 258 579 249 M565 258V325"/>
+    <use href="#rail-bolt" x="509" y="166"/><use href="#rail-bolt" x="558" y="173"/>
+    <use href="#rail-bolt" x="514" y="313"/><use href="#rail-bolt" x="560" y="320"/>
+  </g>
+
+  <!-- Cylindrical spindle motor, cooling fins, collet nut and router bit. -->
+  <g stroke="#71c9f6" stroke-width="1.2" stroke-linejoin="round">
+    <path fill="url(#spindle)" d="M526 219Q553 209 580 227V346Q553 358 526 338Z"/>
+    <ellipse cx="553" cy="222" rx="27" ry="8" transform="rotate(7.7 553 222)" fill="#0b2944"/>
+    <path d="M529 228Q553 240 577 234 M529 235Q553 247 577 241 M529 242Q553 254 577 248"/>
+    <path d="M532 252V328 M539 254V332 M568 258V337 M574 257V338" opacity=".6"/>
+    <path fill="#0a2037" d="M523 274Q551 287 583 282V295Q552 302 523 287Z M523 319Q551 332 583 327V340Q552 347 523 332Z"/>
+    <path d="M526 338Q553 354 580 346 M534 348V365Q550 376 571 370V354 M534 358Q552 369 571 365"/>
+    <path fill="#08223a" d="M542 373 549 369 564 373V386L557 391 542 386Z"/>
+    <path d="M549 369V383L557 387V391 M550 390V405L556 413 561 406V391 M553 397 559 399 M553 402 559 404 M556 413V421"/>
+  </g>
+
+  <!-- Freestanding industrial controller: cabinet depth and mounting plinth. -->
+  <g stroke="#329fe5" stroke-width="1.2" stroke-linejoin="round">
+    <path fill="#06182d" d="M737 348 779 322 902 339 886 602 844 629 721 612Z"/>
+    <path d="M737 348 860 365 902 339 M860 365 844 629 M875 367 896 353 880 598 852 617"/>
+    <path fill="#061527" d="M770 619V680L803 685 828 668V627 M803 627V685"/>
+    <path d="M765 680 803 686 835 666V679L803 700 765 695Z M776 696V702L789 704 M813 694V700L826 694"/>
+    <path d="M873 394 892 382 M871 406 890 394 M869 418 888 406 M867 430 886 418 M865 442 884 430" opacity=".55"/>
+  </g>
+  <!-- Front control surface uses one affine plane so every button stays aligned. -->
+  <g transform="matrix(1 .136 -.062 1 746 365)" stroke="#48b2ed" stroke-width="1" stroke-linejoin="round">
+    <rect width="105" height="232" rx="3" fill="#041428"/>
+    <rect x="7" y="9" width="91" height="92" rx="2"/>
+    <rect x="12" y="15" width="61" height="70" rx="1.5" fill="#061e36"/>
+    <path d="M17 70V61L25 60 34 44 46 47 57 32 68 34 M17 77H67 M17 25H39" opacity=".45"/>
+    <g transform="translate(79 17)"><use href="#key"/><use href="#key" x="10"/><use href="#key" y="11"/><use href="#key" x="10" y="11"/><use href="#key" y="22"/><use href="#key" x="10" y="22"/><use href="#key" y="33"/><use href="#key" x="10" y="33"/><use href="#key" y="44"/><use href="#key" x="10" y="44"/><use href="#key" y="55"/><use href="#key" x="10" y="55"/></g>
+    <g transform="translate(14 90)"><use href="#key-row"/></g>
+    <g transform="translate(14 112)"><use href="#key-row"/><use href="#key-row" y="12"/><use href="#key-row" y="24"/><use href="#key-row" y="36"/></g>
+    <circle cx="24" cy="176" r="10"/><circle cx="24" cy="176" r="6"/><path d="M24 166V170"/>
+    <circle cx="53" cy="176" r="8"/><path d="M53 168V173 M67 167H90 M67 175H90 M67 183H83" opacity=".8"/>
+    <path d="M9 197H96"/>
+    <circle cx="21" cy="212" r="6"/><circle cx="42" cy="212" r="6"/><circle cx="63" cy="212" r="6"/><circle cx="84" cy="212" r="6"/>
+    <circle cx="21" cy="212" r="3" opacity=".6"/>
+    <use href="#rail-bolt" x="4" y="5"/><use href="#rail-bolt" x="101" y="5"/>
+    <use href="#rail-bolt" x="4" y="226"/><use href="#rail-bolt" x="101" y="226"/>
+  </g>
+
+  <!-- Decorative axes and fine annotation leaders; no live machine data. -->
+  <g stroke="#359fdc" stroke-width=".8" opacity=".5">
+    <path d="M558 394 667 328H705 M394 202 424 151H456 M278 356 219 397H151"/>
+    <circle cx="558" cy="394" r="2.4"/><circle cx="394" cy="202" r="2.4"/>
+    <path d="M55 660V615 M55 660 96 666 M55 660 88 638 M52 622 55 615 58 622 M90 662 96 666 90 669 M82 640 88 638 86 644"/>
+    <path d="M0 695H202L276 715H563L681 674 M0 706H194L270 727H568L687 685" opacity=".6"/>
+    <circle cx="202" cy="695" r="2" fill="#35b7ff"/>
+  </g>
+  <g fill="#5b9dc5" font-family="monospace" font-size="8" letter-spacing="1.6" opacity=".65">
+    <text x="665" y="320">SPINDLE / Z</text><text x="373" y="141">LINEAR GUIDE</text>
+    <text x="45" y="606">Z</text><text x="102" y="670">X</text><text x="93" y="636">Y</text>
+    <text x="193" y="653" transform="rotate(7.7 193 653)">WORK ENVELOPE / CNC ROUTER</text>
+  </g>
 </svg>
