@@ -65,6 +65,7 @@ export default function ProgramadorAccess() {
   const location = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
+  const [authEnabled, setAuthEnabled] = useState(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState(() => location.pathname.endsWith("/historico") ? "historico" : "operacao");
   const [themeMode, setThemeMode] = useState(() => {
@@ -73,10 +74,22 @@ export default function ProgramadorAccess() {
 
   useEffect(() => {
     let active = true;
-    api.get("/programador/auth/me")
-      .then((response) => { if (active) setUser(response.data.user); })
-      .catch(() => { if (active) setUser(null); })
-      .finally(() => { if (active) setLoading(false); });
+    async function validateAccess() {
+      try {
+        const config = await api.get("/programador/auth/config");
+        if (!active) return;
+        const enabled = config.data.enabled !== false;
+        setAuthEnabled(enabled);
+        if (!enabled) return;
+        const response = await api.get("/programador/auth/me");
+        if (active) setUser(response.data.user);
+      } catch {
+        if (active) { setAuthEnabled(true); setUser(null); }
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    validateAccess();
     return () => { active = false; };
   }, []);
 
@@ -132,6 +145,7 @@ export default function ProgramadorAccess() {
   }
 
   if (loading) return <main className="programadorAuthLoading">Validando acesso...</main>;
+  if (authEnabled === false) return <ProgramadorDashboard />;
   if (!user) return <ProgramadorLogin onAuthenticated={setUser} themeMode={themeMode} />;
   if (user.must_change_password) return <ProgramadorFirstAccess user={user} onCompleted={setUser} onLogout={logout} themeMode={themeMode} />;
   if (user.role === "dev") return <main className="programadorAuthLoading">Abrindo administração técnica...</main>;

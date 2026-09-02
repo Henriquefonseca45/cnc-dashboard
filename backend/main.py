@@ -204,7 +204,22 @@ def optional_programador_auth(request: Request) -> dict | None:
     return session_user_from_request(request)
 
 
+def _programador_auth_enabled() -> bool:
+    return os.environ.get("CNC_PROGRAMADOR_AUTH_ENABLED", "1").strip().lower() not in {"0", "false", "no", "nao", "não"}
+
+
 def require_programador_auth(request: Request) -> dict:
+    if not _programador_auth_enabled():
+        return {
+            "id": None,
+            "nome": "Acesso temporário sem login",
+            "login": "acesso-temporario",
+            "role": "programador",
+            "ativo": True,
+            "must_change_password": False,
+            "password_changed_at": None,
+            "last_login_at": None,
+        }
     user = optional_programador_auth(request)
     if not user:
         raise HTTPException(status_code=401, detail="Autenticação necessária para o módulo Programador.")
@@ -268,6 +283,11 @@ def programador_login(body: ProgramadorLoginRequest, response: Response):
         path="/",
     )
     return {"user": user, "expires_at": expires_at, "requires_password_change": user["must_change_password"]}
+
+
+@app.get("/programador/auth/config")
+def programador_auth_config():
+    return {"enabled": _programador_auth_enabled()}
 
 
 @app.post("/programador/auth/logout")

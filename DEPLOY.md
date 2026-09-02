@@ -88,6 +88,11 @@ sem restrição de CNC até que o Programador edite sua classificação.
 
 ## Login e auditoria do Programador
 
+O login operacional pode ser ligado ou desligado pela variável
+`CNC_PROGRAMADOR_AUTH_ENABLED`. Enquanto ela estiver em `0`, `/programador`
+abre diretamente e a área DEV continua protegida. Para reativar o login, altere
+o valor para `1` e recrie o container.
+
 A autenticação é aplicada somente à rota `/programador` e às operações de
 programação que alteram arquivos e filas. As demais telas mantêm o acesso atual.
 

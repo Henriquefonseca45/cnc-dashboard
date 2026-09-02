@@ -7,6 +7,7 @@ from pathlib import Path
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 try:
     from fastapi import HTTPException, Response, UploadFile
@@ -69,6 +70,15 @@ class ProgramadorApiTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as ctx:
             main.require_programador_auth(fake_request())
         self.assertEqual(ctx.exception.status_code, 401)
+
+    def test_operational_login_can_be_temporarily_disabled_without_opening_dev(self):
+        with patch.dict("os.environ", {"CNC_PROGRAMADOR_AUTH_ENABLED": "0"}):
+            self.assertFalse(main.programador_auth_config()["enabled"])
+            user = main.require_programador_auth(fake_request())
+            self.assertEqual(user["role"], "programador")
+            with self.assertRaises(HTTPException) as ctx:
+                main.require_dev(fake_request())
+            self.assertEqual(ctx.exception.status_code, 401)
 
     def test_login_cookie_is_http_only_and_refresh_resolves_session(self):
         result, token, header = self.login()

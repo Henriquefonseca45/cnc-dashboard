@@ -10,6 +10,7 @@ services:
     environment:
       TZ: America/Sao_Paulo
       CNC_DB_PATH: /data/cnc.db
+      CNC_PROGRAMADOR_AUTH_ENABLED: "0"
     volumes:
       - ./deploy-data:/data
       - ./storage:/app/storage
