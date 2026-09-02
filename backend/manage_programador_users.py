@@ -11,10 +11,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Gerencia usuários do módulo Programador.")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    create = sub.add_parser("create", help="Cria ou atualiza um Programador/Líder.")
+    create = sub.add_parser("create", help="Cria ou atualiza um Programador/Líder/DEV.")
     create.add_argument("--name", required=True)
     create.add_argument("--login", required=True)
-    create.add_argument("--role", choices=("programador", "lider"), required=True)
+    create.add_argument("--role", choices=("programador", "lider", "dev"), required=True)
 
     state = sub.add_parser("set-active", help="Ativa ou desativa um usuário.")
     state.add_argument("--login", required=True)
@@ -41,7 +41,7 @@ def main() -> None:
             print(f"Usuário salvo: {user['nome']} ({user['login']}) — {user['role']}")
         elif args.command == "set-active":
             cursor = conn.execute(
-                "UPDATE usuarios SET ativo = ?, updated_at = ? WHERE LOWER(login) = ? AND role IN ('programador','lider')",
+                "UPDATE usuarios SET ativo = ?, updated_at = ? WHERE LOWER(login) = ? AND role IN ('programador','lider','dev')",
                 (1 if args.active == "yes" else 0, utc_iso(), login),
             )
             if cursor.rowcount != 1:
@@ -58,7 +58,7 @@ def main() -> None:
             if password != confirmation:
                 raise SystemExit("As senhas não coincidem.")
             cursor = conn.execute(
-                "UPDATE usuarios SET senha = '', senha_hash = ?, updated_at = ? WHERE LOWER(login) = ? AND role IN ('programador','lider')",
+                "UPDATE usuarios SET senha = '', senha_hash = ?, updated_at = ? WHERE LOWER(login) = ? AND role IN ('programador','lider','dev')",
                 (hash_password(password), utc_iso(), login),
             )
             if cursor.rowcount != 1:

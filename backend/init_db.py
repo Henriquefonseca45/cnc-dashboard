@@ -4,6 +4,7 @@ from backend.maintenance import ensure_maintenance_schema
 from backend.plan_classification import ensure_plan_classification_schema
 from backend.programador_auth import ensure_programador_auth_schema
 from backend.programador_audit import ensure_programador_audit_schema
+from backend.programador_admin import ensure_programador_admin_schema
 
 def main():
     conn = get_conn()
@@ -102,6 +103,7 @@ def main():
     )
     """)
     ensure_programador_auth_schema(conn)
+    ensure_programador_admin_schema(conn)
 
     # =========================
     # TABELA LOGS_OPERACAO

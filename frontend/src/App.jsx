@@ -9,6 +9,7 @@ import AdminStatusApontamentos from "./AdminStatusApontamentos.jsx";
 import AdminRoutesPortal from "./AdminRoutesPortal.jsx";
 import AssistenteCncPage from "./AssistenteCncPage.jsx";
 import MaintenanceTvPage from "./MaintenanceTvPage.jsx";
+import DevProgramadorUsers from "./DevProgramadorUsers.jsx";
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="/operador" element={<OperatorDashboard />} />
         <Route path="/operador/:cncId" element={<OperatorDashboard />} />
         <Route path="/programador/*" element={<ProgramadorAccess />} />
+        <Route path="/dev/programador/usuarios" element={<DevProgramadorUsers />} />
         <Route path="/facilitador" element={<ProgramadorDashboard mode="facilitador" />} />
         <Route path="/visual" element={<ProgramadorDashboard />} />
         <Route path="/almoxarifado" element={<AlmoxarifadoPage />} />

@@ -67,9 +67,20 @@ from backend.programador_auth import (
     SESSION_HOURS,
     authenticate_programador,
     create_session,
+    complete_first_access,
     ensure_programador_auth_schema,
     revoke_session,
+    mark_last_login,
     session_user_from_request,
+)
+from backend.programador_admin import (
+    create_user as create_programador_user,
+    ensure_programador_admin_schema,
+    list_admin_audit,
+    list_users as list_programador_users,
+    reset_user_password,
+    set_user_active,
+    update_user as update_programador_user,
 )
 from backend.programador_audit import (
     audit_filter_options,
@@ -154,6 +165,34 @@ class ProgramadorLoginRequest(BaseModel):
     senha: str
 
 
+class ProgramadorFirstAccessRequest(BaseModel):
+    nova_senha: str
+    confirmar_senha: str
+
+
+class DevProgramadorUserCreate(BaseModel):
+    nome: str
+    login: str
+    senha_temporaria: str
+    confirmar_senha_temporaria: str
+    role: str
+
+
+class DevProgramadorUserUpdate(BaseModel):
+    nome: str
+    login: str
+    role: str
+
+
+class DevProgramadorStatusUpdate(BaseModel):
+    ativo: bool
+
+
+class DevProgramadorPasswordReset(BaseModel):
+    senha_temporaria: str
+    confirmar_senha_temporaria: str
+
+
 def _programador_cookie_secure() -> bool:
     explicit = os.environ.get("CNC_PROGRAMADOR_COOKIE_SECURE")
     if explicit is not None:
@@ -169,6 +208,26 @@ def require_programador_auth(request: Request) -> dict:
     user = optional_programador_auth(request)
     if not user:
         raise HTTPException(status_code=401, detail="Autenticação necessária para o módulo Programador.")
+    if user["must_change_password"]:
+        raise HTTPException(status_code=403, detail="Troca de senha obrigatória antes de acessar o módulo.")
+    if user["role"] not in {"programador", "lider"}:
+        raise HTTPException(status_code=403, detail="Este perfil não possui acesso às funções operacionais.")
+    return user
+
+
+def require_authenticated_session(request: Request) -> dict:
+    user = optional_programador_auth(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Autenticação necessária.")
+    return user
+
+
+def require_dev(request: Request) -> dict:
+    user = require_authenticated_session(request)
+    if user["must_change_password"]:
+        raise HTTPException(status_code=403, detail="Troca de senha obrigatória antes de acessar o módulo.")
+    if user["role"] != "dev":
+        raise HTTPException(status_code=403, detail="Acesso permitido somente ao perfil DEV.")
     return user
 
 
@@ -189,6 +248,7 @@ def programador_login(body: ProgramadorLoginRequest, response: Response):
             conn.rollback()
             raise HTTPException(status_code=401, detail="Usuário ou senha inválidos.")
         token, expires_at = create_session(conn, user["id"])
+        user["last_login_at"] = mark_last_login(conn, user["id"])
         conn.commit()
     except HTTPException:
         raise
@@ -207,7 +267,7 @@ def programador_login(body: ProgramadorLoginRequest, response: Response):
         samesite="lax",
         path="/",
     )
-    return {"user": user, "expires_at": expires_at}
+    return {"user": user, "expires_at": expires_at, "requires_password_change": user["must_change_password"]}
 
 
 @app.post("/programador/auth/logout")
@@ -224,8 +284,135 @@ def programador_logout(request: Request, response: Response):
 
 
 @app.get("/programador/auth/me")
-def programador_me(user: dict = Depends(require_programador_auth)):
+def programador_me(user: dict = Depends(require_authenticated_session)):
     return {"user": user}
+
+
+@app.post("/programador/auth/primeiro-acesso")
+def programador_primeiro_acesso(body: ProgramadorFirstAccessRequest, request: Request, user: dict = Depends(require_authenticated_session)):
+    if body.nova_senha != body.confirmar_senha:
+        raise HTTPException(status_code=422, detail="As senhas não coincidem.")
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            updated = complete_first_access(
+                conn, usuario_id=user["id"], new_password=body.nova_senha,
+                current_token=request.cookies.get(SESSION_COOKIE_NAME),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        conn.commit()
+        return {"user": updated}
+    except HTTPException:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+@app.get("/dev/programador/usuarios")
+def dev_programador_usuarios(
+    busca: str = Query(""), role: str | None = Query(None), status: str | None = Query(None),
+    _dev: dict = Depends(require_dev),
+):
+    conn = get_conn()
+    try:
+        try:
+            return list_programador_users(conn, search=busca, role=role, status=status)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    finally:
+        conn.close()
+
+
+@app.post("/dev/programador/usuarios")
+def dev_programador_criar(body: DevProgramadorUserCreate, dev: dict = Depends(require_dev)):
+    if body.senha_temporaria != body.confirmar_senha_temporaria:
+        raise HTTPException(status_code=422, detail="As senhas temporárias não coincidem.")
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            user = create_programador_user(conn, dev=dev, nome=body.nome, login=body.login, password=body.senha_temporaria, role=body.role)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        conn.commit()
+        return {"user": user}
+    except HTTPException:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+@app.put("/dev/programador/usuarios/{usuario_id}")
+def dev_programador_editar(usuario_id: int, body: DevProgramadorUserUpdate, dev: dict = Depends(require_dev)):
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            user = update_programador_user(conn, dev=dev, usuario_id=usuario_id, nome=body.nome, login=body.login, role=body.role)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        conn.commit()
+        return {"user": user}
+    except HTTPException:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+@app.patch("/dev/programador/usuarios/{usuario_id}/status")
+def dev_programador_status(usuario_id: int, body: DevProgramadorStatusUpdate, dev: dict = Depends(require_dev)):
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            user = set_user_active(conn, dev=dev, usuario_id=usuario_id, active=body.ativo)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        conn.commit()
+        return {"user": user}
+    except HTTPException:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+@app.post("/dev/programador/usuarios/{usuario_id}/redefinir-senha")
+def dev_programador_redefinir_senha(usuario_id: int, body: DevProgramadorPasswordReset, dev: dict = Depends(require_dev)):
+    if body.senha_temporaria != body.confirmar_senha_temporaria:
+        raise HTTPException(status_code=422, detail="As senhas temporárias não coincidem.")
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            user = reset_user_password(conn, dev=dev, usuario_id=usuario_id, temporary_password=body.senha_temporaria)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        conn.commit()
+        return {"user": user}
+    except HTTPException:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+@app.get("/dev/programador/auditoria")
+def dev_programador_auditoria(limit: int = Query(100, ge=1, le=200), _dev: dict = Depends(require_dev)):
+    conn = get_conn()
+    try:
+        return {"items": list_admin_audit(conn, limit=limit)}
+    finally:
+        conn.close()
 
 
 @app.get("/programador/auditoria/opcoes")
@@ -2920,6 +3107,7 @@ def start_status_confirmation_worker():
     try:
         ensure_programador_auth_schema(conn)
         ensure_programador_audit_schema(conn)
+        ensure_programador_admin_schema(conn)
         conn.commit()
     finally:
         conn.close()

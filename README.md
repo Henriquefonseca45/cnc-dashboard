@@ -1,5 +1,15 @@
 # React + TypeScript + Vite
 
+## Administração técnica da Programação
+
+A gestão de Programadores e Líderes fica em `/dev/programador/usuarios`. O primeiro perfil DEV deve ser criado pelo mecanismo técnico controlado abaixo; a interface nunca oferece DEV como opção:
+
+```powershell
+python -m backend.manage_programador_users create --name "Nome do DEV" --login "login.dev" --role dev
+```
+
+O comando solicita e confirma a senha sem gravá-la em texto puro. Usuários criados ou redefinidos na tela DEV recebem senha temporária e precisam criar uma senha particular antes de usar as APIs operacionais.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

@@ -47,7 +47,9 @@
 .programadorLoginCard input:focus { border-color: var(--programador-purple); box-shadow: 0 0 0 3px rgba(75, 70, 223, 0.13); }
 .programadorLoginCard form > button { height: 50px; border: 0; border-radius: 13px; background: var(--programador-purple); color: white; font-weight: 900; cursor: pointer; }
 .programadorLoginCard form > button:disabled { opacity: 0.65; cursor: wait; }
+.programadorLoginCard form > button.programadorSecondaryButton { border: 1px solid #d5ddeb; background: transparent; color: currentColor; }
 .programadorLoginError { padding: 11px 13px; border: 1px solid #fecaca; border-radius: 10px; background: #fff1f2; color: #b42318; font-size: 13px; }
+.programadorPasswordHint { margin-top: -8px; color: var(--programador-muted); font-size: 12px; line-height: 1.4; }
 
 .programadorModule { min-height: 100vh; background: #eef2f7; }
 .programadorModuleBar { height: 64px; padding: 0 22px; display: grid; grid-template-columns: minmax(180px, 1fr) auto minmax(240px, 1fr); align-items: center; gap: 18px; border-bottom: 1px solid #d9e0ec; background: #fff; color: var(--programador-navy); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }

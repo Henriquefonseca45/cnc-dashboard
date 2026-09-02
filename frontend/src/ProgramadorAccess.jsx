@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ProgramadorDashboard from "./ProgramadorDashboard.jsx";
 import ProgramadorAuditHistory from "./ProgramadorAuditHistory.jsx";
+import ProgramadorFirstAccess from "./ProgramadorFirstAccess.jsx";
 import { api, getErrMsg } from "./api";
 import "./ProgramadorAccess.css";
 
@@ -11,7 +12,7 @@ function roleLabel(role) {
 }
 
 
-function ProgramadorLogin({ onAuthenticated, themeMode }) {
+export function ProgramadorLogin({ onAuthenticated, themeMode, eyebrow = "PROGRAMAÇÃO CNC", description = "Entre com seu usuário para acessar a operação de Programação." }) {
   const [login, setLogin] = useState("");
   const [senha, setSenha] = useState("");
   const [error, setError] = useState("");
@@ -39,9 +40,9 @@ function ProgramadorLogin({ onAuthenticated, themeMode }) {
     <main className={`programadorLoginPage theme-${themeMode}`}>
       <section className="programadorLoginCard" aria-labelledby="programador-login-title">
         <div className="programadorLoginMark">RVB</div>
-        <div className="programadorLoginEyebrow">PROGRAMAÇÃO CNC</div>
+        <div className="programadorLoginEyebrow">{eyebrow}</div>
         <h1 id="programador-login-title">Acesso ao módulo</h1>
-        <p>Entre com seu usuário para acessar a operação de Programação.</p>
+        <p>{description}</p>
         <form onSubmit={submit}>
           <label>
             Usuário
@@ -90,6 +91,17 @@ export default function ProgramadorAccess() {
   }, [location.pathname, navigate, user]);
 
   useEffect(() => {
+    if (!user) return;
+    if (user.must_change_password && !location.pathname.endsWith("/primeiro-acesso")) {
+      navigate("/programador/primeiro-acesso", { replace: true });
+    } else if (user.role === "dev" && !user.must_change_password) {
+      navigate("/dev/programador/usuarios", { replace: true });
+    } else if (!user.must_change_password && location.pathname.endsWith("/primeiro-acesso")) {
+      navigate("/programador", { replace: true });
+    }
+  }, [location.pathname, navigate, user]);
+
+  useEffect(() => {
     const syncTheme = (event) => setThemeMode(event.detail === "light" ? "light" : "dark");
     window.addEventListener("programador-theme-change", syncTheme);
     return () => window.removeEventListener("programador-theme-change", syncTheme);
@@ -121,6 +133,8 @@ export default function ProgramadorAccess() {
 
   if (loading) return <main className="programadorAuthLoading">Validando acesso...</main>;
   if (!user) return <ProgramadorLogin onAuthenticated={setUser} themeMode={themeMode} />;
+  if (user.must_change_password) return <ProgramadorFirstAccess user={user} onCompleted={setUser} onLogout={logout} themeMode={themeMode} />;
+  if (user.role === "dev") return <main className="programadorAuthLoading">Abrindo administração técnica...</main>;
 
   return (
     <div className={`programadorModule theme-${themeMode}`}>
