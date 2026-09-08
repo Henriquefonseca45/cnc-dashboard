@@ -33,23 +33,25 @@ def ensure_schema(conn):
         conn.execute("UPDATE arquivos_dxf SET programado=1 WHERE id IN (SELECT arquivo_id FROM fila_itens WHERE status IN ('PROGRAMANDO','BAIXADO','EM_EXECUCAO'))")
     conn.execute('CREATE INDEX IF NOT EXISTS idx_feeding_queue ON fila_itens(maquina_id,status,posicao)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_feeding_pool ON arquivos_dxf(alimentacao_cnc,alimentacao_pausada,status)')
-    # Protect new managed queues even when an older endpoint is called directly.
+    # Upgrade old guards once. Admission limits apply to every queue, including legacy.
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='feeding_guard_v2_insert'").fetchone():
+        return
+    for event in ('insert', 'update'):
+        conn.execute(f'DROP TRIGGER IF EXISTS feeding_guard_{event}')
     for event in ('INSERT', 'UPDATE'):
+        admission = '1' if event == 'INSERT' else f'(OLD.status NOT IN {ACTIVE_SQL} OR OLD.maquina_id<>NEW.maquina_id OR OLD.arquivo_id<>NEW.arquivo_id)'
         conn.execute(f"""
-            CREATE TRIGGER IF NOT EXISTS feeding_guard_{event.lower()}
+            CREATE TRIGGER IF NOT EXISTS feeding_guard_v2_{event.lower()}
             BEFORE {event} ON fila_itens
-            WHEN NEW.status IN {ACTIVE_SQL} AND (
-                EXISTS(SELECT 1 FROM arquivos_dxf WHERE id=NEW.arquivo_id AND alimentacao_cnc=1)
-                OR EXISTS(SELECT 1 FROM fila_itens q JOIN arquivos_dxf a ON a.id=q.arquivo_id
-                          WHERE q.maquina_id=NEW.maquina_id AND q.status IN {ACTIVE_SQL} AND a.alimentacao_cnc=1))
+            WHEN NEW.status IN {ACTIVE_SQL}
             BEGIN
-                SELECT CASE WHEN EXISTS(SELECT 1 FROM fila_itens WHERE arquivo_id=NEW.arquivo_id
+                SELECT CASE WHEN {admission} AND EXISTS(SELECT 1 FROM fila_itens WHERE arquivo_id=NEW.arquivo_id
                     AND status IN {ACTIVE_SQL} AND id<>NEW.id)
                     THEN RAISE(ABORT,'Plano já reservado em outra posição.') END;
-                SELECT CASE WHEN (SELECT COUNT(*) FROM fila_itens WHERE maquina_id=NEW.maquina_id
+                SELECT CASE WHEN {admission} AND (SELECT COUNT(*) FROM fila_itens WHERE maquina_id=NEW.maquina_id
                     AND status IN {ACTIVE_SQL} AND id<>NEW.id)>=3
                     THEN RAISE(ABORT,'CNC lotada: limite absoluto de 3 planos.') END;
-                SELECT CASE WHEN (SELECT COUNT(*) FROM fila_itens WHERE maquina_id=NEW.maquina_id
+                SELECT CASE WHEN {admission} AND (SELECT COUNT(*) FROM fila_itens WHERE maquina_id=NEW.maquina_id
                     AND status IN {ACTIVE_SQL} AND id<>NEW.id)=2 AND NEW.deslocado_por_prioridade=0
                     AND NOT EXISTS(SELECT 1 FROM fila_itens WHERE maquina_id=NEW.maquina_id
                                    AND status IN {ACTIVE_SQL} AND id<>NEW.id AND deslocado_por_prioridade=1)
@@ -57,7 +59,7 @@ def ensure_schema(conn):
                 SELECT CASE WHEN NEW.status='EM_EXECUCAO' AND EXISTS(SELECT 1 FROM fila_itens
                     WHERE maquina_id=NEW.maquina_id AND status='EM_EXECUCAO' AND id<>NEW.id)
                     THEN RAISE(ABORT,'Já existe plano usinando nesta CNC.') END;
-                SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM arquivo_cnc_compatibilidade WHERE arquivo_id=NEW.arquivo_id AND cnc_id=NEW.maquina_id)
+                SELECT CASE WHEN {admission} AND NOT EXISTS(SELECT 1 FROM arquivo_cnc_compatibilidade WHERE arquivo_id=NEW.arquivo_id AND cnc_id=NEW.maquina_id)
                     AND EXISTS(SELECT 1 FROM arquivos_dxf WHERE id=NEW.arquivo_id AND alimentacao_cnc=1)
                     THEN RAISE(ABORT,'CNC não autorizada para este plano.') END;
             END
@@ -245,16 +247,25 @@ def snapshot(conn):
         items = queue(conn, m['id'])
         pending = [x for x in items if x['status'] != 'EM_EXECUCAO']
         running = any(x['status'] == 'EM_EXECUCAO' for x in items)
+        inconsistent = len(items) > 3 or (len(items) == 3 and (
+            not running or len(pending) != 2 or not pending[-1]['deslocado_por_prioridade']
+            or pending[0]['deslocado_por_prioridade']))
         for item in items:
             item['programado'] = protected(item)
             item['compatible_cnc_ids'] = compatibility(conn, item['arquivo_id'])
             item['slot'] = ('USINANDO' if item['status'] == 'EM_EXECUCAO' else
+                            'LEGADO — AGUARDANDO REGULARIZAÇÃO' if inconsistent and pending[0]['id'] != item['id'] else
                             'DESLOCADO POR PRIORIDADE' if item['deslocado_por_prioridade'] else
                             'AGUARDANDO INÍCIO' if not running and pending[0]['id'] == item['id'] else 'PRÓXIMO')
-        warning = 'Fila anterior à alimentação: regularize manualmente ou aguarde o consumo.' if len(items) > 2 and not any(x['deslocado_por_prioridade'] for x in items) else None
-        result.append({**m, 'bloqueio': unavailable(m), 'aviso': warning, 'items': items})
+        warning = 'Fila legada/inconsistente. Novas reservas bloqueadas; regularize manualmente ou aguarde o consumo. Nenhum registro foi removido.' if inconsistent else None
+        result.append({**m, 'bloqueio': unavailable(m), 'aviso': warning, 'inconsistente': inconsistent,
+                       'excedentes': max(0, len(items) - 3), 'lotada': len(items) >= 3, 'items': items})
     waiting = pool(conn)
     for plan in waiting:
         plan['compatible_cnc_ids'] = compatibility(conn, plan['id'])
     history = [decode_audit_row(r) for r in conn.execute("SELECT * FROM programador_auditoria WHERE entidade_tipo='alimentacao_cnc' ORDER BY id DESC LIMIT 100")]
-    return {'machines': result, 'waiting': waiting, 'history': history}
+    over_limit = [m for m in result if m['excedentes']]
+    return {'machines': result, 'waiting': waiting, 'history': history,
+            'legacy_summary': {'cncs_acima_limite': len(over_limit),
+                               'itens_nessas_cncs': sum(len(m['items']) for m in over_limit),
+                               'itens_excedentes': sum(m['excedentes'] for m in over_limit)}}

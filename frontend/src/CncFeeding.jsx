@@ -119,11 +119,14 @@ export default function CncFeeding() {
     <p className="feedingNotice">Usinando e Programado ficam protegidos. O terceiro plano existe somente por deslocamento de prioridade. CNCs desligadas, em manutenção ou sem operador não recebem novas reservas automáticas.</p>
     {error && <div className="feedingError" role="alert">{error}</div>}
     {!data ? <p>Carregando filas…</p> : <>
+      {!!data.legacy_summary?.cncs_acima_limite && <div className="feedingError" role="status">
+        Filas legadas acima do limite: {data.legacy_summary.cncs_acima_limite} CNC(s), {data.legacy_summary.itens_nessas_cncs} planos vinculados, {data.legacy_summary.itens_excedentes} excedentes. Novas reservas bloqueadas nessas CNCs. Os registros foram preservados.
+      </div>}
       <section className="feedingSection"><h3>Planos aguardando <span>({data.waiting.length})</span></h3>
         <div className="feedingWaiting">{data.waiting.length ? data.waiting.map((p) => renderPlan(p, true)) : <p>Nenhum plano aguardando distribuição.</p>}</div>
       </section>
       <div className="feedingMachines">{data.machines.map((machine) => <section className="feedingMachine" key={machine.id}>
-        <header><h3>{machine.id}</h3><span>{machine.items.length}/3 posições</span></header>
+        <header><h3>{machine.id}</h3><span>{machine.inconsistente ? `${machine.items.length} planos — LEGADO / INCONSISTENTE` : `${machine.items.length}/3 posições${machine.lotada ? ' — LOTADA' : ''}`}</span></header>
         <p>{machine.status} · {machine.operador_nome || 'Sem operador'}</p>
         {machine.bloqueio && <div className="feedingNotice">Automático indisponível: {machine.bloqueio}. Reservas existentes preservadas.</div>}
         {machine.aviso && <div className="feedingNotice">{machine.aviso}</div>}

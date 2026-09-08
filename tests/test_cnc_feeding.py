@@ -70,6 +70,12 @@ class CncFeedingTests(unittest.TestCase):
             plan = self.upload(priority, ['CNC03'])
             self.assertEqual(next(p for p in self.overview()['waiting'] if p['id'] == plan)['priority'], priority)
 
+    def test_empty_queue_is_zero_without_legacy_warning(self):
+        machine = next(m for m in self.overview()['machines'] if m['id'] == 'CNC01')
+        self.assertEqual(machine['items'], [])
+        self.assertFalse(machine['inconsistente'])
+        self.assertFalse(machine['lotada'])
+
     def test_reserves_only_compatible_cnc(self):
         plan = self.upload(cncs=['CNC02'])
         self.assertFalse(self.rows())
@@ -129,10 +135,16 @@ class CncFeedingTests(unittest.TestCase):
     def test_completion_promotes_without_faking_machine_start(self):
         _, item, second = self.normal_queue()
         third = self.upload('high')
+        machine = next(m for m in self.overview()['machines'] if m['id'] == 'CNC01')
+        self.assertEqual([x['slot'] for x in machine['items']], ['USINANDO', 'PRÓXIMO', 'DESLOCADO POR PRIORIDADE'])
+        self.assertTrue(machine['lotada'])
+        self.upload('normal')  # A waiting candidate must not refill the exceptional third slot.
         main.set_status_fila_item('CNC01', main.FilaStatusRequest(id=item, status='CONCLUIDO'))
         self.assertEqual([x['arquivo_id'] for x in self.rows()], [third, second])
         self.assertTrue(all(not x['deslocado_por_prioridade'] for x in self.rows()))
         self.assertTrue(all(x['status'] == 'AGUARDANDO' for x in self.rows()))
+        machine = next(m for m in self.overview()['machines'] if m['id'] == 'CNC01')
+        self.assertEqual([x['slot'] for x in machine['items']], ['AGUARDANDO INÍCIO', 'PRÓXIMO'])
         self.start(third)
         self.assertEqual([x['status'] for x in self.rows()], ['EM_EXECUCAO', 'AGUARDANDO'])
 
@@ -261,6 +273,58 @@ class CncFeedingTests(unittest.TestCase):
         feeding.ensure_schema(conn); feeding.ensure_schema(conn)
         conn.commit(); conn.close()
         self.assertEqual(self.rows()[0]['arquivo_id'], plan)
+
+    def legacy_queue(self, count):
+        conn = db.get_conn()
+        for name in ('feeding_guard_v2_insert', 'feeding_guard_v2_update'):
+            conn.execute(f'DROP TRIGGER {name}')
+        ids = []
+        for index in range(count):
+            plan = conn.execute("INSERT INTO arquivos_dxf(nome,path,status,criado_em) VALUES(?,?,'DISPONIVEL','2026-09-01')",
+                                (f'legacy-{index}.dxf', f'legacy-{index}.dxf')).lastrowid
+            ids.append(conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES('CNC01',?,?,'AGUARDANDO','2026-09-01')", (plan, index)).lastrowid)
+        feeding.ensure_schema(conn)
+        conn.commit(); conn.close()
+        return ids
+
+    def test_legacy_excess_is_reported_preserved_and_can_be_consumed(self):
+        ids = self.legacy_queue(5)
+        before = self.rows()
+        self.upload('high')
+        self.assertEqual(self.rows(), before)
+        overview = self.overview()
+        self.assertEqual(overview['legacy_summary'], {'cncs_acima_limite': 1, 'itens_nessas_cncs': 5, 'itens_excedentes': 2})
+        machine = next(m for m in overview['machines'] if m['id'] == 'CNC01')
+        self.assertTrue(machine['inconsistente'])
+        self.assertEqual(sum(x['slot'] == 'PRÓXIMO' for x in machine['items']), 0)
+        self.assertTrue(all('LEGADO' in x['slot'] for x in machine['items'][1:]))
+        conn = db.get_conn()
+        conn.execute("UPDATE fila_itens SET status='EM_EXECUCAO' WHERE id=?", (ids[0],))
+        conn.execute("UPDATE fila_itens SET status='CORTADO' WHERE id=?", (ids[0],))
+        conn.commit(); conn.close()
+        self.assertEqual(len(self.rows()), 4)
+
+    def test_database_blocks_fourth_legacy_insert_and_reactivation(self):
+        self.legacy_queue(3)
+        conn = db.get_conn()
+        plan = conn.execute("INSERT INTO arquivos_dxf(nome,path,status,criado_em) VALUES('extra.dxf','extra.dxf','DISPONIVEL','2026-09-01')").lastrowid
+        with self.assertRaisesRegex(sqlite3.IntegrityError, 'limite absoluto'):
+            conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES('CNC01',?,4,'AGUARDANDO','2026-09-01')", (plan,))
+        item = conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES('CNC01',?,4,'CANCELADO','2026-09-01')", (plan,)).lastrowid
+        with self.assertRaisesRegex(sqlite3.IntegrityError, 'limite absoluto'):
+            conn.execute("UPDATE fila_itens SET status='AGUARDANDO' WHERE id=?", (item,))
+        conn.execute("UPDATE fila_itens SET maquina_id='CNC02',status='AGUARDANDO' WHERE id=?", (item,))
+        with self.assertRaisesRegex(sqlite3.IntegrityError, 'limite absoluto'):
+            conn.execute("UPDATE fila_itens SET maquina_id='CNC01' WHERE id=?", (item,))
+        conn.rollback(); conn.close()
+
+    def test_database_blocks_normal_third_on_unmanaged_queue(self):
+        self.legacy_queue(2)
+        conn = db.get_conn()
+        plan = conn.execute("INSERT INTO arquivos_dxf(nome,path,status,criado_em) VALUES('third.dxf','third.dxf','DISPONIVEL','2026-09-01')").lastrowid
+        with self.assertRaisesRegex(sqlite3.IntegrityError, 'Terceiro plano'):
+            conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES('CNC01',?,3,'AGUARDANDO','2026-09-01')", (plan,))
+        conn.rollback(); conn.close()
 
 
 if __name__ == '__main__':
