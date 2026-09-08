@@ -10,6 +10,7 @@ ACTIVE = ('AGUARDANDO', 'PROGRAMANDO', 'BAIXADO', 'EM_EXECUCAO')
 ACTIVE_SQL = "('AGUARDANDO','PROGRAMANDO','BAIXADO','EM_EXECUCAO')"
 RANK = {'high': 0, 'medium': 1, 'normal': 2}
 SYSTEM = {'id': None, 'nome': 'Alimentação CNC', 'role': 'sistema'}
+THICKNESS_PATTERN = re.compile(r'(?<!\w)(\d+(?:[,.]\d+)?)\s*(?:EX|MDF|TX|KP|AD|MM)\b', re.IGNORECASE)
 
 
 class FeedingError(ValueError):
@@ -122,14 +123,36 @@ def reconcile(conn, cnc):
         conn.execute('UPDATE fila_itens SET posicao=?,deslocado_por_prioridade=? WHERE id=?', (pos, displaced, item['id']))
 
 
+def plan_thickness(name):
+    """Return the numeric thickness encoded in a plan filename, when present."""
+    match = THICKNESS_PATTERN.search(str(name or ''))
+    if not match:
+        return None
+    try:
+        return float(match.group(1).replace(',', '.'))
+    except ValueError:
+        return None
+
+
+def pool_order(plan):
+    priority = str(plan.get('priority') or 'normal').lower()
+    thickness = plan_thickness(plan.get('nome')) if priority == 'normal' else None
+    # High/medium remain FIFO. Normal plans prefer the greatest known thickness.
+    thickness_group = 0 if thickness is not None else 1
+    thickness_order = -thickness if thickness is not None else 0
+    return (RANK.get(priority, 2), thickness_group, thickness_order,
+            str(plan.get('criado_em') or ''), int(plan.get('id') or 0))
+
+
 def pool(conn):
-    return [dict(r) for r in conn.execute(f"""
+    plans = [dict(r) for r in conn.execute(f"""
         SELECT a.* FROM arquivos_dxf a WHERE a.alimentacao_cnc=1 AND a.status='DISPONIVEL'
         AND NOT EXISTS(SELECT 1 FROM fila_itens q WHERE q.arquivo_id=a.id AND q.status IN {ACTIVE_SQL})
         AND NOT EXISTS(SELECT 1 FROM arquivos_dxf other JOIN fila_itens q ON q.arquivo_id=other.id
                        WHERE LOWER(TRIM(other.nome))=LOWER(TRIM(a.nome)) AND q.status IN {ACTIVE_SQL})
         ORDER BY CASE a.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, a.criado_em, a.id
     """)]
+    return sorted(plans, key=pool_order)
 
 
 def compatibility(conn, arquivo_id):
@@ -137,7 +160,7 @@ def compatibility(conn, arquivo_id):
 
 
 def distribute(conn):
-    """Priority/FIFO, prefer empty slots and protect single-choice peers. No timer worker."""
+    """Priority/order rules, prefer empty slots and protect single-choice peers. No timer worker."""
     all_machines = machines(conn)
     for m in all_machines:
         reconcile(conn, m['id'])
@@ -158,7 +181,7 @@ def distribute(conn):
                 mode = 1
             else:
                 continue
-            # Do not reverse FIFO: choose a different machine for the older flexible plan.
+            # Preserve the selected pool order: prefer another machine for a flexible plan.
             exclusive = sum(1 for p in waiting if p['id'] != plan['id'] and p['priority'] == plan['priority'] and choices[p['id']] == {cnc})
             candidates.append((mode, exclusive, len(items), cnc, pending))
         if not candidates:

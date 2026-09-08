@@ -33,9 +33,9 @@ class CncFeedingTests(unittest.TestCase):
         db.DB_PATH, main.DXF_DIR = self.old_path, self.old_dxf
         self.tmp.cleanup()
 
-    def upload(self, priority='normal', cncs=None):
+    def upload(self, priority='normal', cncs=None, name=None):
         self.number += 1
-        name = f'plano-{self.number}.dxf'
+        name = name or f'plano-{self.number}.dxf'
         result = asyncio.run(main.upload_classified_plans(
             [UploadFile(filename=name, file=BytesIO(b'0\nEOF\n'))],
             json.dumps([{'name': name, 'priority': priority, 'compatible_cnc_ids': cncs or ['CNC01']}]), self.actor))
@@ -110,6 +110,33 @@ class CncFeedingTests(unittest.TestCase):
         third = self.upload('high')
         self.assertEqual(self.rows()[1]['arquivo_id'], second)
         self.assertEqual(self.overview()['waiting'][0]['id'], third)
+
+    def test_normal_priority_prefers_greater_thickness(self):
+        conn = db.get_conn()
+        try:
+            conn.execute("UPDATE maquinas SET status='DESLIGADA' WHERE id='CNC01'")
+            conn.commit()
+        finally:
+            conn.close()
+        thin = self.upload(name='09 - 09 - 2026 - 01 - 20KP RANCAN.dxf')
+        thick = self.upload(name='09 - 09 - 2026 - 02 - 80KP RANCAN.dxf')
+        middle = self.upload(name='09 - 09 - 2026 - 03 - 40KP RANCAN.dxf')
+        self.assertEqual([p['id'] for p in self.overview()['waiting']], [thick, middle, thin])
+
+    def test_normal_without_thickness_keeps_fifo_after_numbered_plans(self):
+        conn = db.get_conn()
+        try:
+            conn.execute("UPDATE maquinas SET status='DESLIGADA' WHERE id='CNC01'")
+            conn.commit()
+        finally:
+            conn.close()
+        first_unknown = self.upload(name='plano sem medida 1.dxf')
+        numbered = self.upload(name='plano 18MDF.dxf')
+        second_unknown = self.upload(name='plano sem medida 2.dxf')
+        self.assertEqual(
+            [p['id'] for p in self.overview()['waiting']],
+            [numbered, first_unknown, second_unknown],
+        )
 
     def test_programmed_is_flag_and_blocks_displacement(self):
         _, _, second = self.normal_queue()
