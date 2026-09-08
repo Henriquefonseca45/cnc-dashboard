@@ -25,6 +25,7 @@ from urllib.parse import quote
 from openpyxl import Workbook
 
 from backend.db import get_conn
+from backend import cnc_feeding as feeding
 from backend.config_maquinas import MAQUINAS
 from backend.audit import log_action
 from backend.maintenance import (
@@ -290,7 +291,6 @@ def programador_auth_config():
     return {"enabled": _programador_auth_enabled()}
 
 
-@app.post("/programador/auth/logout")
 @app.get("/programador/auth/usuarios")
 def programador_login_users(response: Response):
     response.headers["Cache-Control"] = "no-store"
@@ -306,6 +306,7 @@ def programador_login_users(response: Response):
         conn.close()
 
 
+@app.post("/programador/auth/logout")
 def programador_logout(request: Request, response: Response):
     conn = get_conn()
     try:
@@ -1415,6 +1416,12 @@ def _get_em_execucao_id(conn, maquina_id: str):
 
 
 def _reindex_fila(conn, maquina_id: str):
+    feeding.ensure_schema(conn)
+    conn.execute("UPDATE arquivos_dxf SET programado=1 WHERE id IN (SELECT arquivo_id FROM fila_itens WHERE maquina_id=? AND status IN ('PROGRAMANDO','BAIXADO','EM_EXECUCAO'))", (maquina_id,))
+    if any(item['alimentacao_cnc'] for item in feeding.queue(conn, maquina_id)):
+        feeding.reconcile(conn, maquina_id)
+        feeding.distribute(conn)
+        return
     cur = conn.cursor()
 
     em_exec_id = _get_em_execucao_id(conn, maquina_id)
@@ -1425,11 +1432,13 @@ def _reindex_fila(conn, maquina_id: str):
     fila_prog = _get_fila_reindexavel(conn, maquina_id)
     for i, it in enumerate(fila_prog, start=1):
         cur.execute("UPDATE fila_itens SET posicao = ? WHERE id = ?", (i, it["id"]))
+    feeding.distribute(conn)
 
 
 def _assert_no_other_em_execucao(conn, maquina_id: str, this_item_id: int):
     current = _get_em_execucao_id(conn, maquina_id)
     if current and current != this_item_id:
+        conn.close()
         raise HTTPException(
             status_code=409,
             detail=f"Já existe item em execução nesta máquina (fila_item_id={current}). Finalize antes de iniciar outro.",
@@ -1437,6 +1446,7 @@ def _assert_no_other_em_execucao(conn, maquina_id: str, this_item_id: int):
 
 
 def _ensure_fila_itens_cols(conn):
+    feeding.ensure_schema(conn)
     cur = conn.cursor()
     try:
         cur.execute("ALTER TABLE fila_itens ADD COLUMN started_em TEXT")
@@ -1713,6 +1723,8 @@ def _infer_motivo_from_status(status: str) -> str | None:
         return "MANUTENCAO"
     if "EMPILH" in s:
         return "FALTA MATERIAL"
+    if "FRESA" in s:
+        return "AGUARDANDO FRESA"
     if "OPERADOR" in s:
         return "FALTA OPERADOR"
     if "PROG" in s:
@@ -1881,6 +1893,8 @@ def _dashboard_bucket_from_status(status: str, motivo: str | None = None) -> str
         return "manutencao"
     if ("AGUAR" in txt or "AGUARD" in txt) and ("EMPILH" in txt or "EMPILHADEIRA" in txt):
         return "falta_material"
+    if "FRESA" in txt:
+        return "aguardando_fresa"
     if "EMPILH" in txt:
         return "falta_material"
     if "OPERADOR" in txt:
@@ -1984,6 +1998,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
         "setup",
         "manutencao",
         "falta_material",
+        "aguardando_fresa",
         "falta_operador",
         "programacao",
         "troca_sacrificio",
@@ -2092,6 +2107,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
     tempo_parado_seg = (
         totals["manutencao"]
         + totals["falta_material"]
+        + totals["aguardando_fresa"]
         + totals["falta_operador"]
         + totals["troca_sacrificio"]
         + totals["reuniao"]
@@ -2122,6 +2138,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
                 "setup": totals["setup"],
                 "manutencao": totals["manutencao"],
                 "falta_material": totals["falta_material"],
+                "aguardando_fresa": totals["aguardando_fresa"],
                 "falta_operador": totals["falta_operador"],
                 "programacao": totals["programacao"],
                 "troca_sacrificio": totals["troca_sacrificio"],
@@ -2157,6 +2174,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
             (
                 item["manutencao"]
                 + item["falta_material"]
+                + item["aguardando_fresa"]
                 + item["falta_operador"]
                 + item["troca_sacrificio"]
                 + item["reuniao"]
@@ -2190,6 +2208,7 @@ def _compute_dashboard_indicadores(conn, dt_ini_base: datetime, dt_fim_base: dat
                 "troca_sacrificio_min": round(item["troca_sacrificio"] / 60, 2),
                 "manutencao_min": round(item["manutencao"] / 60, 2),
                 "falta_material_min": round(item["falta_material"] / 60, 2),
+                "aguardando_fresa_min": round(item["aguardando_fresa"] / 60, 2),
                 "falta_operador_min": round(item["falta_operador"] / 60, 2),
                 "falta_material_medio_min": falta_material_medio_machine_min,
                 "total_falta_material": falta_material_count,
@@ -2853,6 +2872,7 @@ def listar_maquinas():
 @app.post("/maquinas/{maquina_id}/operador")
 def set_operador_maquina(maquina_id: str, payload: OperadorPayload):
     conn = get_conn()
+    conn.execute("BEGIN IMMEDIATE")
     _ensure_maquinas_cols(conn)
     _ensure_test_maquina(conn)
     cur = conn.cursor()
@@ -2875,6 +2895,8 @@ def set_operador_maquina(maquina_id: str, payload: OperadorPayload):
         """,
         (nome, maquina_id),
     )
+    feeding.ensure_schema(conn)
+    feeding.distribute(conn)
     conn.commit()
 
     row = cur.execute(
@@ -3057,6 +3079,7 @@ def _legacy_machine_status_hook(conn, machine: dict, novo_status: str, agora_iso
         _retomar_timer_itens_em_execucao(conn, maquina_id, agora_iso)
     _close_open_status_log(conn, maquina_id, agora_iso)
     _open_status_log(conn, maquina_id, novo_status, _infer_motivo_from_status(novo_status), agora_iso)
+    feeding.distribute(conn)
     try:
         start_date = datetime.fromisoformat(inicio_anterior).date() if inicio_anterior else datetime.now().date()
         _save_dashboard_snapshots_range(conn, start_date, datetime.now().date())
@@ -3143,6 +3166,7 @@ def start_status_confirmation_worker():
         ensure_programador_auth_schema(conn)
         ensure_programador_audit_schema(conn)
         ensure_programador_admin_schema(conn)
+        feeding.ensure_schema(conn)
         conn.commit()
     finally:
         conn.close()
@@ -3885,6 +3909,7 @@ async def upload_classified_plans(
             )
             arquivo_id = cursor.lastrowid
             set_plan_classification(conn, arquivo_id, priority, cnc_ids)
+            conn.execute("UPDATE arquivos_dxf SET alimentacao_cnc=1 WHERE id=?", (arquivo_id,))
             record_programador_audit(
                 conn,
                 actor,
@@ -3895,6 +3920,7 @@ async def upload_classified_plans(
                 valor_novo={"priority": priority, "compatible_cnc_ids": cnc_ids},
             )
             results.append({"id": arquivo_id, "nome": safe_name, "priority": priority, "compatible_cnc_ids": cnc_ids})
+        feeding.distribute(conn)
         conn.commit()
         return {"ok": True, "items": results}
     except Exception:
@@ -3962,6 +3988,9 @@ def update_plan_classification(
                 valor_novo=result["compatible_cnc_ids"],
                 metadata={"removidas": sorted(previous_set - current_set)},
             )
+        feeding.ensure_schema(conn)
+        conn.execute("UPDATE arquivos_dxf SET alimentacao_cnc=1 WHERE id=? AND NOT EXISTS (SELECT 1 FROM fila_itens WHERE arquivo_id=? AND status IN ('AGUARDANDO','PROGRAMANDO','BAIXADO','EM_EXECUCAO'))", (arquivo_id, arquivo_id))
+        feeding.distribute(conn)
         conn.commit()
         return {"ok": True, **result}
     except Exception:
@@ -3969,6 +3998,75 @@ def update_plan_classification(
         raise
     finally:
         conn.close()
+
+
+def _feeding_finish(conn, operation):
+    try:
+        result = operation()
+        conn.commit()
+        return {"ok": True, **(result or {})}
+    except (feeding.FeedingError, sqlite3.IntegrityError) as exc:
+        conn.rollback()
+        raise HTTPException(409, str(exc)) from exc
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def _feeding_validate_start(conn, maquina_id, item_id):
+    try:
+        feeding.validate_start(conn, maquina_id, item_id)
+    except feeding.FeedingError as exc:
+        conn.close()
+        raise HTTPException(409, str(exc)) from exc
+
+
+class FeedingMoveRequest(BaseModel):
+    cnc_id: str | None = None
+
+
+class FeedingProgrammedRequest(BaseModel):
+    programado: bool
+
+
+@app.get('/programador/alimentacao')
+def feeding_overview(user: dict = Depends(require_programador_auth)):
+    conn = get_conn()
+    try:
+        conn.execute('BEGIN')
+        return feeding.snapshot(conn)
+    finally:
+        conn.close()
+
+
+@app.post('/programador/alimentacao/{arquivo_id}/mover')
+def feeding_move(arquivo_id: int, req: FeedingMoveRequest, user: dict = Depends(require_programador_auth)):
+    conn = get_conn()
+    conn.execute('BEGIN IMMEDIATE')
+    return _feeding_finish(conn, lambda: feeding.move(conn, arquivo_id, req.cnc_id.strip().upper() if req.cnc_id else None, _programador_audit_actor(user)))
+
+
+@app.put('/programador/alimentacao/{arquivo_id}/programado')
+def feeding_programmed(arquivo_id: int, req: FeedingProgrammedRequest, user: dict = Depends(require_programador_auth)):
+    conn = get_conn()
+    conn.execute('BEGIN IMMEDIATE')
+    return _feeding_finish(conn, lambda: feeding.set_programmed(conn, arquivo_id, req.programado, _programador_audit_actor(user)))
+
+
+@app.post('/programador/alimentacao/{arquivo_id}/retomar')
+def feeding_resume(arquivo_id: int, user: dict = Depends(require_programador_auth)):
+    conn = get_conn()
+    conn.execute('BEGIN IMMEDIATE')
+    def operation():
+        plan = conn.execute("SELECT * FROM arquivos_dxf WHERE id=? AND alimentacao_cnc=1 AND status='DISPONIVEL'", (arquivo_id,)).fetchone()
+        if not plan:
+            raise feeding.FeedingError('Plano não disponível para alimentação.')
+        conn.execute('UPDATE arquivos_dxf SET alimentacao_pausada=0 WHERE id=?', (arquivo_id,))
+        feeding.audit(conn, 'RETOMADO', dict(plan), actor=_programador_audit_actor(user))
+        feeding.distribute(conn)
+    return _feeding_finish(conn, operation)
 
 
 @app.get("/arquivos")
@@ -4277,6 +4375,7 @@ def facilitador_vcarve_download(maquina_id: str, fila_item_id: int):
 @app.delete("/arquivos/{arquivo_id}")
 def excluir_arquivo(arquivo_id: int, user: dict = Depends(require_programador_auth)):
     conn = get_conn()
+    conn.execute('BEGIN IMMEDIATE')
     _ensure_arquivos_cols(conn)
     cur = conn.cursor()
 
@@ -4326,6 +4425,7 @@ def excluir_arquivo(arquivo_id: int, user: dict = Depends(require_programador_au
         valor_novo={"status": "EXCLUIDO", "deleted_em": agora},
     )
 
+    feeding.distribute(conn)
     conn.commit()
     conn.close()
 
@@ -4360,7 +4460,8 @@ def get_fila_db(maquina_id: str, include_done: bool = Query(False)):
                fi.started_em, fi.finalizado_em,
                fi.tempo_estimado_seg, fi.tempo_inicio_em,
                fi.tempo_pausado_seg, fi.tempo_pausa_inicio_em,
-               a.nome as arquivo_nome, a.priority
+               a.nome as arquivo_nome, a.priority, a.programado, a.alimentacao_cnc,
+               fi.deslocado_por_prioridade
         FROM fila_itens fi
         JOIN arquivos_dxf a ON a.id = fi.arquivo_id
         WHERE fi.maquina_id = ?
@@ -4381,6 +4482,7 @@ def get_fila_db(maquina_id: str, include_done: bool = Query(False)):
     result = []
     for row in itens:
         item = dict(row)
+        item['programado'] = feeding.protected(item)
         item["compatible_cncs"] = compatibility.get(row["arquivo_id"], [])
         item["compatible_cnc_ids"] = [cnc["id"] for cnc in item["compatible_cncs"]]
         result.append(item)
@@ -4395,8 +4497,20 @@ def add_fila(
     user: dict = Depends(require_programador_auth),
 ):
     conn = get_conn()
+    conn.execute("BEGIN IMMEDIATE")
     _ensure_fila_itens_cols(conn)
     _ensure_arquivos_cols(conn)
+    if feeding.managed(conn, req.arquivo_id):
+        if conn.execute(f'SELECT 1 FROM fila_itens WHERE arquivo_id=? AND status IN {feeding.ACTIVE_SQL}', (req.arquivo_id,)).fetchone():
+            conn.close()
+            raise HTTPException(409, 'Plano já reservado. Use Mover plano para alterar a CNC.')
+        return _feeding_finish(conn, lambda: feeding.move(conn, req.arquivo_id, maquina_id, _programador_audit_actor(user)))
+    if any(x['alimentacao_cnc'] for x in feeding.queue(conn, maquina_id)):
+        conn.close()
+        raise HTTPException(409, 'Classifique este plano antes de adicioná-lo a uma fila semiautomática.')
+    if len(feeding.queue(conn, maquina_id)) >= 2:
+        conn.close()
+        raise HTTPException(409, 'Fila ocupada. O terceiro plano é exclusivo de deslocamento automático por prioridade.')
     cur = conn.cursor()
 
     arq = cur.execute("SELECT id, nome, status FROM arquivos_dxf WHERE id = ?", (req.arquivo_id,)).fetchone()
@@ -4522,10 +4636,14 @@ def reorder_fila(
 
     ip_origem = obter_ip_cliente(request)
     conn = get_conn()
+    conn.execute('BEGIN IMMEDIATE')
     _ensure_fila_itens_cols(conn)
     _ensure_cnc_queue_audit_table(conn)
     cur = conn.cursor()
-    cur.execute("BEGIN IMMEDIATE;")
+
+    if any(item['alimentacao_cnc'] for item in feeding.queue(conn, mid)):
+        conn.close()
+        raise HTTPException(409, 'Use Mover plano na Alimentação CNC. A ordem semiautomática preserva Próximo e Deslocado.')
 
     allowed_status = _fila_programador_status_list()
 
@@ -4650,6 +4768,7 @@ def reorder_fila(
 @app.post("/fila/item/{item_id}/to_pool")
 def fila_item_to_pool(item_id: int, user: dict = Depends(require_programador_auth)):
     conn = get_conn()
+    conn.execute("BEGIN IMMEDIATE")
     _ensure_fila_itens_cols(conn)
     cur = conn.cursor()
 
@@ -4660,6 +4779,8 @@ def fila_item_to_pool(item_id: int, user: dict = Depends(require_programador_aut
         raise HTTPException(status_code=404, detail="Item não encontrado")
 
     st = (row["status"] or "").upper()
+    if feeding.managed(conn, row['arquivo_id']):
+        return _feeding_finish(conn, lambda: feeding.move(conn, row['arquivo_id'], None, _programador_audit_actor(user)))
     if st == "EM_EXECUCAO":
         conn.close()
         raise HTTPException(status_code=409, detail="Não pode voltar para o pool: item está EM_EXECUCAO.")
@@ -4703,6 +4824,7 @@ def fila_item_to_pool(item_id: int, user: dict = Depends(require_programador_aut
 @app.delete("/fila/item/{item_id}/hard")
 def fila_item_hard_delete(item_id: int, user: dict = Depends(require_programador_auth)):
     conn = get_conn()
+    conn.execute("BEGIN IMMEDIATE")
     _ensure_fila_itens_cols(conn)
     cur = conn.cursor()
 
@@ -4713,6 +4835,8 @@ def fila_item_hard_delete(item_id: int, user: dict = Depends(require_programador
         raise HTTPException(status_code=404, detail="Item não encontrado")
 
     st = (row["status"] or "").upper()
+    if feeding.managed(conn, row['arquivo_id']):
+        return _feeding_finish(conn, lambda: feeding.move(conn, row['arquivo_id'], None, _programador_audit_actor(user)))
     if st == "EM_EXECUCAO":
         conn.close()
         raise HTTPException(status_code=409, detail="Não pode excluir: item está EM_EXECUCAO.")
@@ -4762,6 +4886,7 @@ def mover_item_para_outra_cnc(
     dest = dest_maquina_id.upper().strip()
 
     conn = get_conn()
+    conn.execute("BEGIN IMMEDIATE")
     _ensure_fila_itens_cols(conn)
     _ensure_arquivos_cols(conn)
     cur = conn.cursor()
@@ -4783,6 +4908,14 @@ def mover_item_para_outra_cnc(
     origem = (item["maquina_id"] or "").upper().strip()
     st = (item["status"] or "").upper().strip()
     arquivo_id = int(item["arquivo_id"])
+    if feeding.managed(conn, arquivo_id):
+        return _feeding_finish(conn, lambda: feeding.move(conn, arquivo_id, dest, _programador_audit_actor(user)))
+    if any(x['alimentacao_cnc'] for x in feeding.queue(conn, dest)):
+        conn.close()
+        raise HTTPException(409, 'Classifique este plano antes de adicioná-lo a uma fila semiautomática.')
+    if len(feeding.queue(conn, dest)) >= 2:
+        conn.close()
+        raise HTTPException(409, 'Fila destino ocupada. O terceiro plano é exclusivo de deslocamento automático por prioridade.')
 
     if origem == dest:
         conn.close()
@@ -5241,12 +5374,13 @@ def set_status_fila_item(maquina_id: str, req: FilaStatusRequest):
         raise HTTPException(status_code=400, detail="Informe o motivo do cancelamento.")
 
     conn = get_conn()
+    conn.execute("BEGIN IMMEDIATE")
     _ensure_fila_itens_cols(conn)
     cur = conn.cursor()
 
     row = _fila_item_log_snapshot(conn, req.id)
 
-    if not row:
+    if not row or row['maquina_id'] != maquina_id:
         conn.close()
         raise HTTPException(status_code=404, detail="Item não encontrado")
 
@@ -5256,6 +5390,14 @@ def set_status_fila_item(maquina_id: str, req: FilaStatusRequest):
         raise HTTPException(status_code=409, detail="Item já finalizado")
 
     agora = datetime.now().isoformat(timespec="seconds")
+
+    if target in ('PROGRAMANDO', 'EM_EXECUCAO'):
+        _feeding_validate_start(conn, maquina_id, req.id)
+    if action == 'PROGRAMADO' and feeding.managed(conn, row['arquivo_id']):
+        return _feeding_finish(conn, lambda: feeding.set_programmed(conn, row['arquivo_id'], True))
+    if target == 'CORTADO' and feeding.managed(conn, row['arquivo_id']) and atual != 'EM_EXECUCAO':
+        conn.close()
+        raise HTTPException(409, 'Somente um plano usinando pode ser concluído.')
 
     if target == "EM_EXECUCAO":
         _assert_no_other_em_execucao(conn, maquina_id, req.id)
@@ -5299,6 +5441,8 @@ def set_status_fila_item(maquina_id: str, req: FilaStatusRequest):
         )
         if target == "CORTADO":
             _marcar_arquivos_mesmo_nome_como_cortado(conn, row["arquivo_id"])
+        elif feeding.managed(conn, row['arquivo_id']):
+            conn.execute('UPDATE arquivos_dxf SET alimentacao_pausada=1 WHERE id=?', (row['arquivo_id'],))
 
     else:
         cur.execute(
@@ -5332,6 +5476,8 @@ def set_status_fila_item(maquina_id: str, req: FilaStatusRequest):
     )
 
     _reindex_fila(conn, maquina_id)
+    if feeding.managed(conn, row['arquivo_id']):
+        feeding.audit(conn, 'STATUS', dict(row), source=maquina_id, destination=maquina_id, before=atual, after=target)
     conn.commit()
 
     out = cur.execute(
@@ -5358,6 +5504,7 @@ def set_status_fila_item(maquina_id: str, req: FilaStatusRequest):
 @app.get("/agente/{maquina_id}/next")
 def agente_next(maquina_id: str):
     conn = get_conn()
+    conn.execute('BEGIN IMMEDIATE')
     cur = conn.cursor()
     _touch_maquina_comunicacao(conn, maquina_id)
 
@@ -5456,8 +5603,9 @@ def agente_next(maquina_id: str):
 @app.get("/agente/{maquina_id}/download/fila/{fila_item_id}")
 def agente_download_fila(maquina_id: str, fila_item_id: int):
     conn = get_conn()
+    conn.execute('BEGIN IMMEDIATE')
+    _feeding_validate_start(conn, maquina_id, fila_item_id)
     cur = conn.cursor()
-    cur.execute("BEGIN IMMEDIATE;")
     _touch_maquina_comunicacao(conn, maquina_id)
 
     row = cur.execute(
@@ -5579,6 +5727,8 @@ def agente_preview_fila(maquina_id: str, fila_item_id: int):
 @app.post("/agente/{maquina_id}/fila/{fila_item_id}/executar")
 def agente_executar(maquina_id: str, fila_item_id: int):
     conn = get_conn()
+    conn.execute('BEGIN IMMEDIATE')
+    _feeding_validate_start(conn, maquina_id, fila_item_id)
     cur = conn.cursor()
     _touch_maquina_comunicacao(conn, maquina_id)
 
@@ -5634,6 +5784,7 @@ def agente_executar(maquina_id: str, fila_item_id: int):
 @app.post("/agente/{maquina_id}/fila/{fila_item_id}/cortado")
 def agente_cortado(maquina_id: str, fila_item_id: int, req: CortadoRequest):
     conn = get_conn()
+    conn.execute('BEGIN IMMEDIATE')
     cur = conn.cursor()
     _touch_maquina_comunicacao(conn, maquina_id)
 
@@ -5664,6 +5815,8 @@ def agente_cortado(maquina_id: str, fila_item_id: int, req: CortadoRequest):
     )
     _marcar_arquivos_mesmo_nome_como_cortado(conn, row["arquivo_id"])
     _reindex_fila(conn, maquina_id)
+    if feeding.managed(conn, row['arquivo_id']):
+        feeding.audit(conn, 'CONCLUIDO', dict(row), source=maquina_id, before='EM_EXECUCAO', after='CORTADO')
     _log_chapa_movimentacao(
         conn,
         "MARCADO_CORTADO",
@@ -6326,6 +6479,8 @@ def api_sem_material_solicitacao(solicitacao_id: int, msg: MaterialChatMensagemI
                 """,
                 (int(fila_item_id),),
             )
+            if feeding.managed(conn, fila_row['arquivo_id']):
+                conn.execute('UPDATE arquivos_dxf SET alimentacao_pausada=1 WHERE id=?', (fila_row['arquivo_id'],))
             _log_chapa_movimentacao(
                 conn,
                 "CANCELADO_SEM_MATERIAL",

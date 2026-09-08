@@ -1838,6 +1838,10 @@ export default function OperatorDashboard() {
 
   function getDownloadBloqueio(item) {
     if (!item?.id) return "Item invalido.";
+    if (item.alimentacao_cnc) {
+      const next = filaVisivel.find((entry) => entry.status !== 'EM_EXECUCAO');
+      if (next && next.id !== item.id) return 'Aguarde este plano chegar à primeira posição para prepará-lo.';
+    }
     const st = String(item.status || "").toUpperCase();
     if (!["AGUARDANDO", "PROGRAMANDO", "BAIXADO"].includes(st)) {
       return `Este arquivo nao pode ser baixado agora (status: ${item.status || "-"}).`;
@@ -2024,6 +2028,7 @@ export default function OperatorDashboard() {
                   <option value="REFEIÇÃO">REFEIÇÃO</option>
                   <option value="MANUTENÇÃO">MANUTENÇÃO</option>
                   <option value="AGUAR.EMPILHADEIRA">AGUAR.EMPILHADEIRA</option>
+                  <option value="AGUARDANDO FRESA">AGUARDANDO FRESA</option>
                   <option value="FALTA DE OPERADOR">FALTA DE OPERADOR</option>
                   <option value="REUNIÃO">REUNIÃO</option>
                   <option value="TROCA CHAPA SACRIFICIO">
@@ -2337,6 +2342,10 @@ export default function OperatorDashboard() {
                   const label =
                     st === "EM_EXECUCAO"
                       ? "Usinando"
+                      : item.deslocado_por_prioridade
+                      ? "Deslocado por prioridade"
+                      : item.programado
+                      ? "Programado"
                       : st === "PROGRAMANDO"
                       ? "Programado"
                       : st === "BAIXADO"

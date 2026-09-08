@@ -1,0 +1,29 @@
+.feedingPage { color: var(--text); display: grid; gap: 20px; min-width: 0; }
+.feedingHeader, .feedingMachine > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.feedingPage h2, .feedingPage h3 { margin: 0; }
+.feedingPage p { margin: 8px 0; color: var(--muted); }
+.feedingActions, .feedingBadges { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.feedingActions .pgBtn { min-height: 34px; height: auto; padding: 8px 12px; font-size: 12px; }
+.feedingMachines { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
+.feedingWaiting { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; margin-top: 14px; }
+.feedingMachine, .feedingSection { padding: 20px; border: 1px solid var(--stroke2); border-radius: var(--r); background: var(--card); min-width: 0; }
+.feedingPlan { padding: 14px; border: 1px solid var(--stroke); border-radius: var(--r2); background: var(--card2); display: grid; gap: 10px; margin-top: 12px; overflow-wrap: anywhere; }
+.feedingPlan strong { font-size: 14px; }
+.feedingPage small, .feedingMachine > header > span { color: var(--muted); font-size: 12px; }
+.feedingSlot { color: var(--brand); font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+.feedingDisplaced { border-left: 3px solid #a78bfa; }
+.feedingPriority { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; }
+.feedingPriority-high { color: #f87171; background: #ef444418; }
+.feedingPriority-medium { color: #eab308; background: #eab30818; }
+.feedingPriority-normal { color: #60a5fa; background: #3b82f618; }
+.feedingBadges > span:last-child { font-size: 12px; }
+.feedingNotice { padding: 12px 14px; border: 1px solid var(--stroke); border-radius: 10px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.feedingError { padding: 12px; color: #ef4444; border: 1px solid #ef444466; border-radius: 8px; }
+.feedingEmpty { padding: 30px 0; text-align: center; }
+.feedingHistory { max-height: 340px; overflow: auto; margin-top: 14px; }
+.feedingHistory > div { display: grid; gap: 5px; padding: 12px 0; border-bottom: 1px solid var(--stroke); font-size: 12px; overflow-wrap: anywhere; }
+.feedingHistory time { color: var(--muted); }
+.feedingOverlay { position: fixed; inset: 0; z-index: 1000; background: #0009; display: grid; place-items: center; padding: 18px; }
+.feedingMove { background: var(--bg1); border: 1px solid var(--stroke2); border-radius: 16px; padding: 24px; width: min(100%, 480px); display: grid; gap: 16px; }
+.feedingMove label { display: grid; gap: 8px; }
+.feedingMove select { padding: 12px; width: 100%; border: 1px solid var(--stroke2); border-radius: 8px; background: var(--bg1); color: var(--text); }

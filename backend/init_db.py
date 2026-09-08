@@ -5,6 +5,7 @@ from backend.plan_classification import ensure_plan_classification_schema
 from backend.programador_auth import ensure_programador_auth_schema
 from backend.programador_audit import ensure_programador_audit_schema
 from backend.programador_admin import ensure_programador_admin_schema
+from backend.cnc_feeding import ensure_schema as ensure_feeding_schema
 
 def main():
     conn = get_conn()
@@ -254,6 +255,8 @@ CREATE TABLE IF NOT EXISTS chat_mensagens (
         """, (nome, login, nivel, maquina_id, now))
 
     ensure_programador_audit_schema(conn)
+
+    ensure_feeding_schema(conn)
 
     conn.commit()
     conn.close()

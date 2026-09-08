@@ -6,6 +6,6 @@ DB_PATH = Path(os.environ.get("CNC_DB_PATH", Path(__file__).resolve().parent.par
 
 def get_conn():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=30)
     conn.row_factory = sqlite3.Row
     return conn

@@ -6,6 +6,7 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { ImagePlus } from "lucide-react";
 import PlanClassificationModal from "./PlanClassificationModal";
+import CncFeeding from "./CncFeeding";
 import { priorityLabel } from "./planClassification";
 
 const CHAT_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
@@ -997,6 +998,7 @@ function nonOffActivityMinutes(row = {}) {
     "setup_min",
     "manutencao_min",
     "falta_material_min",
+    "aguardando_fresa_min",
     "falta_operador_min",
     "programacao_min",
     "reuniao_min",
@@ -1123,6 +1125,7 @@ function dashboardBucket(status = "") {
   if (s.includes("MANUT")) return "manutencao";
   if ((s.includes("AGUAR") || s.includes("AGUARD")) && (s.includes("EMPILH") || s.includes("EMPILHADEIRA")))
     return "falta_material";
+  if (s.includes("FRESA")) return "aguardando_fresa";
   if (s.includes("OPERADOR")) return "falta_operador";
   if (s.includes("PROG")) return "programacao";
   if (s.includes("REUNIA") || s.includes("REUNIAO")) return "reuniao";
@@ -1143,6 +1146,8 @@ function bucketLabel(bucket) {
       return "Manutenção";
     case "falta_material":
       return "Aguardando material";
+    case "aguardando_fresa":
+      return "Aguardando fresa";
     case "falta_operador":
       return "Falta de operador";
     case "programacao":
@@ -1183,6 +1188,7 @@ function statusTimelineColor(status = "") {
     setup: "#2563eb",
     manutencao: "#8b5cf6",
     falta_material: "#ef4444",
+    aguardando_fresa: "#d97706",
     falta_operador: "#e11d48",
     programacao: "#06b6d4",
     troca_sacrificio: "#f97316",
@@ -1203,6 +1209,7 @@ const GANTT_STATUS_LEGEND = [
   { label: "Setup", color: statusTimelineColor("SETUP") },
   { label: "Manutencao", color: statusTimelineColor("MANUTENCAO") },
   { label: "Aguardando empilhadeira", color: statusTimelineColor("AGUAR.EMPILHADEIRA") },
+  { label: "Aguardando fresa", color: statusTimelineColor("AGUARDANDO FRESA") },
   { label: "Falta de operador", color: statusTimelineColor("FALTA OPERADOR") },
   { label: "Troca chapa sacrificio", color: statusTimelineColor("TROCA CHAPA SACRIFICIO") },
   { label: "Reuniao", color: statusTimelineColor("REUNIAO") },
@@ -1580,6 +1587,7 @@ function extractMachineReasonRows(raw, machineId) {
       { bucket: "setup", min: Number(perMachine.setup_min || 0) },
       { bucket: "manutencao", min: Number(perMachine.manutencao_min || 0) },
       { bucket: "falta_material", min: Number(perMachine.falta_material_min || 0) },
+      { bucket: "aguardando_fresa", min: Number(perMachine.aguardando_fresa_min || 0) },
       { bucket: "falta_operador", min: Number(perMachine.falta_operador_min || 0) },
       { bucket: "programacao", min: Number(perMachine.programacao_min || 0) },
       { bucket: "troca_sacrificio", min: Number(perMachine.troca_sacrificio_min || 0) },
@@ -1646,6 +1654,7 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
     setup: Number(totalsObj.setup?.tempo_min || 0),
     manutencao: Number(totalsObj.manutencao?.tempo_min || 0),
     falta_material: Number(totalsObj.falta_material?.tempo_min || 0),
+    aguardando_fresa: Number(totalsObj.aguardando_fresa?.tempo_min || 0),
     falta_operador: Number(totalsObj.falta_operador?.tempo_min || 0),
     programacao: Number(totalsObj.programacao?.tempo_min || 0),
     troca_sacrificio: Number(totalsObj.troca_sacrificio?.tempo_min || 0),
@@ -1729,6 +1738,7 @@ function normalizeDashboardApiData(raw, maquinas, filasById, nowTick, fallbackLa
     tempoParadoMin:
       Number(totals.manutencao || 0) +
       Number(totals.falta_material || 0) +
+      Number(totals.aguardando_fresa || 0) +
       Number(totals.falta_operador || 0) +
       Number(totals.troca_sacrificio || 0) +
       Number(totals.ociosa || 0) +
@@ -4129,6 +4139,7 @@ const limparLista = (lista) =>
       "setup",
       "manutencao",
       "falta_material",
+      "aguardando_fresa",
       "falta_operador",
       "programacao",
       "troca_sacrificio",
@@ -4144,6 +4155,7 @@ const limparLista = (lista) =>
       setup: "#2563eb",
       manutencao: "#8b5cf6",
       falta_material: "#ef4444",
+      aguardando_fresa: "#d97706",
       falta_operador: "#e11d48",
       programacao: "#06b6d4",
       troca_sacrificio: "#f97316",
@@ -4942,8 +4954,11 @@ const limparLista = (lista) =>
               <span>Chat</span>
               {totalChatUnread > 0 && <span className="pgNavBadge">{totalChatUnread}</span>}
             </button>
+            <button className={`pgTopNavItem ${view === "alimentacao" ? "active" : ""}`} onClick={() => setView("alimentacao")}>Alimentação CNC</button>
           </nav>
         )}
+
+        {!readOnly && view === "alimentacao" && <CncFeeding />}
 
         {((!readOnly && view === "dashboard") || isFacilitador) && (
           <>
