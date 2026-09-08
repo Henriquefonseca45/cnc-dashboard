@@ -100,6 +100,7 @@ export default function DevProgramadorUsers() {
   if (auth.loading) return <main className="programadorAuthLoading">Validando acesso DEV...</main>;
   if (!auth.user) return <ProgramadorLogin technical onAuthenticated={(user) => setAuth({ loading: false, user })} />;
   if (auth.user.must_change_password) return <Navigate to="/programador/primeiro-acesso" replace />;
+  if (["programador", "lider"].includes(auth.user.role)) return <Navigate to="/programador" replace />;
   if (auth.user.role !== "dev") return <main className="devUsersDenied"><section><h1>Acesso não autorizado</h1><p>Esta área é exclusiva do perfil DEV.</p><button onClick={logout}>Sair</button></section></main>;
 
   return (

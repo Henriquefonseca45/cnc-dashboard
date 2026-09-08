@@ -15,8 +15,8 @@ export default function TechnicalLoginLayout({ children }) {
             <div className="technicalLoginProduct"><span>CNC</span><strong>DASHBOARD</strong></div>
           </div>
           <div className="technicalLoginRule" />
-          <p className="technicalLoginEyebrow">ADMINISTRAÇÃO TÉCNICA</p>
-          <h1 id="technical-login-title">Acesso administrativo</h1>
+          <p className="technicalLoginEyebrow">PROGRAMAÇÃO CNC</p>
+          <h1 id="technical-login-title">Acesso ao sistema</h1>
           <p className="technicalLoginDescription">Entre com suas credenciais para continuar.</p>
           {children}
           <footer className="technicalLoginRestricted"><ShieldCheck size={17} aria-hidden="true" /><span>Acesso restrito à equipe autorizada.</span></footer>

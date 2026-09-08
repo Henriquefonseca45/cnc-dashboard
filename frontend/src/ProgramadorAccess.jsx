@@ -196,7 +196,7 @@ export default function ProgramadorAccess() {
 
   if (loading) return <main className="programadorAuthLoading">Validando acesso...</main>;
   if (authEnabled === false) return <ProgramadorDashboard />;
-  if (!user) return <ProgramadorLogin onAuthenticated={setUser} themeMode={themeMode} />;
+  if (!user) return <ProgramadorLogin technical onAuthenticated={setUser} themeMode={themeMode} />;
   if (user.must_change_password) return <ProgramadorFirstAccess user={user} onCompleted={setUser} onLogout={logout} themeMode={themeMode} />;
   if (user.role === "dev") return <main className="programadorAuthLoading">Abrindo administração técnica...</main>;
 
