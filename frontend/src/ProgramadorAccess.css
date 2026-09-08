@@ -71,14 +71,14 @@
 .programadorCurrentUser small { color: var(--programador-muted); font-size: 11px; }
 .programadorCurrentUser > button { height: 34px; padding: 0 13px; border: 1px solid #d5ddeb; border-radius: 9px; background: white; color: #3f4d68; font-weight: 800; cursor: pointer; }
 .programadorAvatar { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: #ecebff; color: #423dc4; font-size: 12px; font-weight: 900; }
-.programadorModuleContent .pgShell { height: calc(100vh - 64px); min-height: calc(100vh - 64px); }
+.programadorModuleContent .pgShell { min-height: calc(100vh - 64px); }
 
 @media (max-width: 760px) {
   .programadorModuleBar { height: auto; min-height: 72px; padding: 10px 12px; grid-template-columns: 1fr auto; }
   .programadorModuleIdentity { display: none; }
   .programadorModuleBar nav { justify-self: start; }
   .programadorCurrentUser > span:nth-child(2) { display: none; }
-  .programadorModuleContent .pgShell { height: calc(100vh - 72px); min-height: calc(100vh - 72px); }
+  .programadorModuleContent .pgShell { min-height: calc(100vh - 72px); }
   .programadorLoginCard { padding: 30px 24px; }
 }
 
