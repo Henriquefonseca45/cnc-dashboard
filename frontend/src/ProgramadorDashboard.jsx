@@ -4530,6 +4530,7 @@ const limparLista = (lista) =>
     <div
       className={`pgShell ${readOnly ? "pgReadOnly" : ""} ${isVisual ? "pgVisual" : ""} ${
         themeMode === "light" ? "pgThemeLight" : "pgThemeDark"
+      } ${view === "alimentacao" ? "pgFeedingView" : ""
       }`}
     >
       {!readOnly && view !== "alimentacao" && (

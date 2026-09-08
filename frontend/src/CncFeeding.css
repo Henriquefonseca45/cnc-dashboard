@@ -1,4 +1,8 @@
 .feedingPage { color: var(--text); display: grid; gap: 20px; min-width: 0; }
+.pgShell.pgFeedingView, .pgShell.pgFeedingView .pgMain { min-height: 100vh; }
+.pgThemeDark.pgFeedingView, .pgThemeDark.pgFeedingView .pgMain { background: #0b1020; }
+.pgThemeLight.pgFeedingView, .pgThemeLight.pgFeedingView .pgMain { background: #eef2f7; }
+.programadorModuleContent .pgShell.pgFeedingView { height: auto; min-height: calc(100vh - 64px); }
 .feedingHeader, .feedingMachine > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
 .feedingPage h2, .feedingPage h3 { margin: 0; }
 .feedingPage p { margin: 8px 0; color: var(--muted); }
