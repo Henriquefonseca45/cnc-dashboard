@@ -291,6 +291,21 @@ def programador_auth_config():
 
 
 @app.post("/programador/auth/logout")
+@app.get("/programador/auth/usuarios")
+def programador_login_users(response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    conn = get_conn()
+    try:
+        rows = conn.execute("""
+            SELECT nome, login FROM usuarios
+            WHERE ativo = 1 AND role IN ('dev', 'programador', 'lider')
+            ORDER BY nome COLLATE NOCASE, login
+        """).fetchall()
+        return {"users": [dict(row) for row in rows]}
+    finally:
+        conn.close()
+
+
 def programador_logout(request: Request, response: Response):
     conn = get_conn()
     try:

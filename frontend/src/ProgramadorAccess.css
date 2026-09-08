@@ -45,6 +45,12 @@
 .programadorLoginCard label { display: grid; gap: 8px; font-size: 13px; font-weight: 800; }
 .programadorLoginCard input { height: 48px; border: 1px solid #ccd5e4; border-radius: 12px; padding: 0 14px; color: #192238; background: white; font: inherit; outline: none; }
 .programadorLoginCard input:focus { border-color: var(--programador-purple); box-shadow: 0 0 0 3px rgba(75, 70, 223, 0.13); }
+.programadorLoginCard select { width: 100%; height: 48px; padding: 0 14px; border: 1px solid #ccd5e4; border-radius: 12px; background: white; color: #192238; font: inherit; }
+.technicalLoginInput select { width: 100%; min-width: 0; height: 100%; border: 0; background: transparent; color: #f5f8ff; font: inherit; outline: none; }
+.technicalLoginInput select option { background: #061225; color: #f5f8ff; }
+.programadorLoginCard .loginRemember, .technicalLoginPanel .loginRemember { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 13px; letter-spacing: normal; cursor: pointer; }
+.programadorLoginCard .loginRemember input, .technicalLoginPanel .loginRemember input { width: 16px; height: 16px; padding: 0; margin: 0; accent-color: #0787ff; }
+.loginRemember span { font-weight: 400; opacity: .8; }
 .programadorLoginCard form > button { height: 50px; border: 0; border-radius: 13px; background: var(--programador-purple); color: white; font-weight: 900; cursor: pointer; }
 .programadorLoginCard form > button:disabled { opacity: 0.65; cursor: wait; }
 .programadorLoginCard form > button.programadorSecondaryButton { border: 1px solid #d5ddeb; background: transparent; color: currentColor; }

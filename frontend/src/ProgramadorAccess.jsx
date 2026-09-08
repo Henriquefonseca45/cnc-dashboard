@@ -16,6 +16,27 @@ function roleLabel(role) {
 
 export function ProgramadorLogin({ onAuthenticated, themeMode, technical = false, eyebrow = "PROGRAMAÇÃO CNC", description = "Entre com seu usuário para acessar a operação de Programação." }) {
   const [login, setLogin] = useState("");
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [remember, setRemember] = useState(false);
+  const rememberKey = "cnc_login_last_user";
+  useEffect(() => {
+    let active = true;
+    api.get("/programador/auth/usuarios").then(({ data }) => {
+      if (!active) return;
+      setUsers(data.users);
+      try {
+        const saved = localStorage.getItem(rememberKey);
+        if (saved && data.users.some((user) => user.login === saved)) {
+          setLogin(saved);
+          setRemember(true);
+        } else if (saved) localStorage.removeItem(rememberKey);
+      } catch { /* Storage may be disabled in this browser. */ }
+    }).catch(() => {
+      if (active) setError("Não foi possível carregar os usuários. Atualize a página para tentar novamente.");
+    }).finally(() => { if (active) setUsersLoading(false); });
+    return () => { active = false; };
+  }, []);
   const [senha, setSenha] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -34,6 +55,10 @@ export function ProgramadorLogin({ onAuthenticated, themeMode, technical = false
     setError("");
     try {
       const response = await api.post("/programador/auth/login", { login: login.trim(), senha });
+      try {
+        if (remember) localStorage.setItem(rememberKey, login);
+        else localStorage.removeItem(rememberKey);
+      } catch { /* Remembering the selection is optional. */ }
       onAuthenticated(response.data.user);
     } catch (err) {
       setError(err?.response?.status === 401 ? "Usuário ou senha inválidos." : getErrMsg(err));
@@ -48,8 +73,17 @@ export function ProgramadorLogin({ onAuthenticated, themeMode, technical = false
       <label htmlFor="programador-login-user">Usuário</label>
       <div className={technical ? "technicalLoginInput" : undefined}>
         {technical ? <UserRound size={18} aria-hidden="true" /> : null}
-        <input id="programador-login-user" name="username" autoFocus autoComplete="username" autoCapitalize="none" spellCheck={false} disabled={loading} placeholder={technical ? "Digite seu usuário" : undefined} value={login} onChange={(event) => setLogin(event.target.value)} />
+        <select id="programador-login-user" name="username" autoFocus autoComplete="username" required disabled={loading || usersLoading} value={login} onChange={(event) => { setLogin(event.target.value); setSenha(""); }}>
+          <option value="">{usersLoading ? "Carregando usuários..." : users.length ? "Selecione seu usuário" : "Nenhum usuário cadastrado"}</option>
+          {users.map((user) => <option key={user.login} value={user.login}>{user.nome} ({user.login})</option>)}
+        </select>
       </div>
+      <label className="loginRemember"><input type="checkbox" checked={remember} disabled={loading} onChange={(event) => {
+        setRemember(event.target.checked);
+        if (!event.target.checked) {
+          try { localStorage.removeItem(rememberKey); } catch { /* Storage may be disabled. */ }
+        }
+      }} />Lembrar-me <span>(último usuário)</span></label>
       <label htmlFor="programador-login-password">Senha</label>
       <div className={technical ? "technicalLoginInput" : undefined}>
         {technical ? <LockKeyhole size={18} aria-hidden="true" /> : null}
@@ -70,12 +104,7 @@ export function ProgramadorLogin({ onAuthenticated, themeMode, technical = false
         <div className="programadorLoginEyebrow">{eyebrow}</div>
         <h1 id="programador-login-title">Acesso ao módulo</h1>
         <p>{description}</p>
-        <form onSubmit={submit}>
-          <label>Usuário<input autoFocus autoComplete="username" value={login} onChange={(event) => setLogin(event.target.value)} /></label>
-          <label>Senha<input type="password" autoComplete="current-password" value={senha} onChange={(event) => setSenha(event.target.value)} /></label>
-          {error ? <div className="programadorLoginError" role="alert">{error}</div> : null}
-          <button type="submit" disabled={loading}>{loading ? "Entrando..." : "Entrar"}</button>
-        </form>
+        {form}
       </section>
     </main>
   );
