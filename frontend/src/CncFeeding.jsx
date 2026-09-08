@@ -15,6 +15,10 @@ export default function CncFeeding() {
   const [movePlan, setMovePlan] = useState(null);
   const [destination, setDestination] = useState('');
   const [updated, setUpdated] = useState(null);
+  const [density, setDensity] = useState(() => {
+    try { return localStorage.getItem('cnc_feeding_density') === 'normal' ? 'normal' : 'compact'; }
+    catch { return 'compact'; }
+  });
   const sequence = useRef(0);
   const mutating = useRef(false);
   const input = useRef(null);
@@ -83,17 +87,22 @@ export default function CncFeeding() {
   function renderPlan(plan, waiting = false) {
     const id = plan.arquivo_id || plan.id;
     const executing = plan.status === 'EM_EXECUCAO';
-    return <article className={`feedingPlan ${plan.deslocado_por_prioridade ? 'feedingDisplaced' : ''}`} key={id}>
+    return <article className={`feedingPlan ${waiting ? 'feedingWaitingRow' : ''} ${executing ? 'feedingRunning' : ''} ${plan.deslocado_por_prioridade ? 'feedingDisplaced' : ''}`} key={id}>
+      <div className="feedingPlanIdentity">
       {!waiting && <div className="feedingSlot">{plan.slot}</div>}
-      <strong>{plan.arquivo_nome || plan.nome}</strong>
-      <div className="feedingActions"><button className="pgBtn pgBtnGhost" disabled={downloading !== null} onClick={() => download(plan)}>{downloading === id ? 'Baixando...' : 'Baixar arquivo'}</button></div>
+      <strong title={plan.arquivo_nome || plan.nome}>{plan.arquivo_nome || plan.nome}</strong>
+      </div>
       <div className="feedingBadges">
         <span className={`feedingPriority feedingPriority-${plan.priority}`}>{priorityLabel(plan.priority)}</span>
         <span>{plan.programado ? '🔒 Programado' : 'Programado: NÃO'}</span>
       </div>
-      <small>CNCs permitidas: {plan.compatible_cnc_ids.join(', ') || 'Legado — classifique o plano'}</small>
-      {waiting && <small>Entrada: {formatDate(plan.criado_em)} · {plan.alimentacao_pausada ? 'Distribuição pausada manualmente' : 'Aguardando vaga compatível'}</small>}
-      {!executing && <div className="feedingActions">
+      <small className="feedingCompatibility" title={`CNCs permitidas: ${plan.compatible_cnc_ids.join(', ') || 'Legado — classifique o plano'}`}>CNCs: {plan.compatible_cnc_ids.join(', ') || 'Legado — classifique o plano'}</small>
+      {waiting && <small className="feedingEntry" title={plan.alimentacao_pausada ? 'Distribuição pausada manualmente' : 'Aguardando vaga compatível'}>Entrada: {formatDate(plan.criado_em)}{plan.alimentacao_pausada ? ' · Pausado' : ''}</small>}
+      <div className="feedingPlanControls">
+      <button className="pgBtn pgBtnGhost" aria-label={`Baixar arquivo ${plan.arquivo_nome || plan.nome}`} disabled={downloading !== null} onClick={() => download(plan)}>{downloading === id ? 'Baixando...' : 'Baixar arquivo'}</button>
+      {!executing && <details className="feedingMore" onKeyDown={(event) => { if (event.key === 'Escape') { event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus(); } }}>
+      <summary aria-label={`Mais ações para ${plan.arquivo_nome || plan.nome}`}>Mais ações</summary>
+      <div className="feedingActions" onClick={(event) => { if (event.target.closest('button')) event.currentTarget.parentElement.open = false; }}>
         <button className="pgBtn pgBtnGhost" disabled={busy} onClick={() => { setMovePlan(plan); setDestination(''); setError(''); }}>Mover plano</button>
         <button className="pgBtn pgBtnGhost" disabled={busy} onClick={() => edit(plan)}>Classificação</button>
         <button className="pgBtn pgBtnGhost" disabled={busy} onClick={() => {
@@ -101,13 +110,18 @@ export default function CncFeeding() {
           mutate(() => api.put(`/programador/alimentacao/${id}/programado`, { programado: !plan.programado }));
         }}>{plan.programado ? 'Desproteger' : 'Marcar Programado'}</button>
         {waiting && !!plan.alimentacao_pausada && <button className="pgBtn pgBtnPrimary" disabled={busy} onClick={() => mutate(() => api.post(`/programador/alimentacao/${id}/retomar`))}>Retomar automático</button>}
-      </div>}
+      </div></details>}
+      </div>
     </article>;
   }
 
-  return <section className="feedingPage" aria-label="Alimentação CNC">
+  return <section className={`feedingPage feedingDensity-${density}`} aria-label="Alimentação CNC">
     <header className="feedingHeader"><div><h2>Alimentação CNC</h2><p>Distribuição semiautomática dos planos</p></div>
       <div className="feedingActions"><small>{updated && `Atualizado ${updated.toLocaleTimeString('pt-BR')}`}</small>
+        <div className="feedingDensity" role="group" aria-label="Visualização da fila"><span>Visualização</span>{[['normal', 'Normal'], ['compact', 'Compacta']].map(([value, label]) => <button key={value} type="button" aria-pressed={density === value} onClick={() => {
+          setDensity(value);
+          try { localStorage.setItem('cnc_feeding_density', value); } catch { /* Preference is optional. */ }
+        }}>{label}</button>)}</div>
         <button className="pgBtn pgBtnGhost" disabled={busy} onClick={load}>Atualizar</button>
         <button className="pgBtn pgBtnPrimary" disabled={busy} onClick={() => input.current.click()}>Importar planos</button></div>
       <input ref={input} type="file" accept=".dxf" multiple hidden onChange={(event) => {

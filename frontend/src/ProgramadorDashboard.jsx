@@ -4532,7 +4532,7 @@ const limparLista = (lista) =>
         themeMode === "light" ? "pgThemeLight" : "pgThemeDark"
       }`}
     >
-      {!readOnly && (
+      {!readOnly && view !== "alimentacao" && (
         <aside className="pgSidebar">
      <div className="pgBrand">
   <div>

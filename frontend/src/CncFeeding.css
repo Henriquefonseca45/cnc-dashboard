@@ -4,8 +4,8 @@
 .feedingPage p { margin: 8px 0; color: var(--muted); }
 .feedingActions, .feedingBadges { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .feedingActions .pgBtn { min-height: 34px; height: auto; padding: 8px 12px; font-size: 12px; }
-.feedingMachines { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
-.feedingWaiting { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; margin-top: 14px; }
+.feedingMachines { display: grid; align-items: start; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
+.feedingWaiting { display: grid; gap: 0; margin-top: 14px; }
 .feedingMachine, .feedingSection { padding: 20px; border: 1px solid var(--stroke2); border-radius: var(--r); background: var(--card); min-width: 0; }
 .feedingPlan { padding: 14px; border: 1px solid var(--stroke); border-radius: var(--r2); background: var(--card2); display: grid; gap: 10px; margin-top: 12px; overflow-wrap: anywhere; }
 .feedingPlan strong { font-size: 14px; }
@@ -19,7 +19,7 @@
 .feedingBadges > span:last-child { font-size: 12px; }
 .feedingNotice { padding: 12px 14px; border: 1px solid var(--stroke); border-radius: 10px; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .feedingError { padding: 12px; color: #ef4444; border: 1px solid #ef444466; border-radius: 8px; }
-.feedingEmpty { padding: 30px 0; text-align: center; }
+.feedingEmpty { padding: 10px 0; text-align: center; }
 .feedingHistory { max-height: 340px; overflow: auto; margin-top: 14px; }
 .feedingHistory > div { display: grid; gap: 5px; padding: 12px 0; border-bottom: 1px solid var(--stroke); font-size: 12px; overflow-wrap: anywhere; }
 .feedingHistory time { color: var(--muted); }
@@ -27,3 +27,51 @@
 .feedingMove { background: var(--bg1); border: 1px solid var(--stroke2); border-radius: 16px; padding: 24px; width: min(100%, 480px); display: grid; gap: 16px; }
 .feedingMove label { display: grid; gap: 8px; }
 .feedingMove select { padding: 12px; width: 100%; border: 1px solid var(--stroke2); border-radius: 8px; background: var(--bg1); color: var(--text); }
+
+/* Queue presentation only. All actions keep their existing handlers. */
+.feedingPlanIdentity { min-width: 0; }
+.feedingPlanIdentity strong { display: block; line-height: 1.4; overflow-wrap: anywhere; }
+.feedingSlot { margin-bottom: 4px; color: #60a5fa; }
+.feedingRunning { border-left: 3px solid #34d399; }
+.feedingRunning .feedingSlot { color: #34d399; }
+.feedingDisplaced { border-left: 2px solid #7c6da3; background: transparent; }
+.feedingDisplaced .feedingSlot { color: var(--muted); font-size: 10px; letter-spacing: .02em; }
+.feedingPlanControls { display: flex; align-items: start; flex-wrap: wrap; gap: 6px; }
+.feedingPlanControls .pgBtn, .feedingMore summary { min-height: 32px; height: auto; padding: 6px 9px; font-size: 12px; }
+.feedingMore { min-width: 0; }
+.feedingMore summary { cursor: pointer; color: var(--muted); border: 1px solid var(--stroke); border-radius: 8px; list-style: none; }
+.feedingMore summary::-webkit-details-marker { display: none; }
+.feedingMore summary::after { content: ' ⋯'; }
+.feedingMore[open] { flex: 1 1 100%; }
+.feedingMore[open] summary { color: #60a5fa; width: fit-content; margin-bottom: 6px; }
+.feedingMore .feedingActions { padding: 8px; border: 1px solid var(--stroke); border-radius: 8px; background: var(--card); }
+.feedingMore summary:focus-visible, .feedingDensity button:focus-visible, .feedingPlanControls button:focus-visible { outline: 2px solid #38bdf8; outline-offset: 3px; }
+.feedingWaitingRow { grid-template-columns: minmax(180px, 2fr) minmax(150px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(180px, auto); align-items: center; gap: 12px; border: 0; border-bottom: 1px solid var(--stroke); border-radius: 0; margin: 0; background: transparent; }
+.feedingWaitingRow:last-child { border-bottom: 0; }
+.feedingWaitingRow .feedingBadges { gap: 5px; }
+.feedingCompatibility, .feedingEntry { line-height: 1.5; overflow-wrap: anywhere; }
+.feedingDensity { display: flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid var(--stroke); border-radius: 9px; }
+.feedingDensity > span { font-size: 11px; color: var(--muted); padding: 0 5px; }
+.feedingDensity button { border: 0; background: transparent; color: var(--muted); border-radius: 6px; padding: 7px 9px; font: inherit; font-size: 12px; cursor: pointer; }
+.feedingDensity button[aria-pressed="true"] { background: #1677ff26; color: #60a5fa; box-shadow: inset 0 0 0 1px #2786ff55; }
+.feedingDensity-compact { gap: 12px; }
+.feedingDensity-compact .feedingMachine, .feedingDensity-compact .feedingSection { padding: 12px; }
+.feedingDensity-compact .feedingMachines { gap: 10px; }
+.feedingDensity-compact .feedingPlan { padding: 9px 10px; gap: 5px; margin-top: 8px; }
+.feedingDensity-compact .feedingPlan strong { font-size: 12px; }
+.feedingDensity-compact .feedingPriority { padding: 2px 6px; }
+.feedingDensity-compact .feedingWaitingRow { margin: 0; gap: 10px; padding: 8px 0; }
+.feedingDensity-compact .feedingDisplaced { padding: 7px 9px; }
+.feedingDensity-compact .feedingNotice { padding: 7px 10px; line-height: 1.4; }
+@media (max-width: 1200px) {
+  .feedingWaitingRow { grid-template-columns: minmax(0, 2fr) minmax(150px, 1fr) auto; }
+  .feedingWaitingRow .feedingPlanIdentity { grid-column: 1; }
+  .feedingWaitingRow .feedingBadges { grid-column: 2; }
+  .feedingWaitingRow .feedingPlanControls { grid-column: 3; grid-row: 1 / 3; }
+}
+@media (max-width: 650px) {
+  .feedingWaitingRow { grid-template-columns: minmax(0, 1fr); }
+  .feedingWaitingRow .feedingPlanIdentity, .feedingWaitingRow .feedingBadges, .feedingWaitingRow .feedingPlanControls { grid-column: auto; grid-row: auto; }
+  .feedingHeader > .feedingActions { width: 100%; }
+  .feedingDensity { flex-wrap: wrap; }
+}
