@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api, getErrMsg } from './api';
 import { priorityLabel } from './planClassification';
 import PlanClassificationModal from './PlanClassificationModal';
@@ -14,6 +15,7 @@ export default function CncFeeding() {
   const [modal, setModal] = useState(null);
   const [movePlan, setMovePlan] = useState(null);
   const [destination, setDestination] = useState('');
+  const [actionMenu, setActionMenu] = useState(null);
   const [updated, setUpdated] = useState(null);
   const [density, setDensity] = useState(() => {
     try { return localStorage.getItem('cnc_feeding_density') === 'normal' ? 'normal' : 'compact'; }
@@ -22,6 +24,54 @@ export default function CncFeeding() {
   const sequence = useRef(0);
   const mutating = useRef(false);
   const input = useRef(null);
+  const actionMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (!actionMenu) return undefined;
+    const menu = actionMenuRef.current;
+    menu?.querySelector('button')?.focus();
+    const closeOutside = (event) => {
+      if (!menu?.contains(event.target) && !actionMenu.anchor.contains(event.target)) setActionMenu(null);
+    };
+    const closeViewport = () => setActionMenu(null);
+    const closeOrNavigate = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        actionMenu.anchor.focus();
+        setActionMenu(null);
+      } else if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && menu?.contains(document.activeElement)) {
+        event.preventDefault();
+        const buttons = Array.from(menu.querySelectorAll('button:not(:disabled)'));
+        const current = buttons.indexOf(document.activeElement);
+        const step = event.key === 'ArrowDown' ? 1 : -1;
+        buttons[(current + step + buttons.length) % buttons.length]?.focus();
+      }
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeOrNavigate);
+    window.addEventListener('resize', closeViewport);
+    window.addEventListener('scroll', closeViewport, true);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeOrNavigate);
+      window.removeEventListener('resize', closeViewport);
+      window.removeEventListener('scroll', closeViewport, true);
+    };
+  }, [actionMenu]);
+
+  function openActionMenu(plan, event) {
+    const anchor = event.currentTarget;
+    if (actionMenu?.id === (plan.arquivo_id || plan.id)) { setActionMenu(null); return; }
+    const rect = anchor.getBoundingClientRect();
+    const width = 220;
+    const height = plan.alimentacao_pausada ? 172 : 132;
+    const below = rect.bottom + 6;
+    setActionMenu({
+      id: plan.arquivo_id || plan.id, plan, anchor,
+      left: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)),
+      top: below + height <= window.innerHeight - 8 ? below : Math.max(8, rect.top - height - 6),
+    });
+  }
 
   const load = useCallback(async () => {
     const request = ++sequence.current;
@@ -43,7 +93,7 @@ export default function CncFeeding() {
     if (mutating.current) return;
     mutating.current = true; sequence.current++; setBusy(true); setError('');
     try {
-      await operation(); setModal(null); setMovePlan(null); await load();
+      await operation(); setModal(null); setMovePlan(null); setActionMenu(null); await load();
     } catch (e) { setError(getErrMsg(e)); }
     finally { mutating.current = false; setBusy(false); }
   }
@@ -100,17 +150,7 @@ export default function CncFeeding() {
       {waiting && <small className="feedingEntry" title={plan.alimentacao_pausada ? 'Distribuição pausada manualmente' : 'Aguardando vaga compatível'}>Entrada: {formatDate(plan.criado_em)}{plan.alimentacao_pausada ? ' · Pausado' : ''}</small>}
       <div className="feedingPlanControls">
       <button className="pgBtn pgBtnGhost" aria-label={`Baixar arquivo ${plan.arquivo_nome || plan.nome}`} disabled={downloading !== null} onClick={() => download(plan)}>{downloading === id ? 'Baixando...' : 'Baixar arquivo'}</button>
-      {!executing && <details className="feedingMore" onKeyDown={(event) => { if (event.key === 'Escape') { event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus(); } }}>
-      <summary aria-label={`Mais ações para ${plan.arquivo_nome || plan.nome}`}>Mais ações</summary>
-      <div className="feedingActions" onClick={(event) => { if (event.target.closest('button')) event.currentTarget.parentElement.open = false; }}>
-        <button className="pgBtn pgBtnGhost" disabled={busy} onClick={() => { setMovePlan(plan); setDestination(''); setError(''); }}>Mover plano</button>
-        <button className="pgBtn pgBtnGhost" disabled={busy} onClick={() => edit(plan)}>Classificação</button>
-        <button className="pgBtn pgBtnGhost" disabled={busy} onClick={() => {
-          if (plan.programado && !window.confirm('Retirar a proteção Programado? O automático poderá deslocar este plano.')) return;
-          mutate(() => api.put(`/programador/alimentacao/${id}/programado`, { programado: !plan.programado }));
-        }}>{plan.programado ? 'Desproteger' : 'Marcar Programado'}</button>
-        {waiting && !!plan.alimentacao_pausada && <button className="pgBtn pgBtnPrimary" disabled={busy} onClick={() => mutate(() => api.post(`/programador/alimentacao/${id}/retomar`))}>Retomar automático</button>}
-      </div></details>}
+      {!executing && <button type="button" className="feedingMoreButton" aria-label="Mais ações" aria-haspopup="menu" aria-expanded={actionMenu?.id === id} disabled={busy} onClick={(event) => openActionMenu(plan, event)}>•••</button>}
       </div>
     </article>;
   }
@@ -166,5 +206,15 @@ export default function CncFeeding() {
       {error && <div role="alert" className="feedingError">{error}</div>}
       <div className="feedingActions"><button type="button" className="pgBtn pgBtnGhost" disabled={busy} onClick={() => setMovePlan(null)}>Voltar</button><button className="pgBtn pgBtnPrimary" disabled={busy}>Confirmar movimento</button></div>
     </form></div>}
+    {actionMenu && createPortal(<div ref={actionMenuRef} className="feedingActionMenu" role="menu" aria-label={`Ações de ${actionMenu.plan.arquivo_nome || actionMenu.plan.nome}`} style={{ left: actionMenu.left, top: actionMenu.top }}>
+      <button role="menuitem" disabled={busy} onClick={() => { setActionMenu(null); setMovePlan(actionMenu.plan); setDestination(''); setError(''); }}>Mover plano</button>
+      <button role="menuitem" disabled={busy} onClick={() => { setActionMenu(null); edit(actionMenu.plan); }}>Classificação</button>
+      <button role="menuitem" disabled={busy} onClick={() => {
+        const plan = actionMenu.plan;
+        if (plan.programado && !window.confirm('Retirar a proteção Programado? O automático poderá deslocar este plano.')) return;
+        mutate(() => api.put(`/programador/alimentacao/${plan.arquivo_id || plan.id}/programado`, { programado: !plan.programado }));
+      }}>{actionMenu.plan.programado ? 'Liberar reordenação' : 'Marcar Programado'}</button>
+      {!!actionMenu.plan.alimentacao_pausada && <button role="menuitem" disabled={busy} onClick={() => mutate(() => api.post(`/programador/alimentacao/${actionMenu.plan.arquivo_id || actionMenu.plan.id}/retomar`))}>Retomar automático</button>}
+    </div>, document.body)}
   </section>;
 }

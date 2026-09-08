@@ -37,15 +37,14 @@
 .feedingDisplaced { border-left: 2px solid #7c6da3; background: transparent; }
 .feedingDisplaced .feedingSlot { color: var(--muted); font-size: 10px; letter-spacing: .02em; }
 .feedingPlanControls { display: flex; align-items: start; flex-wrap: wrap; gap: 6px; }
-.feedingPlanControls .pgBtn, .feedingMore summary { min-height: 32px; height: auto; padding: 6px 9px; font-size: 12px; }
-.feedingMore { min-width: 0; }
-.feedingMore summary { cursor: pointer; color: var(--muted); border: 1px solid var(--stroke); border-radius: 8px; list-style: none; }
-.feedingMore summary::-webkit-details-marker { display: none; }
-.feedingMore summary::after { content: ' ⋯'; }
-.feedingMore[open] { flex: 1 1 100%; }
-.feedingMore[open] summary { color: #60a5fa; width: fit-content; margin-bottom: 6px; }
-.feedingMore .feedingActions { padding: 8px; border: 1px solid var(--stroke); border-radius: 8px; background: var(--card); }
-.feedingMore summary:focus-visible, .feedingDensity button:focus-visible, .feedingPlanControls button:focus-visible { outline: 2px solid #38bdf8; outline-offset: 3px; }
+.feedingPlanControls .pgBtn, .feedingMoreButton { min-height: 32px; height: auto; padding: 6px 9px; font-size: 12px; }
+.feedingMoreButton { min-width: 38px; border: 1px solid var(--stroke); border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-weight: 900; letter-spacing: .08em; cursor: pointer; }
+.feedingMoreButton:hover, .feedingMoreButton[aria-expanded="true"] { border-color: #2786ff88; background: #1677ff1c; color: #60a5fa; }
+.feedingMoreButton:focus-visible, .feedingDensity button:focus-visible, .feedingPlanControls button:focus-visible { outline: 2px solid #38bdf8; outline-offset: 3px; }
+.feedingActionMenu { position: fixed; z-index: 1400; width: 220px; max-width: calc(100vw - 16px); padding: 6px; border: 1px solid var(--stroke2); border-radius: 10px; background: var(--bg1); color: var(--text); box-shadow: 0 16px 45px #0007; display: grid; gap: 2px; overflow: hidden; }
+.feedingActionMenu button { width: 100%; min-height: 38px; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: inherit; text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
+.feedingActionMenu button:hover, .feedingActionMenu button:focus-visible { background: #1677ff24; color: #60a5fa; outline: none; }
+.feedingActionMenu button:disabled { opacity: .55; cursor: wait; }
 .feedingWaitingRow { grid-template-columns: minmax(180px, 2fr) minmax(150px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(180px, auto); align-items: center; gap: 12px; border: 0; border-bottom: 1px solid var(--stroke); border-radius: 0; margin: 0; background: transparent; }
 .feedingWaitingRow:last-child { border-bottom: 0; }
 .feedingWaitingRow .feedingBadges { gap: 5px; }
