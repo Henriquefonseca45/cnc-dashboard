@@ -64,7 +64,9 @@ export default function CncFeeding() {
     if (actionMenu?.id === (plan.arquivo_id || plan.id)) { setActionMenu(null); return; }
     const rect = anchor.getBoundingClientRect();
     const width = 220;
-    const height = plan.alimentacao_pausada ? 172 : 132;
+    const canDelete = !plan.arquivo_id;
+    const actionCount = 3 + Number(Boolean(plan.alimentacao_pausada)) + Number(canDelete);
+    const height = 12 + actionCount * 40;
     const below = rect.bottom + 6;
     setActionMenu({
       id: plan.arquivo_id || plan.id, plan, anchor,
@@ -253,6 +255,12 @@ export default function CncFeeding() {
         mutate(() => api.put(`/programador/alimentacao/${plan.arquivo_id || plan.id}/programado`, { programado: !plan.programado }));
       }}>{actionMenu.plan.programado ? 'Liberar reordenação' : 'Marcar Programado'}</button>
       {!!actionMenu.plan.alimentacao_pausada && <button role="menuitem" disabled={busy} onClick={() => mutate(() => api.post(`/programador/alimentacao/${actionMenu.plan.arquivo_id || actionMenu.plan.id}/retomar`))}>Retomar automático</button>}
+      {!actionMenu.plan.arquivo_id && <button role="menuitem" className="feedingDeleteAction" disabled={busy} onClick={() => {
+        const plan = actionMenu.plan;
+        const name = plan.nome || 'este plano';
+        if (!window.confirm(`Excluir definitivamente o plano "${name}"? Esta ação não pode ser desfeita.`)) return;
+        mutate(() => api.delete(`/arquivos/${plan.id}`));
+      }}>Excluir plano</button>}
     </div>, document.body)}
   </section>;
 }

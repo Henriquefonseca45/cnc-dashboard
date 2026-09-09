@@ -55,6 +55,8 @@
 .feedingActionMenu { position: fixed; z-index: 1400; width: 220px; max-width: calc(100vw - 16px); padding: 6px; border: 1px solid var(--stroke2); border-radius: 10px; background: var(--bg1); color: var(--text); box-shadow: 0 16px 45px #0007; display: grid; gap: 2px; overflow: hidden; }
 .feedingActionMenu button { width: 100%; min-height: 38px; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: inherit; text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
 .feedingActionMenu button:hover, .feedingActionMenu button:focus-visible { background: #1677ff24; color: #60a5fa; outline: none; }
+.feedingActionMenu .feedingDeleteAction { color: #ef4444; }
+.feedingActionMenu .feedingDeleteAction:hover, .feedingActionMenu .feedingDeleteAction:focus-visible { background: #ef444418; color: #f87171; }
 .feedingActionMenu button:disabled { opacity: .55; cursor: wait; }
 .feedingWaitingRow { grid-template-columns: minmax(180px, 2fr) minmax(150px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(180px, auto); align-items: center; gap: 12px; border: 0; border-bottom: 1px solid var(--stroke); border-radius: 0; margin: 0; background: transparent; }
 .feedingWaitingRow:last-child { border-bottom: 0; }
