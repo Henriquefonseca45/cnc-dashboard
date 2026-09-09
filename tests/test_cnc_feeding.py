@@ -111,7 +111,7 @@ class CncFeedingTests(unittest.TestCase):
         self.assertEqual(self.rows()[1]['arquivo_id'], second)
         self.assertEqual(self.overview()['waiting'][0]['id'], third)
 
-    def test_normal_priority_prefers_greater_thickness(self):
+    def test_normal_priority_prefers_greater_thickness_when_entry_time_matches(self):
         conn = db.get_conn()
         try:
             conn.execute("UPDATE maquinas SET status='DESLIGADA' WHERE id='CNC01'")
@@ -121,7 +121,28 @@ class CncFeedingTests(unittest.TestCase):
         thin = self.upload(name='09 - 09 - 2026 - 01 - 20KP RANCAN.dxf')
         thick = self.upload(name='09 - 09 - 2026 - 02 - 80KP RANCAN.dxf')
         middle = self.upload(name='09 - 09 - 2026 - 03 - 40KP RANCAN.dxf')
+        conn = db.get_conn()
+        conn.execute(
+            "UPDATE arquivos_dxf SET criado_em='2026-09-09T08:00:00' WHERE id IN (?,?,?)",
+            (thin, thick, middle),
+        )
+        conn.commit()
+        conn.close()
         self.assertEqual([p['id'] for p in self.overview()['waiting']], [thick, middle, thin])
+
+    def test_normal_priority_prefers_oldest_before_greater_thickness(self):
+        conn = db.get_conn()
+        conn.execute("UPDATE maquinas SET status='DESLIGADA' WHERE id='CNC01'")
+        conn.commit()
+        conn.close()
+        older_thin = self.upload(name='plano antigo 20KP.dxf')
+        newer_thick = self.upload(name='plano novo 80KP.dxf')
+        conn = db.get_conn()
+        conn.execute("UPDATE arquivos_dxf SET criado_em='2026-09-09T07:00:00' WHERE id=?", (older_thin,))
+        conn.execute("UPDATE arquivos_dxf SET criado_em='2026-09-09T08:00:00' WHERE id=?", (newer_thick,))
+        conn.commit()
+        conn.close()
+        self.assertEqual([p['id'] for p in self.overview()['waiting']], [older_thin, newer_thick])
 
     def test_normal_without_thickness_keeps_fifo_after_numbered_plans(self):
         conn = db.get_conn()
@@ -133,6 +154,13 @@ class CncFeedingTests(unittest.TestCase):
         first_unknown = self.upload(name='plano sem medida 1.dxf')
         numbered = self.upload(name='plano 18MDF.dxf')
         second_unknown = self.upload(name='plano sem medida 2.dxf')
+        conn = db.get_conn()
+        conn.execute(
+            "UPDATE arquivos_dxf SET criado_em='2026-09-09T08:00:00' WHERE id IN (?,?,?)",
+            (first_unknown, numbered, second_unknown),
+        )
+        conn.commit()
+        conn.close()
         self.assertEqual(
             [p['id'] for p in self.overview()['waiting']],
             [numbered, first_unknown, second_unknown],

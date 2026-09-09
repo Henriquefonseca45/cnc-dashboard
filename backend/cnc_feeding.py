@@ -137,11 +137,12 @@ def plan_thickness(name):
 def pool_order(plan):
     priority = str(plan.get('priority') or 'normal').lower()
     thickness = plan_thickness(plan.get('nome')) if priority == 'normal' else None
-    # High/medium remain FIFO. Normal plans prefer the greatest known thickness.
+    created_at = str(plan.get('criado_em') or '')
+    # Every priority is FIFO. For normal plans received together, prefer the greatest thickness.
     thickness_group = 0 if thickness is not None else 1
     thickness_order = -thickness if thickness is not None else 0
-    return (RANK.get(priority, 2), thickness_group, thickness_order,
-            str(plan.get('criado_em') or ''), int(plan.get('id') or 0))
+    return (RANK.get(priority, 2), created_at, thickness_group, thickness_order,
+            int(plan.get('id') or 0))
 
 
 def pool(conn):
