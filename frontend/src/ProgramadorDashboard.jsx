@@ -3412,7 +3412,7 @@ function imprimirGrafico7() {
         const response = await api.post("/arquivos/upload-classified", form);
         const imported = response.data?.items || [];
         if (imported.length !== items.length) throw new Error("O servidor não confirmou todos os planos importados.");
-        successMessage = `${imported.length} plano(s) classificado(s) e importado(s) para a fila geral.`;
+        successMessage = `${imported.length} plano(s) classificado(s) e adicionado(s) aos Planos aguardando.`;
       }
       setClassificationModal(null);
       await reloadAll();
@@ -3667,7 +3667,7 @@ function imprimirGrafico7() {
         await api.post(`/fila/item/${item_id}/to_pool`);
       }
 
-      setMsg(`Voltaram ${ids.length} item(ns) para a fila geral.`);
+      setMsg(`${ids.length} item(ns) voltou(aram) para Planos aguardando.`);
 
       const fsel = await fetchFila(selectedId, includeDone);
       setFila(fsel);
@@ -4533,241 +4533,6 @@ const limparLista = (lista) =>
       } ${view === "alimentacao" ? "pgFeedingView" : ""
       }`}
     >
-      {!readOnly && view !== "alimentacao" && (
-        <aside className="pgSidebar">
-     <div className="pgBrand">
-  <div>
-    <div className="pgBrandTitle">CNC Monitor</div>
-    <div className="pgBrandSub">Painel de Produção</div>
-  </div>
-</div>
-
-          <div className="pgSidebarUpload">
-            <div className="pgSidebarUploadTop">
-              <div className="pgSidebarUploadTitle">Upload / Fila Geral</div>
-              <button className="pgThemeMiniBtn" onClick={toggleThemeMode} type="button">
-                {themeMode === "dark" ? "Modo claro" : "Modo escuro"}
-              </button>
-            </div>
-
-            {sidebarFilesTab === "novos" && (
-              <>
-            <div
-              className={`pgDrop ${uploading ? "busy" : ""}`}
-              onDrop={onPoolDropUpload}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              role="button"
-              tabIndex={0}
-              onClick={onPickFiles}
-              title="Clique ou arraste arquivos DXF aqui"
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".dxf,.DXF"
-                multiple
-                style={{ display: "none" }}
-                onChange={onFileInputChange}
-              />
-              <div className="pgDropBig">{uploading ? "Enviando..." : "Arraste DXF aqui"}</div>
-              <div className="pgDropSmall">ou clique para selecionar</div>
-            </div>
-
-            <div className="pgPoolHeader">
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div className="pgPoolTitle">Arquivos na fila geral</div>
-                <div className="pgPoolCount">{pool.length}</div>
-              </div>
-
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <button
-                  className="pgBtn pgBtnGhost"
-                  onClick={clearPoolSelection}
-                  disabled={selectedPoolIds.size === 0 || uploading || loading || reorderBusy}
-                >
-                  Limpar
-                </button>
-
-                <button
-                  className="pgBtn pgBtnPrimary"
-                  onClick={excluirSelecionadosDoPool}
-                  disabled={selectedPoolIds.size === 0 || uploading || loading || reorderBusy}
-                >
-                  Excluir
-                </button>
-              </div>
-            </div>
-
-            <div className="pgPoolList poolRows">
-              {pool.length === 0 ? (
-                <div className="pgEmpty" style={{ padding: 10 }}>Nenhum arquivo disponível.</div>
-              ) : (
-                pool.slice(0, 80).map((a, idx) => {
-                  const checked = selectedPoolIds.has(a.id);
-                  const isDragging = draggingId === a.id;
-
-                  return (
-                    <div
-                      key={a.id}
-                      className={`poolRow ${checked ? "sel" : ""} ${isDragging ? "dragging" : ""}`}
-                      draggable
-                      onDragStart={(e) => onDragStartPoolItem(e, a)}
-                      onDragEnd={onDragEndAny}
-                      onClick={() => togglePoolSelection(a.id)}
-                    >
-                      <div className="rowPos">{idx + 1}</div>
-
-                      <div className="rowMain">
-                        <div className="rowTitle" title={a.arquivo_nome || a.nome || ""}>
-                          {a.arquivo_nome || a.nome}
-                        </div>
-                        <div className="rowMeta" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                          <span className="pgMono">id:{a.id}</span>
-                          <span className={`planPoolPriority ${a.priority || "normal"}`}>{priorityLabel(a.priority)}</span>
-                          <span className="planPoolCncs" title="CNCs compatíveis">
-                            {(a.compatible_cncs || []).length ? (a.compatible_cncs || []).map((cncItem) => cncItem.id).join(" · ") : "Legado: todas"}
-                          </span>
-                          <button
-                            type="button"
-                            className="pgBtn pgBtnGhost"
-                            style={{ padding: "6px 10px" }}
-                            onClick={(e) => { e.stopPropagation(); editPlanClassification(a); }}
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            className="pgBtn pgBtnGhost"
-                            style={{ padding: "6px 10px" }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              baixarArquivoPool(a);
-                            }}
-                          >
-                            Baixar
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-              </>
-            )}
-
-            <div className="pgFileTabs">
-              <button
-                type="button"
-                className={`pgFileTab ${sidebarFilesTab === "novos" ? "active" : ""}`}
-                onClick={() => setSidebarFilesTab("novos")}
-              >
-                Novos
-                <span>{pool.length}</span>
-              </button>
-              <button
-                type="button"
-                className={`pgFileTab ${sidebarFilesTab === "cancelados" ? "active" : ""}`}
-                onClick={async () => {
-                  setSidebarFilesTab("cancelados");
-                  await Promise.all([fetchHistoricoAll(), fetchMaterialHistory()]);
-                }}
-              >
-                Cancelados
-                <span>{arquivosCanceladosOperador.length}</span>
-              </button>
-              <button
-                type="button"
-                className={`pgFileTab ${sidebarFilesTab === "semMaterial" ? "active" : ""}`}
-                onClick={async () => {
-                  setSidebarFilesTab("semMaterial");
-                  await fetchMaterialHistory();
-                }}
-              >
-                Sem material
-                <span>{arquivosSemMaterial.length}</span>
-              </button>
-            </div>
-
-            {sidebarFilesTab === "cancelados" && (
-              <div className="pgPoolList poolRows">
-                {histLoading ? (
-                  <div className="pgEmpty" style={{ padding: 10 }}>Carregando...</div>
-                ) : arquivosCanceladosOperador.length === 0 ? (
-                  <div className="pgEmpty" style={{ padding: 10 }}>Nenhum arquivo cancelado.</div>
-                ) : (
-                  arquivosCanceladosOperador.map((h, idx) => (
-                    <div key={h.id || `${h._maquina_id}-${idx}`} className="poolRow pgFileLogRow">
-                      <div className="rowPos">{idx + 1}</div>
-                      <div className="rowMain">
-                        <div className="rowTitle" title={h.arquivo_nome || ""}>
-                          {h.arquivo_nome || "-"}
-                        </div>
-                        <div className="rowMeta">
-                          <span className="pgMono">{h._maquina_id || h.maquina_id || "-"}</span>
-                          {" | "}
-                          {h.operador_nome || h.operador || "-"}
-                        </div>
-                        <div className="rowMeta pgFileLogMetaActions">
-                          <span>{fmtDate(h.finalizado_em || h.criado_em)}</span>
-                          <button
-                            type="button"
-                            className="pgDangerMiniBtn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              excluirArquivoCancelado(h);
-                            }}
-                          >
-                            Excluir
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {sidebarFilesTab === "semMaterial" && (
-              <div className="pgPoolList poolRows">
-                {materialHistoryLoading ? (
-                  <div className="pgEmpty" style={{ padding: 10 }}>Carregando...</div>
-                ) : arquivosSemMaterial.length === 0 ? (
-                  <div className="pgEmpty" style={{ padding: 10 }}>Nenhum arquivo sem material.</div>
-                ) : (
-                  arquivosSemMaterial.map((req, idx) => (
-                    <div key={req.id || idx} className="poolRow pgFileLogRow">
-                      <div className="rowPos">{idx + 1}</div>
-                      <div className="rowMain">
-                        <div className="rowTitle" title={req.arquivo_nome || ""}>
-                          {req.arquivo_nome || "-"}
-                        </div>
-                        <div className="rowMeta">
-                          <span className="pgMono">{req.maquina_id || "-"}</span>
-                          {" | "}
-                          {req.material || "material nao informado"}
-                        </div>
-                        <div className="rowMeta">{materialStatusDate(req)}</div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="pgSys">
-            <div className={`pgSysDot ${err ? "bad" : "ok"}`} />
-            <div>
-              <div className="pgSysTitle">Status do Sistema</div>
-              <div className="pgSysSub">{err ? "Backend Offline" : maquinas.length === 0 ? "Sem dados" : "Online"}</div>
-            </div>
-          </div>
-        </aside>
-      )}
 
       <main className="pgMain">
  <div className="pgTopbar">
@@ -4832,6 +4597,17 @@ const limparLista = (lista) =>
     )}
     {!readOnly && (
       <>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".dxf,.DXF"
+          multiple
+          hidden
+          onChange={onFileInputChange}
+        />
+        <button className="pgBtn pgBtnGhost" type="button" onClick={onPickFiles} disabled={uploading}>
+          {uploading ? "Importando..." : "Importar DXF"}
+        </button>
         <button className="pgBtn pgBtnGhost pgThemeToggleBtn" onClick={toggleThemeMode}>
           {themeMode === "dark" ? "Tema Claro" : "Tema Escuro"}
         </button>
@@ -5066,7 +4842,7 @@ const limparLista = (lista) =>
 
                   {filaVisivel.length === 0 ? (
                     <div className="pgEmpty" style={{ padding: 12 }}>
-                      Fila vazia. Arraste DXF do pool para adicionar.
+                      Fila vazia. Use a aba Alimentação CNC para adicionar um plano.
                     </div>
                   ) : (
                     <ul className="pgQueueList">
@@ -5277,7 +5053,7 @@ const limparLista = (lista) =>
                         </div>
 
                         <div className="pgCardHint">
-                          {readOnly ? "Clique para ver a fila completa" : "Arraste do pool OU da fila e solte aqui"}
+                          {readOnly ? "Clique para ver a fila completa" : "Distribua planos pela aba Alimentação CNC"}
                         </div>
                       </button>
                     );

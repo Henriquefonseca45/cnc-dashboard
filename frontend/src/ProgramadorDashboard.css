@@ -177,6 +177,8 @@ body::after{
 /* Main */
 .pgMain{
   flex:1;
+  min-width:0;
+  width:100%;
   padding:22px 28px 28px;
 }
 
