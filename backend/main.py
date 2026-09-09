@@ -746,7 +746,7 @@ def _arquivo_ja_cortado_por_nome(conn, nome: str | None):
     ).fetchone()
 
 
-def _arquivo_ja_em_fila_por_nome(conn, nome: str | None):
+def _arquivo_ja_em_fila_por_nome(conn, nome: str | None, exclude_arquivo_id: int | None = None):
     nome_norm = _normalizar_nome_arquivo(nome)
     if not nome_norm:
         return None
@@ -760,14 +760,20 @@ def _arquivo_ja_em_fila_por_nome(conn, nome: str | None):
             fi.maquina_id,
             fi.status
         FROM arquivos_dxf a
-        JOIN fila_itens fi ON fi.arquivo_id = a.id
+        LEFT JOIN fila_itens fi
+               ON fi.arquivo_id = a.id
+              AND UPPER(COALESCE(fi.status,'')) IN ('AGUARDANDO','PROGRAMANDO','BAIXADO','EM_EXECUCAO')
         WHERE LOWER(TRIM(a.nome)) = ?
+          AND (? IS NULL OR a.id <> ?)
           AND UPPER(COALESCE(a.status,'')) <> 'EXCLUIDO'
-          AND UPPER(COALESCE(fi.status,'')) IN ('AGUARDANDO','PROGRAMANDO','BAIXADO','EM_EXECUCAO')
+          AND (
+            UPPER(COALESCE(a.status,'')) = 'DISPONIVEL'
+            OR fi.id IS NOT NULL
+          )
         ORDER BY fi.criado_em DESC, fi.id DESC
         LIMIT 1
         """,
-        (nome_norm,),
+        (nome_norm, exclude_arquivo_id, exclude_arquivo_id),
     ).fetchone()
 
 
@@ -810,7 +816,7 @@ def _detalhe_arquivo_ja_em_fila(nome: str | None, row=None):
     if maquina_id:
         msg = f"Arquivo '{arquivo_nome}' ja esta na fila da maquina {maquina_id}."
     else:
-        msg = f"Arquivo '{arquivo_nome}' ja esta em uma fila de maquina."
+        msg = f"Arquivo '{arquivo_nome}' ja esta em Planos aguardando."
 
     return {
         "code": "ARQUIVO_JA_EM_FILA",
@@ -4529,7 +4535,7 @@ def add_fila(
             detail=_detalhe_arquivo_ja_cortado(arq["nome"], ja_cortado_nome),
         )
 
-    ja_em_fila_nome = _arquivo_ja_em_fila_por_nome(conn, arq["nome"])
+    ja_em_fila_nome = _arquivo_ja_em_fila_por_nome(conn, arq["nome"], exclude_arquivo_id=arq["id"])
     if ja_em_fila_nome:
         conn.close()
         raise HTTPException(

@@ -162,6 +162,25 @@ class ProgramadorApiTests(unittest.TestCase):
         self.assertEqual((move["cnc_origem"], move["cnc_destino"]), ("CNC01", "CNC02"))
         conn.close()
 
+    def test_import_rejects_duplicate_name_waiting_for_distribution(self):
+        def upload(name):
+            file = UploadFile(filename=name, file=BytesIO(b"0\nEOF\n"))
+            metadata = json.dumps([{
+                "name": name, "priority": "normal", "compatible_cnc_ids": ["CNC01"]
+            }])
+            return asyncio.run(main.upload_classified_plans([file], metadata, self.programador))
+
+        first = upload("09 - 09 - 2026 - 35 - Detalhe.dxf")
+        with self.assertRaises(HTTPException) as duplicate:
+            upload("09 - 09 - 2026 - 35 - Detalhe.dxf")
+
+        self.assertEqual(duplicate.exception.status_code, 409)
+        self.assertEqual(duplicate.exception.detail["code"], "ARQUIVO_JA_EM_FILA")
+        self.assertIn("Planos aguardando", duplicate.exception.detail["message"])
+
+        main.excluir_arquivo(first["items"][0]["id"], self.programador)
+        self.assertTrue(upload("09 - 09 - 2026 - 35 - Detalhe.dxf")["ok"])
+
     def test_audit_list_is_filtered_paginated_and_lider_only(self):
         conn = database.get_conn()
         for index in range(55):
