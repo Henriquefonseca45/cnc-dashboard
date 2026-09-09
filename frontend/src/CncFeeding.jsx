@@ -121,6 +121,19 @@ export default function CncFeeding() {
     }] });
   }
 
+  function openImport(filesValue) {
+    if (busy) return;
+    const files = Array.from(filesValue || []);
+    if (!files.length) return;
+    const invalid = files.find((file) => !String(file?.name || '').toLowerCase().endsWith('.dxf'));
+    if (invalid) {
+      setError(`Arquivo inválido: "${invalid.name}". Envie apenas arquivos DXF.`);
+      return;
+    }
+    setError('');
+    setModal({ mode: 'import', items: files.map((file) => ({ name: file.name, file })) });
+  }
+
   function classify(items) {
     return mutate(async () => {
       if (modal.mode === 'edit') {
@@ -162,14 +175,39 @@ export default function CncFeeding() {
           setDensity(value);
           try { localStorage.setItem('cnc_feeding_density', value); } catch { /* Preference is optional. */ }
         }}>{label}</button>)}</div>
-        <button className="pgBtn pgBtnGhost" disabled={busy} onClick={load}>Atualizar</button>
-        <button className="pgBtn pgBtnPrimary" disabled={busy} onClick={() => input.current.click()}>Importar planos</button></div>
+        <button className="pgBtn pgBtnGhost" disabled={busy} onClick={load}>Atualizar</button></div>
       <input ref={input} type="file" accept=".dxf" multiple hidden onChange={(event) => {
         const files = Array.from(event.target.files || []);
         event.target.value = '';
-        if (files.length) { setError(''); setModal({ mode: 'import', items: files.map((file) => ({ name: file.name, file })) }); }
+        openImport(files);
       }} />
     </header>
+    <div
+      className={`feedingUploadDrop ${busy ? 'isBusy' : ''}`}
+      role="button"
+      tabIndex={busy ? -1 : 0}
+      aria-disabled={busy}
+      aria-label="Importar planos DXF"
+      onClick={() => !busy && input.current?.click()}
+      onKeyDown={(event) => {
+        if (!busy && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          input.current?.click();
+        }
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        if (!busy) event.dataTransfer.dropEffect = 'copy';
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        openImport(event.dataTransfer.files);
+      }}
+    >
+      <span aria-hidden="true">＋</span>
+      <strong>{busy ? 'Importando planos…' : 'Arraste arquivos DXF aqui'}</strong>
+      <small>ou clique para selecionar</small>
+    </div>
     <p className="feedingNotice">Usinando e Programado ficam protegidos. O terceiro plano existe somente por deslocamento de prioridade. CNCs desligadas, em manutenção ou sem operador não recebem novas reservas automáticas.</p>
     {error && <div className="feedingError" role="alert">{error}</div>}
     {!data ? <p>Carregando filas…</p> : <>

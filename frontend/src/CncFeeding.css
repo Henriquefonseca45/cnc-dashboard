@@ -8,6 +8,13 @@
 .feedingPage p { margin: 8px 0; color: var(--muted); }
 .feedingActions, .feedingBadges { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .feedingActions .pgBtn { min-height: 34px; height: auto; padding: 8px 12px; font-size: 12px; }
+.feedingUploadDrop { min-height: 52px; padding: 8px 14px; border: 1px dashed #2786ff88; border-radius: 11px; background: #1677ff0d; display: flex; align-items: center; justify-content: center; gap: 9px; color: var(--text); cursor: pointer; transition: border-color .18s, background .18s, transform .18s; }
+.feedingUploadDrop > span { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: #1677ff24; color: #60a5fa; font-size: 20px; line-height: 1; }
+.feedingUploadDrop strong { font-size: 12px; }
+.feedingUploadDrop small { font-size: 11px; }
+.feedingUploadDrop:hover, .feedingUploadDrop:focus-visible { border-color: #38bdf8; background: #1677ff19; outline: none; }
+.feedingUploadDrop:focus-visible { box-shadow: 0 0 0 3px #38bdf833; }
+.feedingUploadDrop.isBusy { opacity: .6; cursor: wait; }
 .feedingMachines { display: grid; align-items: start; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
 .feedingWaiting { display: grid; gap: 0; margin-top: 14px; }
 .feedingMachine, .feedingSection { padding: 20px; border: 1px solid var(--stroke2); border-radius: var(--r); background: var(--card); min-width: 0; }
@@ -77,4 +84,5 @@
   .feedingWaitingRow .feedingPlanIdentity, .feedingWaitingRow .feedingBadges, .feedingWaitingRow .feedingPlanControls { grid-column: auto; grid-row: auto; }
   .feedingHeader > .feedingActions { width: 100%; }
   .feedingDensity { flex-wrap: wrap; }
+  .feedingUploadDrop { justify-content: flex-start; flex-wrap: wrap; }
 }
