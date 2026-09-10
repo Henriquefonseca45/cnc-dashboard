@@ -4916,6 +4916,9 @@ const limparLista = (lista) =>
                                 <span className="pgMono">item:{it.id}</span>
                                 <span className="pgDotSep">•</span>
                                 <span className="pgMono">arquivo:{it.arquivo_id}</span>
+                                <span className="pgQueueEntryTime" title="Data e hora em que o arquivo entrou nesta fila">
+                                  Entrada na fila: <time>{fmtDate(it.criado_em)}</time>
+                                </span>
                                 <span className={`planPoolPriority ${it.priority || "normal"}`}>{priorityLabel(it.priority)}</span>
                                 <span className="planPoolCncs">{(it.compatible_cncs || []).length ? it.compatible_cncs.map((cncItem) => cncItem.id).join(" · ") : "Legado: todas"}</span>
                               </div>

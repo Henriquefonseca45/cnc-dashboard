@@ -883,6 +883,17 @@ body::after{
   gap: 6px;
   align-items: center;
 }
+.pgQueueEntryTime {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+}
+.pgQueueEntryTime time {
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-weight: 700;
+}
 .pgDotSep { opacity: .8; }
 .pgQueueGrip{
   width: 36px;
