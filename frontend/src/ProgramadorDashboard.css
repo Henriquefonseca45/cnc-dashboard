@@ -93,7 +93,8 @@ body::after{
 
 /* Sidebar */
 .pgSidebar{
-  width: 280px;
+  width: 340px;
+  flex:0 0 340px;
   background: linear-gradient(180deg, rgba(255,255,255,.74), rgba(255,255,255,.58));
   border-right: 1px solid var(--stroke);
   padding: 22px 18px;
@@ -987,6 +988,19 @@ body::after{
   margin-top:10px;
   margin-bottom:6px;
 }
+.pgPoolHeaderTitle,
+.pgPoolHeaderActions,
+.pgSidebarPlanActions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.pgPoolHeader{gap:8px;flex-wrap:wrap}
+.pgSidebarPlanMeta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:5px}
+.pgSidebarPlanActions{margin-top:7px}
+.pgSidebarPlanActions .pgBtn{min-height:28px;padding:4px 9px;font-size:10px}
+.pgSidebarEmpty{padding:12px}
+.pgSidebarHint{margin-top:8px}
 .pgPoolTitle{ font-size:13px; font-weight:600; color: var(--brand); }
 .pgPoolCount{
   background:rgba(47,55,125,.10);

@@ -816,7 +816,7 @@ def _detalhe_arquivo_ja_em_fila(nome: str | None, row=None):
     if maquina_id:
         msg = f"Arquivo '{arquivo_nome}' ja esta na fila da maquina {maquina_id}."
     else:
-        msg = f"Arquivo '{arquivo_nome}' ja esta em Planos aguardando."
+        msg = f"Arquivo '{arquivo_nome}' ja esta na fila geral."
 
     return {
         "code": "ARQUIVO_JA_EM_FILA",
@@ -3995,7 +3995,14 @@ def update_plan_classification(
                 metadata={"removidas": sorted(previous_set - current_set)},
             )
         feeding.ensure_schema(conn)
-        conn.execute("UPDATE arquivos_dxf SET alimentacao_cnc=1 WHERE id=? AND NOT EXISTS (SELECT 1 FROM fila_itens WHERE arquivo_id=? AND status IN ('AGUARDANDO','PROGRAMANDO','BAIXADO','EM_EXECUCAO'))", (arquivo_id, arquivo_id))
+        current_queue = conn.execute(
+            f"SELECT id, maquina_id, status FROM fila_itens WHERE arquivo_id=? AND status IN {feeding.ACTIVE_SQL}",
+            (arquivo_id,),
+        ).fetchone()
+        if current_queue and current_queue['status'] != 'EM_EXECUCAO' and current_queue['maquina_id'] not in current_set:
+            conn.execute('DELETE FROM fila_itens WHERE id=?', (current_queue['id'],))
+            feeding.reconcile(conn, current_queue['maquina_id'])
+        conn.execute("UPDATE arquivos_dxf SET alimentacao_cnc=1, alimentacao_pausada=0 WHERE id=?", (arquivo_id,))
         feeding.distribute(conn)
         conn.commit()
         return {"ok": True, **result}
@@ -4088,6 +4095,16 @@ def feeding_move(arquivo_id: int, req: FeedingMoveRequest, user: dict = Depends(
     conn = get_conn()
     conn.execute('BEGIN IMMEDIATE')
     return _feeding_finish(conn, lambda: feeding.move(conn, arquivo_id, req.cnc_id.strip().upper() if req.cnc_id else None, _programador_audit_actor(user)))
+
+
+@app.post('/api/facilitador/alimentacao/{arquivo_id}/mover')
+def facilitador_feeding_move(arquivo_id: int, req: FeedingMoveRequest):
+    """Permite ao Facilitador mover um plano apenas entre suas CNCs compatíveis."""
+    actor = {'id': None, 'nome': 'Facilitador', 'login': 'facilitador', 'role': 'facilitador'}
+    conn = get_conn()
+    conn.execute('BEGIN IMMEDIATE')
+    destination = req.cnc_id.strip().upper() if req.cnc_id else None
+    return _feeding_finish(conn, lambda: feeding.move(conn, arquivo_id, destination, actor))
 
 
 @app.put('/programador/alimentacao/{arquivo_id}/programado')
