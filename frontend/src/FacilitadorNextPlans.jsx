@@ -13,6 +13,7 @@ function formatDate(value) {
 export default function FacilitadorNextPlans() {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [downloadingId, setDownloadingId] = useState(null);
   const [error, setError] = useState("");
   const [updatedAt, setUpdatedAt] = useState(null);
 
@@ -36,6 +37,28 @@ export default function FacilitadorNextPlans() {
     }, 30000);
     return () => window.clearInterval(timer);
   }, [load]);
+
+  async function download(plan) {
+    setDownloadingId(plan.id);
+    setError("");
+    try {
+      const response = await api.get(`/api/facilitador/proximos-planos/${plan.id}/download`, {
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = plan.nome;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (requestError) {
+      setError(getErrMsg(requestError));
+    } finally {
+      setDownloadingId(null);
+    }
+  }
 
   return (
     <section className="facNextPlans" aria-labelledby="fac-next-plans-title">
@@ -72,6 +95,15 @@ export default function FacilitadorNextPlans() {
                 CNCs: {(plan.compatible_cnc_ids || []).join(", ") || "Legado — classificação pendente"}
               </small>
               <time>Entrada: {formatDate(plan.criado_em)}{plan.alimentacao_pausada ? " · Pausado" : ""}</time>
+              <button
+                type="button"
+                className="pgBtn pgBtnGhost facNextPlanDownload"
+                onClick={() => download(plan)}
+                disabled={downloadingId !== null}
+                aria-label={`Baixar arquivo ${plan.nome}`}
+              >
+                {downloadingId === plan.id ? "Baixando..." : "Baixar arquivo"}
+              </button>
             </article>
           ))
         )}

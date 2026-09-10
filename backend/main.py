@@ -4060,6 +4060,29 @@ def facilitador_proximos_planos():
         conn.close()
 
 
+@app.get('/api/facilitador/proximos-planos/{arquivo_id}/download')
+def facilitador_download_proximo_plano(arquivo_id: int):
+    """Baixa somente arquivos que ainda pertencem à fila oficial do Facilitador."""
+    conn = get_conn()
+    try:
+        plan = next((item for item in feeding.pool(conn) if item['id'] == arquivo_id), None)
+    finally:
+        conn.close()
+
+    if not plan:
+        raise HTTPException(status_code=404, detail='Plano não encontrado na fila de próximos planos.')
+
+    arquivo_path = plan.get('path')
+    if not arquivo_path or not os.path.isfile(arquivo_path):
+        raise HTTPException(status_code=404, detail='Arquivo físico não encontrado no servidor.')
+
+    return FileResponse(
+        path=arquivo_path,
+        filename=plan['nome'],
+        media_type='application/dxf',
+    )
+
+
 @app.post('/programador/alimentacao/{arquivo_id}/mover')
 def feeding_move(arquivo_id: int, req: FeedingMoveRequest, user: dict = Depends(require_programador_auth)):
     conn = get_conn()

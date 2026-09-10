@@ -104,6 +104,26 @@ class CncFeedingTests(unittest.TestCase):
         self.assertEqual([item['id'] for item in facilitator], [item['id'] for item in official])
         self.assertEqual(facilitator[0]['compatible_cnc_ids'], official[0]['compatible_cnc_ids'])
 
+    def test_facilitator_download_is_restricted_to_official_waiting_queue(self):
+        conn = db.get_conn()
+        conn.execute("UPDATE maquinas SET status='DESLIGADA' WHERE id='CNC01'")
+        conn.commit()
+        conn.close()
+        waiting_plan = self.upload(name='plano aguardando.dxf')
+
+        response = main.facilitador_download_proximo_plano(waiting_plan)
+        self.assertTrue(Path(response.path).is_file())
+        self.assertEqual(response.filename, 'plano aguardando.dxf')
+
+        conn = db.get_conn()
+        conn.execute("UPDATE arquivos_dxf SET status='CANCELADO' WHERE id=?", (waiting_plan,))
+        conn.commit()
+        conn.close()
+
+        with self.assertRaises(HTTPException) as context:
+            main.facilitador_download_proximo_plano(waiting_plan)
+        self.assertEqual(context.exception.status_code, 404)
+
     def test_higher_priority_displaces_without_returning_to_pool(self):
         first, _, second = self.normal_queue()
         third = self.upload('high')

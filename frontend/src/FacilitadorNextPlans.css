@@ -4,19 +4,22 @@
 .facNextPlans header p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
 .facNextPlansStatus { display: flex; align-items: center; gap: 10px; color: var(--muted); }
 .facNextPlansList { display: grid; }
-.facNextPlanRow { min-height: 58px; display: grid; grid-template-columns: 34px minmax(220px, 2fr) minmax(170px, 1fr) minmax(180px, 1fr) minmax(190px, auto); align-items: center; gap: 12px; padding: 9px 6px; border-bottom: 1px solid var(--stroke); }
+.facNextPlanRow { min-height: 58px; display: grid; grid-template-columns: 34px minmax(220px, 2fr) minmax(170px, 1fr) minmax(180px, 1fr) minmax(190px, auto) auto; align-items: center; gap: 12px; padding: 9px 6px; border-bottom: 1px solid var(--stroke); }
 .facNextPlanRow:last-child { border-bottom: 0; }
 .facNextPlanPosition { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: var(--brand-soft); color: var(--brand); font-size: 12px; }
 .facNextPlanName { min-width: 0; font-size: 13px; font-weight: 800; overflow-wrap: anywhere; }
 .facNextPlanFlags { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 12px; }
 .facNextPlanRow small, .facNextPlanRow time { color: var(--muted); font-size: 11px; line-height: 1.4; }
 .facNextPlanRow time { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+.facNextPlanDownload { white-space: nowrap; justify-self: end; }
 @media (max-width: 980px) {
   .facNextPlanRow { grid-template-columns: 34px minmax(0, 1fr) auto; }
   .facNextPlanFlags { grid-column: 3; }
   .facNextPlanRow small, .facNextPlanRow time { grid-column: 2 / 4; }
+  .facNextPlanDownload { grid-column: 2 / 4; grid-row: 4 / 6; align-self: end; }
 }
 @media (max-width: 620px) {
   .facNextPlanRow { grid-template-columns: 30px minmax(0, 1fr); }
   .facNextPlanFlags, .facNextPlanRow small, .facNextPlanRow time { grid-column: 2; }
+  .facNextPlanDownload { grid-column: 2; grid-row: auto; justify-self: start; }
 }
