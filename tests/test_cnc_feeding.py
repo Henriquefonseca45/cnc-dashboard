@@ -92,6 +92,18 @@ class CncFeedingTests(unittest.TestCase):
         self.assertEqual([x['status'] for x in self.rows()], ['EM_EXECUCAO', 'AGUARDANDO'])
         self.assertEqual(len(self.overview()['waiting']), 1)
 
+    def test_facilitator_next_plans_matches_official_waiting_queue(self):
+        conn = db.get_conn()
+        conn.execute("UPDATE maquinas SET status='DESLIGADA' WHERE id='CNC01'")
+        conn.commit()
+        conn.close()
+        self.upload(name='plano 20KP.dxf')
+        self.upload(name='plano 80KP.dxf')
+        official = self.overview()['waiting']
+        facilitator = main.facilitador_proximos_planos()['items']
+        self.assertEqual([item['id'] for item in facilitator], [item['id'] for item in official])
+        self.assertEqual(facilitator[0]['compatible_cnc_ids'], official[0]['compatible_cnc_ids'])
+
     def test_higher_priority_displaces_without_returning_to_pool(self):
         first, _, second = self.normal_queue()
         third = self.upload('high')

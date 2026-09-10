@@ -7,6 +7,7 @@ import jsPDF from "jspdf";
 import { ImagePlus } from "lucide-react";
 import PlanClassificationModal from "./PlanClassificationModal";
 import CncFeeding from "./CncFeeding";
+import FacilitadorNextPlans from "./FacilitadorNextPlans";
 import { priorityLabel } from "./planClassification";
 
 const CHAT_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
@@ -4735,9 +4736,21 @@ const limparLista = (lista) =>
           </nav>
         )}
 
-        {!readOnly && view === "alimentacao" && <CncFeeding />}
+        {isFacilitador && (
+          <nav className="pgTopNav" aria-label="Navegação do Facilitador">
+            <button className={`pgTopNavItem ${view === "dashboard" ? "active" : ""}`} onClick={() => setView("dashboard")}>
+              Produção
+            </button>
+            <button className={`pgTopNavItem ${view === "proximosPlanos" ? "active" : ""}`} onClick={() => setView("proximosPlanos")}>
+              Próximos planos
+            </button>
+          </nav>
+        )}
 
-        {((!readOnly && view === "dashboard") || isFacilitador) && (
+        {!readOnly && view === "alimentacao" && <CncFeeding />}
+        {isFacilitador && view === "proximosPlanos" && <FacilitadorNextPlans />}
+
+        {((!readOnly && view === "dashboard") || (isFacilitador && view === "dashboard")) && (
           <>
             <section className="pgMaint">
               <div className="pgMaintHeader">

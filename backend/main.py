@@ -4047,6 +4047,19 @@ def feeding_overview(user: dict = Depends(require_programador_auth)):
         conn.close()
 
 
+@app.get('/api/facilitador/proximos-planos')
+def facilitador_proximos_planos():
+    """Fila oficial de alimentação, exposta ao Facilitador apenas para consulta."""
+    conn = get_conn()
+    try:
+        waiting = feeding.pool(conn)
+        for plan in waiting:
+            plan['compatible_cnc_ids'] = feeding.compatibility(conn, plan['id'])
+        return {'items': waiting}
+    finally:
+        conn.close()
+
+
 @app.post('/programador/alimentacao/{arquivo_id}/mover')
 def feeding_move(arquivo_id: int, req: FeedingMoveRequest, user: dict = Depends(require_programador_auth)):
     conn = get_conn()
