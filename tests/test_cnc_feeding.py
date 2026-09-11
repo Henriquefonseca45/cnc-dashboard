@@ -48,10 +48,6 @@ class CncFeedingTests(unittest.TestCase):
         finally:
             conn.close()
 
-    def pause(self, plan):
-        main.feeding_move(plan, main.FeedingMoveRequest(), self.actor)
-        return plan
-
     def start(self, plan, cnc='CNC01'):
         item = next(x for x in self.rows(cnc) if x['arquivo_id'] == plan)
         conn = db.get_conn()
@@ -71,7 +67,7 @@ class CncFeedingTests(unittest.TestCase):
 
     def test_normal_medium_high_import(self):
         for priority in ('normal', 'medium', 'high'):
-            plan = self.pause(self.upload(priority, ['CNC03']))
+            plan = self.upload(priority, ['CNC03'])
             self.assertEqual(next(p for p in self.overview()['waiting'] if p['id'] == plan)['priority'], priority)
 
     def test_empty_queue_is_zero_without_legacy_warning(self):
@@ -87,22 +83,22 @@ class CncFeedingTests(unittest.TestCase):
 
     def test_idle_cnc_waits_for_operator_start(self):
         self.upload(); self.upload()
-        self.assertEqual(len(self.rows()), 2)
-        self.assertTrue(all(item['status'] == 'AGUARDANDO' for item in self.rows()))
-        self.assertFalse(self.overview()['waiting'])
+        self.assertEqual(len(self.rows()), 1)
+        self.assertEqual(self.rows()[0]['status'], 'AGUARDANDO')
+        self.assertEqual(len(self.overview()['waiting']), 1)
 
     def test_normal_queue_is_one_running_one_next(self):
         self.normal_queue(); self.upload()
-        self.assertEqual([x['status'] for x in self.rows()], ['EM_EXECUCAO', 'AGUARDANDO', 'AGUARDANDO'])
-        self.assertFalse(self.overview()['waiting'])
+        self.assertEqual([x['status'] for x in self.rows()], ['EM_EXECUCAO', 'AGUARDANDO'])
+        self.assertEqual(len(self.overview()['waiting']), 1)
 
     def test_facilitator_next_plans_matches_official_waiting_queue(self):
         conn = db.get_conn()
         conn.execute("UPDATE maquinas SET status='DESLIGADA' WHERE id='CNC01'")
         conn.commit()
         conn.close()
-        self.pause(self.upload(name='plano 20KP.dxf'))
-        self.pause(self.upload(name='plano 80KP.dxf'))
+        self.upload(name='plano 20KP.dxf')
+        self.upload(name='plano 80KP.dxf')
         official = self.overview()['waiting']
         facilitator = main.facilitador_proximos_planos()['items']
         self.assertEqual([item['id'] for item in facilitator], [item['id'] for item in official])
@@ -113,7 +109,7 @@ class CncFeedingTests(unittest.TestCase):
         conn.execute("UPDATE maquinas SET status='DESLIGADA' WHERE id='CNC01'")
         conn.commit()
         conn.close()
-        waiting_plan = self.pause(self.upload(name='plano aguardando.dxf'))
+        waiting_plan = self.upload(name='plano aguardando.dxf')
 
         response = main.facilitador_download_proximo_plano(waiting_plan)
         self.assertTrue(Path(response.path).is_file())
@@ -128,11 +124,11 @@ class CncFeedingTests(unittest.TestCase):
             main.facilitador_download_proximo_plano(waiting_plan)
         self.assertEqual(context.exception.status_code, 404)
 
-    def test_higher_priority_reorders_without_returning_to_pool(self):
+    def test_higher_priority_displaces_without_returning_to_pool(self):
         first, _, second = self.normal_queue()
         third = self.upload('high')
         self.assertEqual([x['arquivo_id'] for x in self.rows()], [first, third, second])
-        self.assertTrue(all(not item['deslocado_por_prioridade'] for item in self.rows()))
+        self.assertEqual(self.rows()[2]['deslocado_por_prioridade'], 1)
         self.assertEqual(self.rows()[2]['maquina_id'], 'CNC01')
         self.assertFalse(self.overview()['waiting'])
 
@@ -145,8 +141,7 @@ class CncFeedingTests(unittest.TestCase):
         _, _, second = self.normal_queue('high')
         third = self.upload('high')
         self.assertEqual(self.rows()[1]['arquivo_id'], second)
-        self.assertEqual(self.rows()[2]['arquivo_id'], third)
-        self.assertFalse(self.overview()['waiting'])
+        self.assertEqual(self.overview()['waiting'][0]['id'], third)
 
     def test_normal_priority_prefers_greater_thickness_when_entry_time_matches(self):
         conn = db.get_conn()
@@ -155,9 +150,9 @@ class CncFeedingTests(unittest.TestCase):
             conn.commit()
         finally:
             conn.close()
-        thin = self.pause(self.upload(name='09 - 09 - 2026 - 01 - 20KP RANCAN.dxf'))
-        thick = self.pause(self.upload(name='09 - 09 - 2026 - 02 - 80KP RANCAN.dxf'))
-        middle = self.pause(self.upload(name='09 - 09 - 2026 - 03 - 40KP RANCAN.dxf'))
+        thin = self.upload(name='09 - 09 - 2026 - 01 - 20KP RANCAN.dxf')
+        thick = self.upload(name='09 - 09 - 2026 - 02 - 80KP RANCAN.dxf')
+        middle = self.upload(name='09 - 09 - 2026 - 03 - 40KP RANCAN.dxf')
         conn = db.get_conn()
         conn.execute(
             "UPDATE arquivos_dxf SET criado_em='2026-09-09T08:00:00' WHERE id IN (?,?,?)",
@@ -172,8 +167,8 @@ class CncFeedingTests(unittest.TestCase):
         conn.execute("UPDATE maquinas SET status='DESLIGADA' WHERE id='CNC01'")
         conn.commit()
         conn.close()
-        older_thin = self.pause(self.upload(name='plano antigo 20KP.dxf'))
-        newer_thick = self.pause(self.upload(name='plano novo 80KP.dxf'))
+        older_thin = self.upload(name='plano antigo 20KP.dxf')
+        newer_thick = self.upload(name='plano novo 80KP.dxf')
         conn = db.get_conn()
         conn.execute("UPDATE arquivos_dxf SET criado_em='2026-09-09T07:00:00' WHERE id=?", (older_thin,))
         conn.execute("UPDATE arquivos_dxf SET criado_em='2026-09-09T08:00:00' WHERE id=?", (newer_thick,))
@@ -188,9 +183,9 @@ class CncFeedingTests(unittest.TestCase):
             conn.commit()
         finally:
             conn.close()
-        first_unknown = self.pause(self.upload(name='plano sem medida 1.dxf'))
-        numbered = self.pause(self.upload(name='plano 18MDF.dxf'))
-        second_unknown = self.pause(self.upload(name='plano sem medida 2.dxf'))
+        first_unknown = self.upload(name='plano sem medida 1.dxf')
+        numbered = self.upload(name='plano 18MDF.dxf')
+        second_unknown = self.upload(name='plano sem medida 2.dxf')
         conn = db.get_conn()
         conn.execute(
             "UPDATE arquivos_dxf SET criado_em='2026-09-09T08:00:00' WHERE id IN (?,?,?)",
@@ -203,23 +198,21 @@ class CncFeedingTests(unittest.TestCase):
             [numbered, first_unknown, second_unknown],
         )
 
-    def test_programmed_flag_does_not_block_priority_order(self):
+    def test_programmed_is_flag_and_blocks_displacement(self):
         _, _, second = self.normal_queue()
         item_id = self.rows()[1]['id']
         main.set_status_fila_item('CNC01', main.FilaStatusRequest(id=item_id, status='PROGRAMADO'))
         self.assertEqual(self.rows()[1]['status'], 'AGUARDANDO')
         self.assertTrue(self.rows()[1]['programado'])
         third = self.upload('high')
-        self.assertEqual(self.rows()[1]['arquivo_id'], third)
-        self.assertEqual(self.rows()[2]['arquivo_id'], second)
-        self.assertFalse(self.overview()['waiting'])
+        self.assertEqual(self.rows()[1]['arquivo_id'], second)
+        self.assertEqual(self.overview()['waiting'][0]['id'], third)
 
-    def test_fourth_is_also_distributed_and_ordered_by_priority(self):
+    def test_fourth_stays_waiting_even_with_higher_priority(self):
         self.normal_queue(); self.upload('medium')
         fourth = self.upload('high')
-        self.assertEqual(len(self.rows()), 4)
-        self.assertEqual(self.rows()[1]['arquivo_id'], fourth)
-        self.assertFalse(self.overview()['waiting'])
+        self.assertEqual(len(self.rows()), 3)
+        self.assertEqual(self.overview()['waiting'][0]['id'], fourth)
 
     def test_tries_other_compatible_cnc_when_full(self):
         self.normal_queue(); self.upload('medium')
@@ -230,17 +223,17 @@ class CncFeedingTests(unittest.TestCase):
         _, item, second = self.normal_queue()
         third = self.upload('high')
         machine = next(m for m in self.overview()['machines'] if m['id'] == 'CNC01')
-        self.assertEqual([x['slot'] for x in machine['items']], ['USINANDO', 'PRÓXIMO', 'PRÓXIMO'])
-        self.assertFalse(machine['lotada'])
-        fourth = self.upload('normal')
+        self.assertEqual([x['slot'] for x in machine['items']], ['USINANDO', 'PRÓXIMO', 'DESLOCADO POR PRIORIDADE'])
+        self.assertTrue(machine['lotada'])
+        self.upload('normal')  # A waiting candidate must not refill the exceptional third slot.
         main.set_status_fila_item('CNC01', main.FilaStatusRequest(id=item, status='CONCLUIDO'))
-        self.assertEqual([x['arquivo_id'] for x in self.rows()], [third, second, fourth])
+        self.assertEqual([x['arquivo_id'] for x in self.rows()], [third, second])
         self.assertTrue(all(not x['deslocado_por_prioridade'] for x in self.rows()))
         self.assertTrue(all(x['status'] == 'AGUARDANDO' for x in self.rows()))
         machine = next(m for m in self.overview()['machines'] if m['id'] == 'CNC01')
-        self.assertEqual([x['slot'] for x in machine['items']], ['AGUARDANDO INÍCIO', 'PRÓXIMO', 'PRÓXIMO'])
+        self.assertEqual([x['slot'] for x in machine['items']], ['AGUARDANDO INÍCIO', 'PRÓXIMO'])
         self.start(third)
-        self.assertEqual([x['status'] for x in self.rows()], ['EM_EXECUCAO', 'AGUARDANDO', 'AGUARDANDO'])
+        self.assertEqual([x['status'] for x in self.rows()], ['EM_EXECUCAO', 'AGUARDANDO'])
 
     def test_agent_completion_also_refills(self):
         _, item, second = self.normal_queue()
@@ -263,14 +256,14 @@ class CncFeedingTests(unittest.TestCase):
         main.feeding_resume(plan, self.actor)
         self.assertEqual(len(self.rows()) + len(self.rows('CNC02')), 1)
 
-    def test_manual_move_accepts_long_queues(self):
+    def test_manual_cannot_create_third_normal_or_fourth(self):
         self.normal_queue()
         extra = self.upload()
-        high = self.upload('high')
-        self.assertEqual(len(self.rows()), 4)
-        main.feeding_move(extra, main.FeedingMoveRequest(cnc_id='CNC01'), self.actor)
-        self.assertEqual(len(self.rows()), 4)
-        self.assertEqual(self.rows()[1]['arquivo_id'], high)
+        with self.assertRaises(HTTPException):
+            main.add_fila('CNC01', main.AddFilaRequest(arquivo_id=extra), self.actor)
+        self.upload('high')
+        with self.assertRaises(HTTPException):
+            main.feeding_move(extra, main.FeedingMoveRequest(cnc_id='CNC01'), self.actor)
 
     def test_running_cannot_be_moved_or_replaced(self):
         first, _, _ = self.normal_queue()
@@ -293,36 +286,26 @@ class CncFeedingTests(unittest.TestCase):
             with self.assertRaises(HTTPException):
                 main.set_status_fila_item(cnc, main.FilaStatusRequest(id=item, status='CONCLUIDO'))
 
-    def test_machine_status_does_not_block_future_queue(self):
+    def test_unavailable_states_block_new_reservations(self):
         for status, operator in [('DESLIGADA', 'Yuri'), ('MANUTENÇÃO', 'Yuri'), ('FALTA OPERADOR', 'Yuri'), ('PARADA', '')]:
             with db.get_conn() as conn:
                 conn.execute('UPDATE maquinas SET status=?,operador_nome=? WHERE id=?', (status, operator, 'CNC01'))
             conn.close()
             self.upload()
-        self.assertEqual(len(self.rows()), 4)
-        self.assertFalse(self.overview()['waiting'])
+            self.assertFalse(self.rows())
 
-    def test_operator_assignment_is_not_required_for_distribution(self):
+    def test_operator_assignment_triggers_distribution(self):
         main.set_operador_maquina('CNC01', main.OperadorPayload(nome=''))
         plan = self.upload()
-        self.assertEqual(self.rows()[0]['arquivo_id'], plan)
+        self.assertFalse(self.rows())
         main.set_operador_maquina('CNC01', main.OperadorPayload(nome='DANIEL'))
         self.assertEqual(self.rows()[0]['arquivo_id'], plan)
 
-    def test_unavailability_keeps_queue_and_priority_order(self):
+    def test_unavailability_preserves_existing_reservations(self):
         first = self.upload()
         main.set_operador_maquina('CNC01', main.OperadorPayload(nome=''))
-        high = self.upload('high')
-        self.assertEqual(self.rows()[0]['arquivo_id'], high)
-        self.assertEqual(self.rows()[1]['arquivo_id'], first)
-
-    def test_facilitator_can_move_plan_between_compatible_queues(self):
-        plan = self.upload(cncs=['CNC01', 'CNC02'])
-        main.facilitador_feeding_move(plan, main.FeedingMoveRequest(cnc_id='CNC02'))
-        self.assertEqual(self.rows('CNC02')[0]['arquivo_id'], plan)
-        with self.assertRaises(HTTPException) as context:
-            main.facilitador_feeding_move(plan, main.FeedingMoveRequest(cnc_id='CNC03'))
-        self.assertEqual(context.exception.status_code, 409)
+        self.upload('high')
+        self.assertEqual(self.rows()[0]['arquivo_id'], first)
 
     def test_priority_change_reanalyzes_waiting_pool(self):
         self.normal_queue()
@@ -331,7 +314,7 @@ class CncFeedingTests(unittest.TestCase):
         self.assertEqual(self.rows()[1]['arquivo_id'], third)
 
     def test_compatibility_change_releases_waiting_plan(self):
-        plan = self.pause(self.upload(cncs=['CNC03']))
+        plan = self.upload(cncs=['CNC03'])
         main.update_plan_classification(plan, main.PlanClassificationRequest(priority='normal', compatible_cnc_ids=['CNC02']), self.actor)
         self.assertEqual(self.rows('CNC02')[0]['arquivo_id'], plan)
 
@@ -350,7 +333,7 @@ class CncFeedingTests(unittest.TestCase):
         screen_queue = next(m['items'] for m in self.overview()['machines'] if m['id'] == 'CNC01')
         self.assertEqual([x['id'] for x in api_queue], [x['id'] for x in screen_queue])
         self.assertEqual(screen_queue, next(m['items'] for m in self.overview()['machines'] if m['id'] == 'CNC01'))
-        self.assertIn('ALIMENTACAO_RESERVADO', [x['acao'] for x in self.overview()['history']])
+        self.assertIn('ALIMENTACAO_DESLOCADO', [x['acao'] for x in self.overview()['history']])
 
     def test_concurrent_uploads_never_duplicate_slots(self):
         barrier = threading.Barrier(2)
@@ -361,8 +344,8 @@ class CncFeedingTests(unittest.TestCase):
                 json.dumps([{'priority': 'high', 'compatible_cnc_ids': ['CNC01']}]), self.actor))
         with ThreadPoolExecutor(max_workers=2) as executor:
             list(executor.map(upload, (1, 2)))
-        self.assertEqual(len(self.rows()), 2)
-        self.assertFalse(self.overview()['waiting'])
+        self.assertEqual(len(self.rows()), 1)
+        self.assertEqual(len(self.overview()['waiting']), 1)
 
     def test_concurrent_manual_reservations_same_plan(self):
         plan = self.upload(cncs=['CNC01', 'CNC02'])
@@ -380,6 +363,8 @@ class CncFeedingTests(unittest.TestCase):
 
     def legacy_queue(self, count):
         conn = db.get_conn()
+        for name in ('feeding_guard_v2_insert', 'feeding_guard_v2_update'):
+            conn.execute(f'DROP TRIGGER {name}')
         ids = []
         for index in range(count):
             plan = conn.execute("INSERT INTO arquivos_dxf(nome,path,status,criado_em) VALUES(?,?,'DISPONIVEL','2026-09-01')",
@@ -389,38 +374,44 @@ class CncFeedingTests(unittest.TestCase):
         conn.commit(); conn.close()
         return ids
 
-    def test_long_legacy_queue_is_supported_and_can_be_consumed(self):
+    def test_legacy_excess_is_reported_preserved_and_can_be_consumed(self):
         ids = self.legacy_queue(5)
+        before = self.rows()
         self.upload('high')
-        self.assertEqual(len(self.rows()), 6)
+        self.assertEqual(self.rows(), before)
         overview = self.overview()
-        self.assertEqual(overview['legacy_summary'], {'cncs_acima_limite': 0, 'itens_nessas_cncs': 0, 'itens_excedentes': 0})
+        self.assertEqual(overview['legacy_summary'], {'cncs_acima_limite': 1, 'itens_nessas_cncs': 5, 'itens_excedentes': 2})
         machine = next(m for m in overview['machines'] if m['id'] == 'CNC01')
-        self.assertFalse(machine['inconsistente'])
-        self.assertEqual(machine['items'][0]['slot'], 'AGUARDANDO INÍCIO')
-        self.assertTrue(all(item['slot'] == 'PRÓXIMO' for item in machine['items'][1:]))
+        self.assertTrue(machine['inconsistente'])
+        self.assertEqual(sum(x['slot'] == 'PRÓXIMO' for x in machine['items']), 0)
+        self.assertTrue(all('LEGADO' in x['slot'] for x in machine['items'][1:]))
         conn = db.get_conn()
         conn.execute("UPDATE fila_itens SET status='EM_EXECUCAO' WHERE id=?", (ids[0],))
         conn.execute("UPDATE fila_itens SET status='CORTADO' WHERE id=?", (ids[0],))
         conn.commit(); conn.close()
-        self.assertEqual(len(self.rows()), 5)
+        self.assertEqual(len(self.rows()), 4)
 
-    def test_database_allows_long_queue_but_blocks_duplicate_active_plan(self):
+    def test_database_blocks_fourth_legacy_insert_and_reactivation(self):
         self.legacy_queue(3)
         conn = db.get_conn()
         plan = conn.execute("INSERT INTO arquivos_dxf(nome,path,status,criado_em) VALUES('extra.dxf','extra.dxf','DISPONIVEL','2026-09-01')").lastrowid
-        conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES('CNC01',?,4,'AGUARDANDO','2026-09-01')", (plan,))
-        with self.assertRaisesRegex(sqlite3.IntegrityError, 'já reservado'):
-            conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES('CNC02',?,1,'AGUARDANDO','2026-09-01')", (plan,))
+        with self.assertRaisesRegex(sqlite3.IntegrityError, 'limite absoluto'):
+            conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES('CNC01',?,4,'AGUARDANDO','2026-09-01')", (plan,))
+        item = conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES('CNC01',?,4,'CANCELADO','2026-09-01')", (plan,)).lastrowid
+        with self.assertRaisesRegex(sqlite3.IntegrityError, 'limite absoluto'):
+            conn.execute("UPDATE fila_itens SET status='AGUARDANDO' WHERE id=?", (item,))
+        conn.execute("UPDATE fila_itens SET maquina_id='CNC02',status='AGUARDANDO' WHERE id=?", (item,))
+        with self.assertRaisesRegex(sqlite3.IntegrityError, 'limite absoluto'):
+            conn.execute("UPDATE fila_itens SET maquina_id='CNC01' WHERE id=?", (item,))
         conn.rollback(); conn.close()
 
-    def test_database_allows_third_on_unmanaged_queue(self):
+    def test_database_blocks_normal_third_on_unmanaged_queue(self):
         self.legacy_queue(2)
         conn = db.get_conn()
         plan = conn.execute("INSERT INTO arquivos_dxf(nome,path,status,criado_em) VALUES('third.dxf','third.dxf','DISPONIVEL','2026-09-01')").lastrowid
-        conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES('CNC01',?,3,'AGUARDANDO','2026-09-01')", (plan,))
-        conn.commit(); conn.close()
-        self.assertEqual(len(self.rows()), 3)
+        with self.assertRaisesRegex(sqlite3.IntegrityError, 'Terceiro plano'):
+            conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES('CNC01',?,3,'AGUARDANDO','2026-09-01')", (plan,))
+        conn.rollback(); conn.close()
 
 
 if __name__ == '__main__':

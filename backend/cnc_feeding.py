@@ -34,22 +34,29 @@ def ensure_schema(conn):
         conn.execute("UPDATE arquivos_dxf SET programado=1 WHERE id IN (SELECT arquivo_id FROM fila_itens WHERE status IN ('PROGRAMANDO','BAIXADO','EM_EXECUCAO'))")
     conn.execute('CREATE INDEX IF NOT EXISTS idx_feeding_queue ON fila_itens(maquina_id,status,posicao)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_feeding_pool ON arquivos_dxf(alimentacao_cnc,alimentacao_pausada,status)')
-    # V3 keeps uniqueness and compatibility guards, but queues no longer have an item limit.
-    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='feeding_guard_v3_insert'").fetchone():
+    # Upgrade old guards once. Admission limits apply to every queue, including legacy.
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='feeding_guard_v2_insert'").fetchone():
         return
     for event in ('insert', 'update'):
         conn.execute(f'DROP TRIGGER IF EXISTS feeding_guard_{event}')
-        conn.execute(f'DROP TRIGGER IF EXISTS feeding_guard_v2_{event}')
     for event in ('INSERT', 'UPDATE'):
         admission = '1' if event == 'INSERT' else f'(OLD.status NOT IN {ACTIVE_SQL} OR OLD.maquina_id<>NEW.maquina_id OR OLD.arquivo_id<>NEW.arquivo_id)'
         conn.execute(f"""
-            CREATE TRIGGER IF NOT EXISTS feeding_guard_v3_{event.lower()}
+            CREATE TRIGGER IF NOT EXISTS feeding_guard_v2_{event.lower()}
             BEFORE {event} ON fila_itens
             WHEN NEW.status IN {ACTIVE_SQL}
             BEGIN
                 SELECT CASE WHEN {admission} AND EXISTS(SELECT 1 FROM fila_itens WHERE arquivo_id=NEW.arquivo_id
                     AND status IN {ACTIVE_SQL} AND id<>NEW.id)
                     THEN RAISE(ABORT,'Plano já reservado em outra posição.') END;
+                SELECT CASE WHEN {admission} AND (SELECT COUNT(*) FROM fila_itens WHERE maquina_id=NEW.maquina_id
+                    AND status IN {ACTIVE_SQL} AND id<>NEW.id)>=3
+                    THEN RAISE(ABORT,'CNC lotada: limite absoluto de 3 planos.') END;
+                SELECT CASE WHEN {admission} AND (SELECT COUNT(*) FROM fila_itens WHERE maquina_id=NEW.maquina_id
+                    AND status IN {ACTIVE_SQL} AND id<>NEW.id)=2 AND NEW.deslocado_por_prioridade=0
+                    AND NOT EXISTS(SELECT 1 FROM fila_itens WHERE maquina_id=NEW.maquina_id
+                                   AND status IN {ACTIVE_SQL} AND id<>NEW.id AND deslocado_por_prioridade=1)
+                    THEN RAISE(ABORT,'Terceiro plano somente por deslocamento de prioridade.') END;
                 SELECT CASE WHEN NEW.status='EM_EXECUCAO' AND EXISTS(SELECT 1 FROM fila_itens
                     WHERE maquina_id=NEW.maquina_id AND status='EM_EXECUCAO' AND id<>NEW.id)
                     THEN RAISE(ABORT,'Já existe plano usinando nesta CNC.') END;
@@ -67,8 +74,7 @@ def managed(conn, arquivo_id):
 
 def queue(conn, cnc):
     return [dict(r) for r in conn.execute(f"""
-        SELECT q.*, a.nome AS arquivo_nome, a.priority, a.programado, a.alimentacao_cnc,
-               a.criado_em AS arquivo_criado_em
+        SELECT q.*, a.nome AS arquivo_nome, a.priority, a.programado, a.alimentacao_cnc
         FROM fila_itens q JOIN arquivos_dxf a ON a.id=q.arquivo_id
         WHERE q.maquina_id=? AND q.status IN {ACTIVE_SQL}
         ORDER BY CASE WHEN q.status='EM_EXECUCAO' THEN 0 ELSE 1 END, q.posicao, q.id
@@ -103,14 +109,18 @@ def audit(conn, action, item, *, source=None, destination=None, before=None, aft
 
 def reconcile(conn, cnc):
     items = queue(conn, cnc)
-    if not any(x['alimentacao_cnc'] for x in items):
+    # Existing long queues are visible, never silently evicted or renamed as displaced.
+    if not any(x['alimentacao_cnc'] for x in items) or len(items) > 3:
         return
-    waiting = sorted((x for x in items if x['status'] != 'EM_EXECUCAO'), key=queue_order)
-    for position, item in enumerate(waiting, start=1):
-        conn.execute('UPDATE fila_itens SET posicao=?,deslocado_por_prioridade=0 WHERE id=?', (position, item['id']))
+    waiting = [x for x in items if x['status'] != 'EM_EXECUCAO']
     for item in items:
-        if item['status'] == 'EM_EXECUCAO':
-            conn.execute('UPDATE fila_itens SET posicao=0,deslocado_por_prioridade=0 WHERE id=?', (item['id'],))
+        pos = 0 if item['status'] == 'EM_EXECUCAO' else waiting.index(item) + 1
+        # After completion, the head waits for operator start; displaced becomes next.
+        displaced = int(bool(item['deslocado_por_prioridade']) and pos > 1 and len(items) == 3)
+        if item['deslocado_por_prioridade'] and not displaced:
+            audit(conn, 'PROMOVIDO', item, source=cnc, destination=cnc,
+                  before={'deslocado': True}, after={'deslocado': False, 'posicao': pos})
+        conn.execute('UPDATE fila_itens SET posicao=?,deslocado_por_prioridade=? WHERE id=?', (pos, displaced, item['id']))
 
 
 def plan_thickness(name):
@@ -135,15 +145,6 @@ def pool_order(plan):
             int(plan.get('id') or 0))
 
 
-def queue_order(item):
-    return pool_order({
-        'id': item.get('arquivo_id') or item.get('id'),
-        'nome': item.get('arquivo_nome') or item.get('nome'),
-        'priority': item.get('priority'),
-        'criado_em': item.get('arquivo_criado_em') or item.get('criado_em'),
-    })
-
-
 def pool(conn):
     plans = [dict(r) for r in conn.execute(f"""
         SELECT a.* FROM arquivos_dxf a WHERE a.alimentacao_cnc=1 AND a.status='DISPONIVEL'
@@ -160,33 +161,41 @@ def compatibility(conn, arquivo_id):
 
 
 def distribute(conn):
-    """Assign every compatible plan and keep each CNC ordered by the official priorities."""
+    """Priority/order rules, prefer empty slots and protect single-choice peers. No timer worker."""
     all_machines = machines(conn)
     for m in all_machines:
         reconcile(conn, m['id'])
-    # A fila representa trabalho futuro: o status atual da CNC não impede a reserva.
-    eligible = {m['id'] for m in all_machines}
+    eligible = {m['id'] for m in all_machines if not unavailable(m)}
     waiting = [p for p in pool(conn) if not p['alimentacao_pausada']]
     choices = {p['id']: set(compatibility(conn, p['id'])) & eligible for p in waiting}
     for plan in waiting:
         if conn.execute(f"SELECT 1 FROM fila_itens q JOIN arquivos_dxf a ON a.id=q.arquivo_id WHERE LOWER(TRIM(a.nome))=LOWER(TRIM(?)) AND q.status IN {ACTIVE_SQL}", (plan['nome'],)).fetchone():
             continue
-        candidates = list(choices[plan['id']])
+        candidates = []
+        for cnc in choices[plan['id']]:
+            items = queue(conn, cnc)
+            running = any(x['status'] == 'EM_EXECUCAO' for x in items)
+            pending = [x for x in items if x['status'] != 'EM_EXECUCAO']
+            if not pending and len(items) < 2:
+                mode = 0
+            elif running and len(items) == 2 and len(pending) == 1 and not protected(pending[0]) and RANK[plan['priority']] < RANK.get(pending[0]['priority'], 2):
+                mode = 1
+            else:
+                continue
+            # Preserve the selected pool order: prefer another machine for a flexible plan.
+            exclusive = sum(1 for p in waiting if p['id'] != plan['id'] and p['priority'] == plan['priority'] and choices[p['id']] == {cnc})
+            candidates.append((mode, exclusive, len(items), cnc, pending))
         if not candidates:
             continue
-        def candidate_score(candidate):
-            exclusive_demand = sum(
-                1 for other in waiting
-                if other['id'] != plan['id'] and choices.get(other['id']) == {candidate}
-            )
-            return (exclusive_demand, len(queue(conn, candidate)), candidate)
-
-        cnc = min(candidates, key=candidate_score)
-        next_position = 1 + sum(1 for item in queue(conn, cnc) if item['status'] != 'EM_EXECUCAO')
-        conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES(?,?,?,'AGUARDANDO',?)",
-                     (cnc, plan['id'], next_position, datetime.now().isoformat(timespec='seconds')))
-        reconcile(conn, cnc)
-        audit(conn, 'RESERVADO', plan, destination=cnc, after={'posicao': next_position}, reason='Distribuição automática por compatibilidade e prioridade')
+        mode, _, _, cnc, pending = min(candidates, key=lambda c: c[:4])
+        if mode:
+            old = pending[0]
+            conn.execute('UPDATE fila_itens SET posicao=2,deslocado_por_prioridade=1 WHERE id=?', (old['id'],))
+            audit(conn, 'DESLOCADO', old, source=cnc, destination=cnc,
+                  before={'posicao': old['posicao']}, after={'posicao': 2, 'deslocado': True}, reason=f"Prioridade superior do plano {plan['nome']}")
+        conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES(?,?,1,'AGUARDANDO',?)",
+                     (cnc, plan['id'], datetime.now().isoformat(timespec='seconds')))
+        audit(conn, 'RESERVADO', plan, destination=cnc, after={'posicao': 1}, reason='Vaga compatível' if not mode else 'Prioridade superior')
         choices[plan['id']] = set()
 
 
@@ -231,10 +240,14 @@ def move(conn, arquivo_id, destination, actor=None):
     if destination:
         if destination not in compatibility(conn, arquivo_id):
             raise FeedingError(f'Este plano não está habilitado para a {destination}.')
+        items = queue(conn, destination)
+        if len(items) >= 3:
+            raise FeedingError('CNC lotada: limite absoluto de 3 planos.')
+        if any(x['status'] != 'EM_EXECUCAO' for x in items):
+            raise FeedingError('A posição Próximo está ocupada. O terceiro plano só pode surgir por deslocamento automático.')
     if current:
         if destination:
-            next_position = 1 + sum(1 for item in queue(conn, destination) if item['status'] != 'EM_EXECUCAO')
-            conn.execute('UPDATE fila_itens SET maquina_id=?,posicao=?,deslocado_por_prioridade=0 WHERE id=?', (destination, next_position, current['id']))
+            conn.execute('UPDATE fila_itens SET maquina_id=?,posicao=1,deslocado_por_prioridade=0 WHERE id=?', (destination, current['id']))
         else:
             conn.execute('DELETE FROM fila_itens WHERE id=?', (current['id'],))
     elif destination:
@@ -247,8 +260,6 @@ def move(conn, arquivo_id, destination, actor=None):
         arquivo_id=arquivo_id, arquivo_nome=plan['nome'], cnc_origem=source, cnc_destino=destination)
     if source:
         reconcile(conn, source)
-    if destination:
-        reconcile(conn, destination)
     distribute(conn)
     item_id = current['id'] if current and destination else (cursor.lastrowid if not current and destination else None)
     return {'item_id': item_id, 'item_id_novo': item_id, 'maquina_id': destination, 'arquivo_id': arquivo_id, 'arquivo_nome': plan['nome']}
@@ -260,18 +271,25 @@ def snapshot(conn):
         items = queue(conn, m['id'])
         pending = [x for x in items if x['status'] != 'EM_EXECUCAO']
         running = any(x['status'] == 'EM_EXECUCAO' for x in items)
-        inconsistent = False
+        inconsistent = len(items) > 3 or (len(items) == 3 and (
+            not running or len(pending) != 2 or not pending[-1]['deslocado_por_prioridade']
+            or pending[0]['deslocado_por_prioridade']))
         for item in items:
             item['programado'] = protected(item)
             item['compatible_cnc_ids'] = compatibility(conn, item['arquivo_id'])
             item['slot'] = ('USINANDO' if item['status'] == 'EM_EXECUCAO' else
+                            'LEGADO — AGUARDANDO REGULARIZAÇÃO' if inconsistent and pending[0]['id'] != item['id'] else
+                            'DESLOCADO POR PRIORIDADE' if item['deslocado_por_prioridade'] else
                             'AGUARDANDO INÍCIO' if not running and pending[0]['id'] == item['id'] else 'PRÓXIMO')
-        warning = None
+        warning = 'Fila legada/inconsistente. Novas reservas bloqueadas; regularize manualmente ou aguarde o consumo. Nenhum registro foi removido.' if inconsistent else None
         result.append({**m, 'bloqueio': unavailable(m), 'aviso': warning, 'inconsistente': inconsistent,
-                       'excedentes': 0, 'lotada': False, 'items': items})
+                       'excedentes': max(0, len(items) - 3), 'lotada': len(items) >= 3, 'items': items})
     waiting = pool(conn)
     for plan in waiting:
         plan['compatible_cnc_ids'] = compatibility(conn, plan['id'])
     history = [decode_audit_row(r) for r in conn.execute("SELECT * FROM programador_auditoria WHERE entidade_tipo='alimentacao_cnc' ORDER BY id DESC LIMIT 100")]
+    over_limit = [m for m in result if m['excedentes']]
     return {'machines': result, 'waiting': waiting, 'history': history,
-            'legacy_summary': {'cncs_acima_limite': 0, 'itens_nessas_cncs': 0, 'itens_excedentes': 0}}
+            'legacy_summary': {'cncs_acima_limite': len(over_limit),
+                               'itens_nessas_cncs': sum(len(m['items']) for m in over_limit),
+                               'itens_excedentes': sum(m['excedentes'] for m in over_limit)}}

@@ -6,6 +6,8 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { ImagePlus } from "lucide-react";
 import PlanClassificationModal from "./PlanClassificationModal";
+import CncFeeding from "./CncFeeding";
+import FacilitadorNextPlans from "./FacilitadorNextPlans";
 import { priorityLabel } from "./planClassification";
 
 const CHAT_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
@@ -1768,7 +1770,6 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
     return isFacilitador || qs.get("readonly") === "1";
   }, [isFacilitador]);
   const isVisual = readOnly && !isFacilitador;
-  const canManageQueues = !readOnly || isFacilitador;
   const dashboardRef = useRef(null);
   const grafico7PrintRef = useRef(null);
   const [exportandoPdf, setExportandoPdf] = useState(false);
@@ -1931,7 +1932,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   }
 
   function togglePoolSelection(id) {
-    if (!canManageQueues) return;
+    if (readOnly) return;
     setSelectedPoolIds((prev) => {
       const n = new Set(prev);
       if (n.has(id)) n.delete(id);
@@ -1945,7 +1946,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   }
 
   function toggleFilaSelection(itemId) {
-    if (!canManageQueues) return;
+    if (readOnly) return;
     setSelectedFilaItemIds((prev) => {
       const n = new Set(prev);
       if (n.has(itemId)) n.delete(itemId);
@@ -2324,10 +2325,7 @@ function imprimirGrafico7() {
 
   async function baixarArquivoPool(arquivo) {
     try {
-      const downloadPath = isFacilitador
-        ? `/api/facilitador/proximos-planos/${arquivo.id}/download`
-        : `/arquivos/${arquivo.id}/download`;
-      const res = await api.get(downloadPath, {
+      const res = await api.get(`/arquivos/${arquivo.id}/download`, {
         responseType: "blob",
       });
 
@@ -2915,7 +2913,7 @@ function imprimirGrafico7() {
         setMaterialRequestsByMachine({});
       }
 
-      if (!isVisual) {
+      if (!readOnly) {
         await Promise.all([
           fetchPool(),
           fetchHistoricoAll(list),
@@ -3415,7 +3413,7 @@ function imprimirGrafico7() {
         const response = await api.post("/arquivos/upload-classified", form);
         const imported = response.data?.items || [];
         if (imported.length !== items.length) throw new Error("O servidor não confirmou todos os planos importados.");
-        successMessage = `${imported.length} plano(s) classificado(s) e distribuído(s) automaticamente nas filas.`;
+        successMessage = `${imported.length} plano(s) classificado(s) e adicionado(s) aos Planos aguardando.`;
       }
       setClassificationModal(null);
       await reloadAll();
@@ -3440,7 +3438,7 @@ function imprimirGrafico7() {
   }
 
   function onDragStartPoolItem(e, file) {
-    if (!canManageQueues) return;
+    if (readOnly) return;
     const ids = getPoolDragIds(file.id);
     e.dataTransfer.setData("application/x-drag-type", "POOL");
     e.dataTransfer.setData("application/x-pool-ids", JSON.stringify(ids));
@@ -3459,7 +3457,7 @@ function imprimirGrafico7() {
   }
 
   function onDragStartFilaMove(e, item) {
-    if (!canManageQueues) return;
+    if (readOnly) return;
     const ids = getFilaDragItemIds(item.id);
     e.dataTransfer.setData("application/x-drag-type", "FILA_ITEMS");
     e.dataTransfer.setData("application/x-fila-item-ids", JSON.stringify(ids));
@@ -3538,7 +3536,7 @@ function imprimirGrafico7() {
   }
 
   async function handleDropOnMachine(e, machineId) {
-    if (!canManageQueues) return;
+    if (readOnly) return;
     e.preventDefault();
     e.stopPropagation();
 
@@ -3555,11 +3553,7 @@ function imprimirGrafico7() {
         if (arquivoIds.length === 0) return;
 
         for (const arquivo_id of arquivoIds) {
-          if (isFacilitador) {
-            await api.post(`/api/facilitador/alimentacao/${arquivo_id}/mover`, { cnc_id: machineId });
-          } else {
-            await api.post(`/fila/${machineId}/add`, { arquivo_id });
-          }
+          await api.post(`/fila/${machineId}/add`, { arquivo_id });
         }
 
         setMsg(`Enviado(s) ${arquivoIds.length} arquivo(s) para ${machineId}.`);
@@ -3606,11 +3600,7 @@ function imprimirGrafico7() {
           const arquivo_id = Number(it?.arquivo_id);
           if (!arquivo_id) continue;
 
-          if (isFacilitador) {
-            await api.post(`/api/facilitador/alimentacao/${arquivo_id}/mover`, { cnc_id: machineId });
-          } else {
-            await api.post(`/fila/item/${item_id}/move/${machineId}`, { manter_status: false });
-          }
+          await api.post(`/fila/item/${item_id}/move/${machineId}`, { manter_status: false });
 
           moved++;
         }
@@ -3678,7 +3668,7 @@ function imprimirGrafico7() {
         await api.post(`/fila/item/${item_id}/to_pool`);
       }
 
-      setMsg(`${ids.length} item(ns) voltou(aram) para a fila geral com distribuição pausada.`);
+      setMsg(`${ids.length} item(ns) voltou(aram) para Planos aguardando.`);
 
       const fsel = await fetchFila(selectedId, includeDone);
       setFila(fsel);
@@ -3734,7 +3724,7 @@ function imprimirGrafico7() {
     }
   }
 
-  const bigCheckStyle = { width: 22, height: 22, cursor: canManageQueues ? "pointer" : "not-allowed" };
+  const bigCheckStyle = { width: 22, height: 22, cursor: readOnly ? "not-allowed" : "pointer" };
 
   function getDragType(dt) {
     const t = dt?.getData?.("application/x-drag-type");
@@ -4541,131 +4531,9 @@ const limparLista = (lista) =>
     <div
       className={`pgShell ${readOnly ? "pgReadOnly" : ""} ${isVisual ? "pgVisual" : ""} ${
         themeMode === "light" ? "pgThemeLight" : "pgThemeDark"
+      } ${view === "alimentacao" ? "pgFeedingView" : ""
       }`}
     >
-      {!isVisual && (
-        <aside className="pgSidebar">
-          <div className="pgBrand">
-            <div>
-              <div className="pgBrandTitle">CNC Monitor</div>
-              <div className="pgBrandSub">{isFacilitador ? "Fila do Facilitador" : "Painel de Produção"}</div>
-            </div>
-          </div>
-
-          <div className="pgSidebarUpload">
-            <div className="pgSidebarUploadTop">
-              <div className="pgSidebarUploadTitle">Upload / Fila Geral</div>
-              <button className="pgThemeMiniBtn" onClick={toggleThemeMode} type="button">
-                {themeMode === "dark" ? "Modo claro" : "Modo escuro"}
-              </button>
-            </div>
-
-            {!isFacilitador && sidebarFilesTab === "novos" && (
-              <div
-                className={`pgDrop ${uploading ? "busy" : ""}`}
-                onDrop={onPoolDropUpload}
-                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                role="button"
-                tabIndex={0}
-                onClick={onPickFiles}
-                title="Clique ou arraste arquivos DXF aqui"
-              >
-                <input ref={fileInputRef} type="file" accept=".dxf,.DXF" multiple hidden onChange={onFileInputChange} />
-                <div className="pgDropBig">{uploading ? "Enviando..." : "Arraste DXF aqui"}</div>
-                <div className="pgDropSmall">ou clique para selecionar</div>
-              </div>
-            )}
-
-            {(isFacilitador || sidebarFilesTab === "novos") && (
-              <>
-                <div className="pgPoolHeader">
-                  <div className="pgPoolHeaderTitle">
-                    <div className="pgPoolTitle">Arquivos na fila geral</div>
-                    <div className="pgPoolCount">{pool.length}</div>
-                  </div>
-                  {!isFacilitador && (
-                    <div className="pgPoolHeaderActions">
-                      <button className="pgBtn pgBtnGhost" onClick={clearPoolSelection} disabled={selectedPoolIds.size === 0}>Limpar</button>
-                      <button className="pgBtn pgBtnPrimary" onClick={excluirSelecionadosDoPool} disabled={selectedPoolIds.size === 0}>Excluir</button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="pgPoolList poolRows">
-                  {pool.length === 0 ? (
-                    <div className="pgEmpty pgSidebarEmpty">Todos os planos compatíveis já foram distribuídos.</div>
-                  ) : pool.slice(0, 80).map((plan, index) => {
-                    const checked = selectedPoolIds.has(plan.id);
-                    return (
-                      <div
-                        key={plan.id}
-                        className={`poolRow ${checked ? "sel" : ""} ${draggingId === plan.id ? "dragging" : ""}`}
-                        draggable={canManageQueues}
-                        onDragStart={(event) => onDragStartPoolItem(event, plan)}
-                        onDragEnd={onDragEndAny}
-                        onClick={() => togglePoolSelection(plan.id)}
-                        title="Arraste para uma CNC compatível"
-                      >
-                        <div className="rowPos">{index + 1}</div>
-                        <div className="rowMain">
-                          <div className="rowTitle" title={plan.arquivo_nome || plan.nome || ""}>{plan.arquivo_nome || plan.nome}</div>
-                          <div className="rowMeta pgSidebarPlanMeta">
-                            <span className={`planPoolPriority ${plan.priority || "normal"}`}>{priorityLabel(plan.priority)}</span>
-                            <span className="planPoolCncs">{(plan.compatible_cncs || []).length ? plan.compatible_cncs.map((cnc) => cnc.id).join(" · ") : "Classificação pendente"}</span>
-                          </div>
-                          <div className="pgSidebarPlanActions">
-                            {!isFacilitador && (
-                              <button type="button" className="pgBtn pgBtnGhost" onClick={(event) => { event.stopPropagation(); editPlanClassification(plan); }}>Editar</button>
-                            )}
-                            <button type="button" className="pgBtn pgBtnGhost" onClick={(event) => { event.stopPropagation(); baixarArquivoPool(plan); }}>Baixar</button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="pgTiny pgSidebarHint">Arraste um plano para a CNC de destino.</div>
-              </>
-            )}
-
-            {!isFacilitador && (
-              <div className="pgFileTabs">
-                <button type="button" className={`pgFileTab ${sidebarFilesTab === "novos" ? "active" : ""}`} onClick={() => setSidebarFilesTab("novos")}>Novos <span>{pool.length}</span></button>
-                <button type="button" className={`pgFileTab ${sidebarFilesTab === "cancelados" ? "active" : ""}`} onClick={async () => { setSidebarFilesTab("cancelados"); await Promise.all([fetchHistoricoAll(), fetchMaterialHistory()]); }}>Cancelados <span>{arquivosCanceladosOperador.length}</span></button>
-                <button type="button" className={`pgFileTab ${sidebarFilesTab === "semMaterial" ? "active" : ""}`} onClick={async () => { setSidebarFilesTab("semMaterial"); await fetchMaterialHistory(); }}>Sem material <span>{arquivosSemMaterial.length}</span></button>
-              </div>
-            )}
-
-            {!isFacilitador && sidebarFilesTab === "cancelados" && (
-              <div className="pgPoolList poolRows">
-                {histLoading ? <div className="pgEmpty pgSidebarEmpty">Carregando...</div> : arquivosCanceladosOperador.length === 0 ? <div className="pgEmpty pgSidebarEmpty">Nenhum arquivo cancelado.</div> : arquivosCanceladosOperador.map((item, index) => (
-                  <div key={item.id || `${item._maquina_id}-${index}`} className="poolRow pgFileLogRow">
-                    <div className="rowPos">{index + 1}</div>
-                    <div className="rowMain">
-                      <div className="rowTitle">{item.arquivo_nome || "-"}</div>
-                      <div className="rowMeta">{item._maquina_id || item.maquina_id || "-"} · {item.operador_nome || item.operador || "-"}</div>
-                      <div className="rowMeta pgFileLogMetaActions"><span>{fmtDate(item.finalizado_em || item.criado_em)}</span><button type="button" className="pgDangerMiniBtn" onClick={() => excluirArquivoCancelado(item)}>Excluir</button></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {!isFacilitador && sidebarFilesTab === "semMaterial" && (
-              <div className="pgPoolList poolRows">
-                {materialHistoryLoading ? <div className="pgEmpty pgSidebarEmpty">Carregando...</div> : arquivosSemMaterial.length === 0 ? <div className="pgEmpty pgSidebarEmpty">Nenhum arquivo sem material.</div> : arquivosSemMaterial.map((item, index) => (
-                  <div key={item.id || index} className="poolRow pgFileLogRow">
-                    <div className="rowPos">{index + 1}</div>
-                    <div className="rowMain"><div className="rowTitle">{item.arquivo_nome || "-"}</div><div className="rowMeta">{item.maquina_id || "-"} · {item.material || "material não informado"}</div><div className="rowMeta">{materialStatusDate(item)}</div></div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="pgSys"><div className={`pgSysDot ${err ? "bad" : "ok"}`} /><div><div className="pgSysTitle">Status do Sistema</div><div className="pgSysSub">{err ? "Backend Offline" : maquinas.length === 0 ? "Sem dados" : "Online"}</div></div></div>
-        </aside>
-      )}
 
       <main className="pgMain">
  <div className="pgTopbar">
@@ -4730,6 +4598,17 @@ const limparLista = (lista) =>
     )}
     {!readOnly && (
       <>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".dxf,.DXF"
+          multiple
+          hidden
+          onChange={onFileInputChange}
+        />
+        <button className="pgBtn pgBtnGhost" type="button" onClick={onPickFiles} disabled={uploading}>
+          {uploading ? "Importando..." : "Importar DXF"}
+        </button>
         <button className="pgBtn pgBtnGhost pgThemeToggleBtn" onClick={toggleThemeMode}>
           {themeMode === "dark" ? "Tema Claro" : "Tema Escuro"}
         </button>
@@ -4853,6 +4732,7 @@ const limparLista = (lista) =>
               <span>Chat</span>
               {totalChatUnread > 0 && <span className="pgNavBadge">{totalChatUnread}</span>}
             </button>
+            <button className={`pgTopNavItem ${view === "alimentacao" ? "active" : ""}`} onClick={() => setView("alimentacao")}>Alimentação CNC</button>
           </nav>
         )}
 
@@ -4861,8 +4741,14 @@ const limparLista = (lista) =>
             <button className={`pgTopNavItem ${view === "dashboard" ? "active" : ""}`} onClick={() => setView("dashboard")}>
               Produção
             </button>
+            <button className={`pgTopNavItem ${view === "proximosPlanos" ? "active" : ""}`} onClick={() => setView("proximosPlanos")}>
+              Próximos planos
+            </button>
           </nav>
         )}
+
+        {!readOnly && view === "alimentacao" && <CncFeeding />}
+        {isFacilitador && view === "proximosPlanos" && <FacilitadorNextPlans />}
 
         {((!readOnly && view === "dashboard") || (isFacilitador && view === "dashboard")) && (
           <>
@@ -4916,11 +4802,11 @@ const limparLista = (lista) =>
               <div
                 className="pgPanel pgQueuePanel"
                 onDragOver={(e) => {
-                  if (!canManageQueues) return;
+                  if (readOnly) return;
                   e.preventDefault();
                   e.stopPropagation();
                 }}
-                onDrop={canManageQueues ? (e) => handleDropOnMachine(e, selectedId) : undefined}
+                onDrop={readOnly ? undefined : (e) => handleDropOnMachine(e, selectedId)}
               >
                 <div className="pgPanelHeader">
                   <div>
@@ -4944,7 +4830,7 @@ const limparLista = (lista) =>
                 </div>
 
                 <div className="pgQueueActions">
-                  {canManageQueues && (
+                  {!readOnly && (
                     <button className="pgBtn pgBtnGhost" onClick={clearFilaSelection} disabled={selectedFilaItemIds.size === 0 || reorderBusy}>
                       Limpar seleção
                     </button>
@@ -4969,7 +4855,7 @@ const limparLista = (lista) =>
 
                   {filaVisivel.length === 0 ? (
                     <div className="pgEmpty" style={{ padding: 12 }}>
-                      Fila vazia. Os próximos planos compatíveis serão enviados automaticamente.
+                      Fila vazia. Use a aba Alimentação CNC para adicionar um plano.
                     </div>
                   ) : (
                     <ul className="pgQueueList">
@@ -4980,10 +4866,10 @@ const limparLista = (lista) =>
                         return (
                           <li
                             key={it.id}
-                            className={`pgQueueItem ${checked ? "sel" : ""} ${isDragging ? "dragging" : ""} ${canManageQueues ? "" : "viewOnly"}`}
-                            draggable={canManageQueues}
+                            className={`pgQueueItem ${checked ? "sel" : ""} ${isDragging ? "dragging" : ""} ${readOnly ? "viewOnly" : ""}`}
+                            draggable={!readOnly}
                             onDragStart={(e) => {
-                              if (!canManageQueues) return;
+                              if (readOnly) return;
                               const startedOnGrip = e.target?.closest?.(".pgQueueGrip");
                               if (startedOnGrip) return;
                               onDragStartFilaMove(e, it);
@@ -5010,22 +4896,20 @@ const limparLista = (lista) =>
 
                               reorderFilaLocalAndPersist(dragItemId, it.id);
                             }}
-                            onClick={canManageQueues ? () => toggleFilaSelection(it.id) : undefined}
+                            onClick={readOnly ? undefined : () => toggleFilaSelection(it.id)}
                           >
-                            {canManageQueues && (
+                            {!readOnly && (
                               <>
-                                {!isFacilitador && !it.alimentacao_cnc && (
-                                  <button
-                                    className="pgQueueGrip"
-                                    title="Arraste aqui para reordenar"
-                                    draggable
-                                    onDragStart={(e) => onDragStartFilaReorderHandle(e, it)}
-                                    onDragEnd={onDragEndAny}
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <span className="pgGripDots" />
-                                  </button>
-                                )}
+                                <button
+                                  className="pgQueueGrip"
+                                  title="Arraste aqui para reordenar"
+                                  draggable
+                                  onDragStart={(e) => onDragStartFilaReorderHandle(e, it)}
+                                  onDragEnd={onDragEndAny}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <span className="pgGripDots" />
+                                </button>
 
                                 <input
                                   type="checkbox"
@@ -5137,11 +5021,11 @@ const limparLista = (lista) =>
                         className={`pgCard ${m.id === selectedId ? "active" : ""} ${statusClass}`}
                         onClick={() => setSelectedId(m.id)}
                         onDragOver={(e) => {
-                          if (!canManageQueues) return;
+                          if (readOnly) return;
                           e.preventDefault();
                           e.stopPropagation();
                         }}
-                        onDrop={canManageQueues ? (e) => handleDropOnMachine(e, m.id) : undefined}
+                        onDrop={readOnly ? undefined : (e) => handleDropOnMachine(e, m.id)}
                         disabled={!readOnly && reorderBusy}
                       >
                         <div className="pgCardTop">
@@ -5185,7 +5069,7 @@ const limparLista = (lista) =>
                         </div>
 
                         <div className="pgCardHint">
-                          {canManageQueues ? "Arraste planos entre as filas das CNCs" : "Clique para ver a fila completa"}
+                          {readOnly ? "Clique para ver a fila completa" : "Distribua planos pela aba Alimentação CNC"}
                         </div>
                       </button>
                     );
