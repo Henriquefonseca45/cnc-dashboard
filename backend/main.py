@@ -4550,9 +4550,6 @@ def add_fila(
     if any(x['alimentacao_cnc'] for x in feeding.queue(conn, maquina_id)):
         conn.close()
         raise HTTPException(409, 'Classifique este plano antes de adicioná-lo a uma fila semiautomática.')
-    if len(feeding.queue(conn, maquina_id)) >= 2:
-        conn.close()
-        raise HTTPException(409, 'Fila ocupada. O terceiro plano é exclusivo de deslocamento automático por prioridade.')
     cur = conn.cursor()
 
     arq = cur.execute("SELECT id, nome, status FROM arquivos_dxf WHERE id = ?", (req.arquivo_id,)).fetchone()
@@ -4955,10 +4952,6 @@ def mover_item_para_outra_cnc(
     if any(x['alimentacao_cnc'] for x in feeding.queue(conn, dest)):
         conn.close()
         raise HTTPException(409, 'Classifique este plano antes de adicioná-lo a uma fila semiautomática.')
-    if len(feeding.queue(conn, dest)) >= 2:
-        conn.close()
-        raise HTTPException(409, 'Fila destino ocupada. O terceiro plano é exclusivo de deslocamento automático por prioridade.')
-
     if origem == dest:
         conn.close()
         return {"ok": True, "msg": "Origem e destino são iguais", "item_id": item_id, "maquina_id": origem}

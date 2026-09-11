@@ -4,7 +4,6 @@ from contextlib import redirect_stdout
 from io import BytesIO, StringIO
 import json
 from pathlib import Path
-import sqlite3
 import tempfile
 import threading
 import unittest
@@ -224,7 +223,7 @@ class CncFeedingTests(unittest.TestCase):
         third = self.upload('high')
         machine = next(m for m in self.overview()['machines'] if m['id'] == 'CNC01')
         self.assertEqual([x['slot'] for x in machine['items']], ['USINANDO', 'PRÓXIMO', 'DESLOCADO POR PRIORIDADE'])
-        self.assertTrue(machine['lotada'])
+        self.assertFalse(machine['lotada'])
         self.upload('normal')  # A waiting candidate must not refill the exceptional third slot.
         main.set_status_fila_item('CNC01', main.FilaStatusRequest(id=item, status='CONCLUIDO'))
         self.assertEqual([x['arquivo_id'] for x in self.rows()], [third, second])
@@ -256,14 +255,14 @@ class CncFeedingTests(unittest.TestCase):
         main.feeding_resume(plan, self.actor)
         self.assertEqual(len(self.rows()) + len(self.rows('CNC02')), 1)
 
-    def test_manual_cannot_create_third_normal_or_fourth(self):
+    def test_manual_allows_third_and_fourth_plan(self):
         self.normal_queue()
-        extra = self.upload()
-        with self.assertRaises(HTTPException):
-            main.add_fila('CNC01', main.AddFilaRequest(arquivo_id=extra), self.actor)
-        self.upload('high')
-        with self.assertRaises(HTTPException):
-            main.feeding_move(extra, main.FeedingMoveRequest(cnc_id='CNC01'), self.actor)
+        third = self.upload()
+        main.add_fila('CNC01', main.AddFilaRequest(arquivo_id=third), self.actor)
+        fourth = self.upload()
+        main.feeding_move(fourth, main.FeedingMoveRequest(cnc_id='CNC01'), self.actor)
+        self.assertEqual([x['arquivo_id'] for x in self.rows()][-2:], [third, fourth])
+        self.assertEqual(len(self.rows()), 4)
 
     def test_running_cannot_be_moved_or_replaced(self):
         first, _, _ = self.normal_queue()
@@ -363,8 +362,6 @@ class CncFeedingTests(unittest.TestCase):
 
     def legacy_queue(self, count):
         conn = db.get_conn()
-        for name in ('feeding_guard_v2_insert', 'feeding_guard_v2_update'):
-            conn.execute(f'DROP TRIGGER {name}')
         ids = []
         for index in range(count):
             plan = conn.execute("INSERT INTO arquivos_dxf(nome,path,status,criado_em) VALUES(?,?,'DISPONIVEL','2026-09-01')",
@@ -374,44 +371,44 @@ class CncFeedingTests(unittest.TestCase):
         conn.commit(); conn.close()
         return ids
 
-    def test_legacy_excess_is_reported_preserved_and_can_be_consumed(self):
+    def test_long_queue_is_valid_preserved_and_can_be_consumed(self):
         ids = self.legacy_queue(5)
         before = self.rows()
         self.upload('high')
         self.assertEqual(self.rows(), before)
         overview = self.overview()
-        self.assertEqual(overview['legacy_summary'], {'cncs_acima_limite': 1, 'itens_nessas_cncs': 5, 'itens_excedentes': 2})
+        self.assertEqual(overview['legacy_summary'], {'cncs_acima_limite': 0, 'itens_nessas_cncs': 0, 'itens_excedentes': 0})
         machine = next(m for m in overview['machines'] if m['id'] == 'CNC01')
-        self.assertTrue(machine['inconsistente'])
-        self.assertEqual(sum(x['slot'] == 'PRÓXIMO' for x in machine['items']), 0)
-        self.assertTrue(all('LEGADO' in x['slot'] for x in machine['items'][1:]))
+        self.assertFalse(machine['inconsistente'])
+        self.assertFalse(machine['lotada'])
+        self.assertEqual(sum(x['slot'] == 'PRÓXIMO' for x in machine['items']), 4)
         conn = db.get_conn()
         conn.execute("UPDATE fila_itens SET status='EM_EXECUCAO' WHERE id=?", (ids[0],))
         conn.execute("UPDATE fila_itens SET status='CORTADO' WHERE id=?", (ids[0],))
         conn.commit(); conn.close()
         self.assertEqual(len(self.rows()), 4)
 
-    def test_database_blocks_fourth_legacy_insert_and_reactivation(self):
+    def test_database_allows_long_queue_insert_reactivation_and_move(self):
         self.legacy_queue(3)
         conn = db.get_conn()
         plan = conn.execute("INSERT INTO arquivos_dxf(nome,path,status,criado_em) VALUES('extra.dxf','extra.dxf','DISPONIVEL','2026-09-01')").lastrowid
-        with self.assertRaisesRegex(sqlite3.IntegrityError, 'limite absoluto'):
-            conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES('CNC01',?,4,'AGUARDANDO','2026-09-01')", (plan,))
-        item = conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES('CNC01',?,4,'CANCELADO','2026-09-01')", (plan,)).lastrowid
-        with self.assertRaisesRegex(sqlite3.IntegrityError, 'limite absoluto'):
-            conn.execute("UPDATE fila_itens SET status='AGUARDANDO' WHERE id=?", (item,))
-        conn.execute("UPDATE fila_itens SET maquina_id='CNC02',status='AGUARDANDO' WHERE id=?", (item,))
-        with self.assertRaisesRegex(sqlite3.IntegrityError, 'limite absoluto'):
-            conn.execute("UPDATE fila_itens SET maquina_id='CNC01' WHERE id=?", (item,))
-        conn.rollback(); conn.close()
+        conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES('CNC01',?,4,'AGUARDANDO','2026-09-01')", (plan,))
+        reactivated_plan = conn.execute("INSERT INTO arquivos_dxf(nome,path,status,criado_em) VALUES('reactivated.dxf','reactivated.dxf','DISPONIVEL','2026-09-01')").lastrowid
+        item = conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES('CNC01',?,5,'CANCELADO','2026-09-01')", (reactivated_plan,)).lastrowid
+        conn.execute("UPDATE fila_itens SET status='AGUARDANDO' WHERE id=?", (item,))
+        moved_plan = conn.execute("INSERT INTO arquivos_dxf(nome,path,status,criado_em) VALUES('moved.dxf','moved.dxf','DISPONIVEL','2026-09-01')").lastrowid
+        moved_item = conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES('CNC02',?,1,'AGUARDANDO','2026-09-01')", (moved_plan,)).lastrowid
+        conn.execute("UPDATE fila_itens SET maquina_id='CNC01',posicao=6 WHERE id=?", (moved_item,))
+        conn.commit(); conn.close()
+        self.assertEqual(len(self.rows()), 6)
 
-    def test_database_blocks_normal_third_on_unmanaged_queue(self):
+    def test_database_allows_normal_third_on_unmanaged_queue(self):
         self.legacy_queue(2)
         conn = db.get_conn()
         plan = conn.execute("INSERT INTO arquivos_dxf(nome,path,status,criado_em) VALUES('third.dxf','third.dxf','DISPONIVEL','2026-09-01')").lastrowid
-        with self.assertRaisesRegex(sqlite3.IntegrityError, 'Terceiro plano'):
-            conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES('CNC01',?,3,'AGUARDANDO','2026-09-01')", (plan,))
-        conn.rollback(); conn.close()
+        conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES('CNC01',?,3,'AGUARDANDO','2026-09-01')", (plan,))
+        conn.commit(); conn.close()
+        self.assertEqual(len(self.rows()), 3)
 
 
 if __name__ == '__main__':
