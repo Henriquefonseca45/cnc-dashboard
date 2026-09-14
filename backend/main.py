@@ -4107,6 +4107,14 @@ def facilitador_feeding_move(arquivo_id: int, req: FeedingMoveRequest):
     return _feeding_finish(conn, lambda: feeding.move(conn, arquivo_id, destination, actor))
 
 
+@app.post('/api/facilitador/fila/{maquina_id}/reorder')
+def facilitador_reorder_fila(maquina_id: str, req: ReorderFilaRequest):
+    actor = {'id': None, 'nome': 'Facilitador', 'login': 'facilitador', 'role': 'facilitador'}
+    conn = get_conn()
+    conn.execute('BEGIN IMMEDIATE')
+    return _feeding_finish(conn, lambda: feeding.reorder(conn, maquina_id.strip().upper(), req.ids(), actor))
+
+
 @app.put('/programador/alimentacao/{arquivo_id}/programado')
 def feeding_programmed(arquivo_id: int, req: FeedingProgrammedRequest, user: dict = Depends(require_programador_auth)):
     conn = get_conn()

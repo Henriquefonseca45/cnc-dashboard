@@ -30,6 +30,8 @@ def ensure_schema(conn):
         return
     if 'deslocado_por_prioridade' not in queue_columns:
         conn.execute('ALTER TABLE fila_itens ADD COLUMN deslocado_por_prioridade INTEGER NOT NULL DEFAULT 0')
+    if 'ordem_manual' not in queue_columns:
+        conn.execute('ALTER TABLE fila_itens ADD COLUMN ordem_manual INTEGER')
     if 'programado' not in columns:
         conn.execute("UPDATE arquivos_dxf SET programado=1 WHERE id IN (SELECT arquivo_id FROM fila_itens WHERE status IN ('PROGRAMANDO','BAIXADO','EM_EXECUCAO'))")
     conn.execute('CREATE INDEX IF NOT EXISTS idx_feeding_queue ON fila_itens(maquina_id,status,posicao)')
@@ -105,7 +107,14 @@ def reconcile(conn, cnc):
     items = queue(conn, cnc)
     if not any(x['alimentacao_cnc'] for x in items):
         return
-    waiting = sorted((x for x in items if x['status'] != 'EM_EXECUCAO'), key=queue_order)
+    waiting = sorted(
+        (x for x in items if x['status'] != 'EM_EXECUCAO'),
+        key=lambda x: (
+            0 if x['status'] == 'BAIXADO' else 1,
+            0 if x['ordem_manual'] is not None else 1,
+            int(x['ordem_manual']) if x['ordem_manual'] is not None else queue_order(x),
+        ),
+    )
     for position, item in enumerate(waiting, start=1):
         conn.execute('UPDATE fila_itens SET posicao=?,deslocado_por_prioridade=0 WHERE id=?', (position, item['id']))
     for item in items:
@@ -190,6 +199,31 @@ def distribute(conn):
         choices[plan['id']] = set()
 
 
+def reorder(conn, cnc, ordered_item_ids, actor=None):
+    """Persist a facilitator override for pending plans on one CNC."""
+    if cnc not in {machine['id'] for machine in machines(conn)}:
+        raise FeedingError('CNC não encontrada.')
+    items = queue(conn, cnc)
+    pending = [item for item in items if item['status'] != 'EM_EXECUCAO']
+    current_ids = [int(item['id']) for item in pending]
+    wanted = [int(item_id) for item_id in ordered_item_ids]
+    if len(wanted) != len(current_ids) or set(wanted) != set(current_ids):
+        raise FeedingError('A fila mudou. Atualize a tela e tente novamente.')
+    if not all(item['alimentacao_cnc'] for item in pending):
+        raise FeedingError('A reordenação do Facilitador requer planos classificados.')
+    downloaded = [int(item['id']) for item in pending if item['status'] == 'BAIXADO']
+    if wanted[:len(downloaded)] != downloaded:
+        raise FeedingError('O plano já baixado deve permanecer no início da fila.')
+    if wanted == current_ids:
+        return {'maquina_id': cnc, 'ordered_item_ids': wanted}
+    for position, item_id in enumerate(wanted, start=1):
+        conn.execute('UPDATE fila_itens SET ordem_manual=? WHERE id=? AND maquina_id=?', (position, item_id, cnc))
+    reconcile(conn, cnc)
+    audit(conn, 'ORDEM_MANUAL', {'id': None}, source=cnc, destination=cnc,
+          before=current_ids, after=wanted, actor=actor)
+    return {'maquina_id': cnc, 'ordered_item_ids': wanted}
+
+
 def validate_start(conn, cnc, item_id):
     items = queue(conn, cnc)
     item = next((x for x in items if x['id'] == item_id), None)
@@ -235,7 +269,7 @@ def move(conn, arquivo_id, destination, actor=None):
         destination_position = max((int(x.get('posicao') or 0) for x in items), default=0) + 1
     if current:
         if destination:
-            conn.execute('UPDATE fila_itens SET maquina_id=?,posicao=?,deslocado_por_prioridade=0 WHERE id=?',
+            conn.execute('UPDATE fila_itens SET maquina_id=?,posicao=?,deslocado_por_prioridade=0,ordem_manual=NULL WHERE id=?',
                          (destination, destination_position, current['id']))
         else:
             conn.execute('DELETE FROM fila_itens WHERE id=?', (current['id'],))

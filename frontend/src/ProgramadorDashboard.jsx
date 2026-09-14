@@ -3470,12 +3470,14 @@ function imprimirGrafico7() {
   }
 
   function onDragStartFilaReorderHandle(e, item) {
-    if (readOnly) return;
+    if (readOnly && !isFacilitador) return;
     e.stopPropagation();
 
     e.dataTransfer.setData("application/x-drag-type", "FILA_REORDER");
     e.dataTransfer.setData("application/x-reorder-item-id", String(item.id));
     e.dataTransfer.setData("application/x-reorder-machine-id", String(selectedId));
+    e.dataTransfer.setData("application/x-fila-item-ids", JSON.stringify([item.id]));
+    e.dataTransfer.setData("application/x-fila-from-machine", String(selectedId));
     e.dataTransfer.setData("text/plain", "FILA_REORDER");
     e.dataTransfer.effectAllowed = "move";
 
@@ -3487,12 +3489,13 @@ function imprimirGrafico7() {
   }
 
   async function saveFilaOrderToBackend(machineId, orderedItemIds) {
-    if (readOnly) return;
-    await api.post(`/fila/${machineId}/reorder`, { ordered_item_ids: orderedItemIds });
+    if (readOnly && !isFacilitador) return;
+    const path = isFacilitador ? `/api/facilitador/fila/${machineId}/reorder` : `/fila/${machineId}/reorder`;
+    await api.post(path, { ordered_item_ids: orderedItemIds });
   }
 
   async function reorderFilaLocalAndPersist(dragItemId, overItemId) {
-    if (readOnly) return;
+    if (readOnly && !isFacilitador) return;
     if (!dragItemId || !overItemId) return;
     if (Number(dragItemId) === Number(overItemId)) return;
 
@@ -3574,7 +3577,7 @@ function imprimirGrafico7() {
         return;
       }
 
-      if (dragType === "FILA_ITEMS") {
+      if (dragType === "FILA_ITEMS" || dragType === "FILA_REORDER") {
         const fromMachine = e.dataTransfer.getData("application/x-fila-from-machine") || "";
         if (!fromMachine) return;
         if (fromMachine === machineId) {
@@ -4977,6 +4980,11 @@ const limparLista = (lista) =>
                     <div className="pgQueueListTitle">PRÓXIMOS NA FILA</div>
                     <div className="pgQueueListCount">{filaVisivel.length}</div>
                   </div>
+                  {isFacilitador && filaVisivel.length > 1 && (
+                    <div className="pgTiny" style={{ marginBottom: 8 }}>
+                      Arraste pelos pontos para mudar a ordem nesta CNC; arraste a linha para outra CNC compatível.
+                    </div>
+                  )}
 
                   {filaVisivel.length === 0 ? (
                     <div className="pgEmpty" style={{ padding: 12 }}>
@@ -5001,14 +5009,14 @@ const limparLista = (lista) =>
                             }}
                             onDragEnd={onDragEndAny}
                             onDragOver={(e) => {
-                              if (readOnly) return;
+                              if (readOnly && !isFacilitador) return;
                               const dt = getDragType(e.dataTransfer);
                               if (dt !== "FILA_REORDER") return;
                               e.preventDefault();
                               e.stopPropagation();
                             }}
                             onDrop={(e) => {
-                              if (readOnly) return;
+                              if (readOnly && !isFacilitador) return;
                               const dt = getDragType(e.dataTransfer);
                               if (dt !== "FILA_REORDER") return;
 
@@ -5028,11 +5036,11 @@ const limparLista = (lista) =>
                                 <button
                                   type="button"
                                   className="pgQueueGrip"
-                                  title={!isFacilitador && !it.alimentacao_cnc ? "Arraste para reordenar" : "Arraste para mover para outra CNC compatível"}
-                                  aria-label={!isFacilitador && !it.alimentacao_cnc ? `Reordenar ${it.arquivo_nome}` : `Mover ${it.arquivo_nome} para outra CNC compatível`}
+                                  title={isFacilitador || !it.alimentacao_cnc ? "Arraste para reordenar nesta CNC" : "Arraste para mover para outra CNC compatível"}
+                                  aria-label={isFacilitador || !it.alimentacao_cnc ? `Reordenar ${it.arquivo_nome} nesta CNC` : `Mover ${it.arquivo_nome} para outra CNC compatível`}
                                   draggable
                                   onDragStart={(e) => {
-                                    if (!isFacilitador && !it.alimentacao_cnc) {
+                                    if (isFacilitador || !it.alimentacao_cnc) {
                                       onDragStartFilaReorderHandle(e, it);
                                     } else {
                                       onDragStartFilaMove(e, it);

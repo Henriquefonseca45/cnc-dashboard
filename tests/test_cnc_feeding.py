@@ -333,6 +333,45 @@ class CncFeedingTests(unittest.TestCase):
         main.facilitador_feeding_move(plan, main.FeedingMoveRequest(cnc_id='CNC02'))
         self.assertEqual(self.rows('CNC02')[0]['arquivo_id'], plan)
 
+    def test_facilitator_can_reorder_queue_and_override_survives_distribution(self):
+        first = self.upload()
+        second = self.upload()
+        third = self.upload()
+        ids = [item['id'] for item in self.rows()]
+        response = main.facilitador_reorder_fila('CNC01', main.ReorderFilaRequest(ordered_item_ids=ids[::-1]))
+        self.assertTrue(response['ok'])
+        self.assertEqual([item['arquivo_id'] for item in self.rows()], [third, second, first])
+        new_high = self.upload('high')
+        self.assertEqual([item['arquivo_id'] for item in self.rows()], [third, second, first, new_high])
+
+    def test_facilitator_reorder_rejects_running_or_incomplete_queue(self):
+        first = self.upload()
+        second = self.upload()
+        third = self.upload()
+        ids = [item['id'] for item in self.rows()]
+        with self.assertRaises(HTTPException):
+            main.facilitador_reorder_fila('CNC01', main.ReorderFilaRequest(ordered_item_ids=ids[:2]))
+        self.assertEqual([item['arquivo_id'] for item in self.rows()], [first, second, third])
+        self.start(first)
+        with self.assertRaises(HTTPException):
+            main.facilitador_reorder_fila('CNC01', main.ReorderFilaRequest(ordered_item_ids=ids))
+        remaining = [item['id'] for item in self.rows() if item['status'] != 'EM_EXECUCAO']
+        main.facilitador_reorder_fila('CNC01', main.ReorderFilaRequest(ordered_item_ids=remaining[::-1]))
+        self.assertEqual([item['arquivo_id'] for item in self.rows()], [first, third, second])
+
+    def test_facilitator_reorder_keeps_downloaded_plan_first(self):
+        first = self.upload()
+        second = self.upload()
+        ids = [item['id'] for item in self.rows()]
+        conn = db.get_conn()
+        conn.execute("UPDATE fila_itens SET status='BAIXADO' WHERE id=?", (ids[0],))
+        conn.commit()
+        conn.close()
+        with self.assertRaises(HTTPException) as context:
+            main.facilitador_reorder_fila('CNC01', main.ReorderFilaRequest(ordered_item_ids=ids[::-1]))
+        self.assertEqual(context.exception.status_code, 409)
+        self.assertEqual([item['arquivo_id'] for item in self.rows()], [first, second])
+
     def test_priority_change_reanalyzes_waiting_pool(self):
         self.normal_queue()
         third = self.upload()
