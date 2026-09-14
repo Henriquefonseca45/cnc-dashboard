@@ -3666,29 +3666,40 @@ function imprimirGrafico7() {
   }
 
   async function voltarSelecionadosParaPool() {
-    if (readOnly) return;
+    if (!canManageQueues) return;
     const ids = Array.from(selectedFilaItemIds);
     if (ids.length === 0) return;
 
     setErr("");
     setMsg("");
 
+    let moved = 0;
     try {
       for (const item_id of ids) {
-        await api.post(`/fila/item/${item_id}/to_pool`);
+        if (isFacilitador) {
+          const item = fila.find((entry) => Number(entry.id) === Number(item_id));
+          if (!item?.arquivo_id) throw new Error("Plano não encontrado na fila atual. Atualize a tela e tente novamente.");
+          await api.post(`/api/facilitador/alimentacao/${item.arquivo_id}/mover`, { cnc_id: null });
+        } else {
+          await api.post(`/fila/item/${item_id}/to_pool`);
+        }
+        moved++;
       }
 
-      setMsg(`${ids.length} item(ns) voltou(aram) para a fila geral com distribuição pausada.`);
-
-      const fsel = await fetchFila(selectedId, includeDone);
-      setFila(fsel);
-      setFilasById((prev) => ({ ...prev, [selectedId]: fsel }));
-
-      await fetchPool();
-      clearFilaSelection();
-      setLastUpdate(new Date().toISOString());
+      setMsg(`${moved} plano(s) voltou(aram) para a fila geral com distribuição pausada.`);
     } catch (e) {
       setErr(getErrMsg(e));
+    } finally {
+      try {
+        const fsel = await fetchFila(selectedId, includeDone);
+        setFila(fsel);
+        setFilasById((prev) => ({ ...prev, [selectedId]: fsel }));
+        await fetchPool();
+        clearFilaSelection();
+        setLastUpdate(new Date().toISOString());
+      } catch (refreshError) {
+        setErr(getErrMsg(refreshError));
+      }
     }
   }
 
@@ -4954,9 +4965,9 @@ const limparLista = (lista) =>
                     Imprimir lista geral
                   </button>
 
-                  {!readOnly && (
-                    <button className="pgBtn pgBtnPrimary" onClick={voltarSelecionadosParaPool} disabled={selectedFilaItemIds.size === 0 || reorderBusy}>
-                      Voltar p/fila
+                  {canManageQueues && (
+                    <button className="pgBtn pgBtnPrimary" onClick={voltarSelecionadosParaPool} disabled={selectedFilaItemIds.size === 0 || reorderBusy} title="Devolve os planos selecionados à fila geral e pausa a distribuição automática">
+                      Voltar à fila geral
                     </button>
                   )}
                 </div>
@@ -5014,18 +5025,24 @@ const limparLista = (lista) =>
                           >
                             {canManageQueues && (
                               <>
-                                {!isFacilitador && !it.alimentacao_cnc && (
-                                  <button
-                                    className="pgQueueGrip"
-                                    title="Arraste aqui para reordenar"
-                                    draggable
-                                    onDragStart={(e) => onDragStartFilaReorderHandle(e, it)}
-                                    onDragEnd={onDragEndAny}
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <span className="pgGripDots" />
-                                  </button>
-                                )}
+                                <button
+                                  type="button"
+                                  className="pgQueueGrip"
+                                  title={!isFacilitador && !it.alimentacao_cnc ? "Arraste para reordenar" : "Arraste para mover para outra CNC compatível"}
+                                  aria-label={!isFacilitador && !it.alimentacao_cnc ? `Reordenar ${it.arquivo_nome}` : `Mover ${it.arquivo_nome} para outra CNC compatível`}
+                                  draggable
+                                  onDragStart={(e) => {
+                                    if (!isFacilitador && !it.alimentacao_cnc) {
+                                      onDragStartFilaReorderHandle(e, it);
+                                    } else {
+                                      onDragStartFilaMove(e, it);
+                                    }
+                                  }}
+                                  onDragEnd={onDragEndAny}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <span className="pgGripDots" />
+                                </button>
 
                                 <input
                                   type="checkbox"

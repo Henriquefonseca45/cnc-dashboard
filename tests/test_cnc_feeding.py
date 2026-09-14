@@ -324,6 +324,15 @@ class CncFeedingTests(unittest.TestCase):
             main.facilitador_feeding_move(plan, main.FeedingMoveRequest(cnc_id='CNC03'))
         self.assertEqual(context.exception.status_code, 409)
 
+    def test_facilitator_can_return_plan_to_general_queue(self):
+        plan = self.upload(cncs=['CNC01', 'CNC02'])
+        main.facilitador_feeding_move(plan, main.FeedingMoveRequest())
+        self.assertFalse(self.rows('CNC01'))
+        waiting = next(item for item in self.overview()['waiting'] if item['id'] == plan)
+        self.assertTrue(waiting['alimentacao_pausada'])
+        main.facilitador_feeding_move(plan, main.FeedingMoveRequest(cnc_id='CNC02'))
+        self.assertEqual(self.rows('CNC02')[0]['arquivo_id'], plan)
+
     def test_priority_change_reanalyzes_waiting_pool(self):
         self.normal_queue()
         third = self.upload()

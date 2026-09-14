@@ -865,14 +865,15 @@ body::after{
   padding: 6px 0;
   background: rgba(47,55,125,.035);
 }
-.pgQueueName { min-width: 0; }
+.pgQueueName { min-width: 0; grid-column: 4; }
+.pgQueueItem.viewOnly .pgQueueName { grid-column: 2; }
 .pgQueueNameText {
   font-weight: 700;
   font-size: 12px;
   line-height: 1.35;
   color: var(--text);
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
   white-space: normal;
 }
 .pgQueueMetaLine {
