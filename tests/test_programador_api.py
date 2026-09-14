@@ -142,16 +142,13 @@ class ProgramadorApiTests(unittest.TestCase):
             main.PlanClassificationRequest(priority="high", compatible_cnc_ids=["CNC01", "CNC02", "CNC03"]),
             self.programador,
         )
-        added = main.add_fila("CNC01", main.AddFilaRequest(arquivo_id=arquivo_id), self.programador)
-        moved = main.mover_item_para_outra_cnc(
-            added["item_id"], "CNC02", main.MoveFilaItemRequest(manter_status=False), self.programador
-        )
-        main.fila_item_to_pool(moved["item_id_novo"], self.programador)
+        main.feeding_move(arquivo_id, main.FeedingMoveRequest(cnc_id="CNC02"), self.programador)
+        main.feeding_move(arquivo_id, main.FeedingMoveRequest(), self.programador)
         main.excluir_arquivo(arquivo_id, self.programador)
         actions = self.audit_actions()
         for expected in (
             "ARQUIVO_IMPORTADO", "PRIORIDADE_ALTERADA", "CNC_ADICIONADA",
-            "ADICIONADO_FILA", "PLANO_MOVIMENTADO", "REMOVIDO_FILA", "ARQUIVO_EXCLUIDO",
+            "ALIMENTACAO_RESERVADO", "PLANO_MOVIMENTADO", "REMOVIDO_FILA", "ARQUIVO_EXCLUIDO",
         ):
             self.assertIn(expected, actions)
 
@@ -176,8 +173,9 @@ class ProgramadorApiTests(unittest.TestCase):
 
         self.assertEqual(duplicate.exception.status_code, 409)
         self.assertEqual(duplicate.exception.detail["code"], "ARQUIVO_JA_EM_FILA")
-        self.assertIn("Planos aguardando", duplicate.exception.detail["message"])
+        self.assertIn("fila geral", duplicate.exception.detail["message"])
 
+        main.feeding_move(first["items"][0]["id"], main.FeedingMoveRequest(), self.programador)
         main.excluir_arquivo(first["items"][0]["id"], self.programador)
         self.assertTrue(upload("09 - 09 - 2026 - 35 - Detalhe.dxf")["ok"])
 
