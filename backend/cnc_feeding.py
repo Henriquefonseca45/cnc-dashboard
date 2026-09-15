@@ -175,6 +175,10 @@ def distribute(conn):
         reconcile(conn, m['id'])
     # A fila representa trabalho futuro: o status atual da CNC não impede a reserva.
     eligible = {m['id'] for m in all_machines}
+    maintenance = {
+        m['id']: 'MANUT' in unicodedata.normalize('NFKD', m.get('status') or '').encode('ascii', 'ignore').decode().upper()
+        for m in all_machines
+    }
     waiting = [p for p in pool(conn) if not p['alimentacao_pausada']]
     choices = {p['id']: set(compatibility(conn, p['id'])) & eligible for p in waiting}
     for plan in waiting:
@@ -188,7 +192,7 @@ def distribute(conn):
                 1 for other in waiting
                 if other['id'] != plan['id'] and choices.get(other['id']) == {candidate}
             )
-            return (exclusive_demand, len(queue(conn, candidate)), candidate)
+            return (maintenance[candidate], exclusive_demand, len(queue(conn, candidate)), candidate)
 
         cnc = min(candidates, key=candidate_score)
         next_position = 1 + sum(1 for item in queue(conn, cnc) if item['status'] != 'EM_EXECUCAO')

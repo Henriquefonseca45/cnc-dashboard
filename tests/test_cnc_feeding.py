@@ -321,6 +321,25 @@ class CncFeedingTests(unittest.TestCase):
         plan = self.upload(cncs=['CNC01', 'CNC02'])
         main.facilitador_feeding_move(plan, main.FeedingMoveRequest(cnc_id='CNC02'))
         self.assertEqual(self.rows('CNC02')[0]['arquivo_id'], plan)
+
+    def test_distribution_prefers_non_maintenance_even_with_longer_queue(self):
+        self.upload(cncs=['CNC02'])
+        conn = db.get_conn()
+        conn.execute("UPDATE maquinas SET status='MANUTENÇÃO' WHERE id='CNC01'")
+        conn.commit()
+        conn.close()
+        plan = self.upload(cncs=['CNC01', 'CNC02'])
+        self.assertFalse(self.rows('CNC01'))
+        self.assertIn(plan, [item['arquivo_id'] for item in self.rows('CNC02')])
+
+    def test_distribution_uses_maintenance_when_no_other_compatible_cnc(self):
+        conn = db.get_conn()
+        conn.execute("UPDATE maquinas SET status='MANUTENCAO' WHERE id IN ('CNC01','CNC02')")
+        conn.commit()
+        conn.close()
+        plan = self.upload(cncs=['CNC01', 'CNC02'])
+        self.assertEqual(len(self.rows()) + len(self.rows('CNC02')), 1)
+        self.assertFalse(self.overview()['waiting'])
         with self.assertRaises(HTTPException) as context:
             main.facilitador_feeding_move(plan, main.FeedingMoveRequest(cnc_id='CNC03'))
         self.assertEqual(context.exception.status_code, 409)
