@@ -4706,8 +4706,7 @@ def reorder_fila(
     cur = conn.cursor()
 
     if any(item['alimentacao_cnc'] for item in feeding.queue(conn, mid)):
-        conn.close()
-        raise HTTPException(409, 'Use Mover plano na Alimentação CNC. A ordem semiautomática preserva Próximo e Deslocado.')
+        return _feeding_finish(conn, lambda: feeding.reorder(conn, mid, ids, _programador_audit_actor(user)))
 
     allowed_status = _fila_programador_status_list()
 

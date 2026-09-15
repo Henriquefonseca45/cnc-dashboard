@@ -5036,15 +5036,11 @@ const limparLista = (lista) =>
                                 <button
                                   type="button"
                                   className="pgQueueGrip"
-                                  title={isFacilitador || !it.alimentacao_cnc ? "Arraste para reordenar nesta CNC" : "Arraste para mover para outra CNC compatível"}
-                                  aria-label={isFacilitador || !it.alimentacao_cnc ? `Reordenar ${it.arquivo_nome} nesta CNC` : `Mover ${it.arquivo_nome} para outra CNC compatível`}
+                                  title="Arraste para reordenar nesta CNC ou mover para outra CNC compatível"
+                                  aria-label={`Reordenar ${it.arquivo_nome} nesta CNC`}
                                   draggable
                                   onDragStart={(e) => {
-                                    if (isFacilitador || !it.alimentacao_cnc) {
-                                      onDragStartFilaReorderHandle(e, it);
-                                    } else {
-                                      onDragStartFilaMove(e, it);
-                                    }
+                                    onDragStartFilaReorderHandle(e, it);
                                   }}
                                   onDragEnd={onDragEndAny}
                                   onClick={(e) => e.stopPropagation()}

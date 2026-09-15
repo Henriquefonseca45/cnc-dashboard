@@ -10,6 +10,7 @@ import threading
 import unittest
 
 from fastapi import HTTPException, UploadFile
+from starlette.requests import Request
 from backend import cnc_feeding as feeding, db, init_db, main
 
 
@@ -371,6 +372,23 @@ class CncFeedingTests(unittest.TestCase):
             main.facilitador_reorder_fila('CNC01', main.ReorderFilaRequest(ordered_item_ids=ids[::-1]))
         self.assertEqual(context.exception.status_code, 409)
         self.assertEqual([item['arquivo_id'] for item in self.rows()], [first, second])
+
+    def test_programador_reorders_classified_queue_with_downloaded_plan_first(self):
+        first = self.upload()
+        second = self.upload('medium')
+        third = self.upload('high')
+        conn = db.get_conn()
+        first_id = next(item['id'] for item in self.rows() if item['arquivo_id'] == first)
+        conn.execute("UPDATE fila_itens SET status='BAIXADO' WHERE id=?", (first_id,))
+        conn.commit()
+        conn.close()
+        by_plan = {item['arquivo_id']: item['id'] for item in self.rows()}
+        request = Request({'type': 'http', 'headers': [], 'client': ('127.0.0.1', 1234)})
+        main.reorder_fila('CNC01', main.ReorderFilaRequest(
+            ordered_item_ids=[by_plan[first], by_plan[second], by_plan[third]]), request, self.actor)
+        self.assertEqual([item['arquivo_id'] for item in self.rows()], [first, second, third])
+        self.overview()
+        self.assertEqual([item['arquivo_id'] for item in self.rows()], [first, second, third])
 
     def test_priority_change_reanalyzes_waiting_pool(self):
         self.normal_queue()
