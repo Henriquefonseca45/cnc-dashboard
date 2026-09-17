@@ -26,6 +26,7 @@ from openpyxl import Workbook
 
 from backend.db import get_conn
 from backend import cnc_feeding as feeding
+from backend.standard_files import ensure_schema as ensure_standard_files_schema, insert_file as insert_standard_file, list_files as list_standard_files
 from backend.config_maquinas import MAQUINAS
 from backend.audit import log_action
 from backend.maintenance import (
@@ -521,6 +522,8 @@ def programador_auditoria_lista(
 # =========================
 DXF_DIR = BASE_DIR.parent / "storage" / "dxf"
 DXF_DIR.mkdir(parents=True, exist_ok=True)
+STANDARD_DXF_DIR = BASE_DIR.parent / "storage" / "arquivos_padrao"
+STANDARD_DXF_DIR.mkdir(parents=True, exist_ok=True)
 CHAT_DIR = BASE_DIR.parent / "storage" / "chat"
 CHAT_DIR.mkdir(parents=True, exist_ok=True)
 CHAT_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
@@ -563,6 +566,11 @@ class AddFilaRequest(BaseModel):
 class PlanClassificationRequest(BaseModel):
     priority: str = "normal"
     compatible_cnc_ids: List[str]
+
+
+class StandardFileQueueRequest(BaseModel):
+    priority: str = "normal"
+    cnc_id: str
 
 
 class AbrirVCarveRequest(BaseModel):
@@ -3173,6 +3181,7 @@ def start_status_confirmation_worker():
         ensure_programador_audit_schema(conn)
         ensure_programador_admin_schema(conn)
         feeding.ensure_schema(conn)
+        ensure_standard_files_schema(conn)
         conn.commit()
     finally:
         conn.close()
@@ -3760,6 +3769,137 @@ def rebuild_dashboard_snapshots(
         "data_inicio": dt_ini.isoformat(),
         "data_fim": dt_fim.isoformat(),
     }
+
+
+# =========================
+# DETALHES E ARQUIVOS PADRÃO
+# =========================
+def _standard_file_row(conn, arquivo_padrao_id: int):
+    ensure_standard_files_schema(conn)
+    row = conn.execute(
+        "SELECT * FROM arquivos_padrao WHERE id=? AND ativo=1", (arquivo_padrao_id,)
+    ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Arquivo padrão não encontrado.")
+    return row
+
+
+def _safe_standard_path(raw_path: str) -> Path:
+    path = Path(raw_path).resolve()
+    root = STANDARD_DXF_DIR.resolve()
+    if path != root and root not in path.parents:
+        raise HTTPException(status_code=409, detail="Caminho do arquivo padrão inválido.")
+    return path
+
+
+@app.get("/api/arquivos-padrao")
+def get_standard_files():
+    conn = get_conn()
+    try:
+        return {"items": list_standard_files(conn)}
+    finally:
+        conn.close()
+
+
+@app.post("/api/arquivos-padrao")
+async def upload_standard_file(file: UploadFile = File(...), user: dict = Depends(require_programador_auth)):
+    safe_name = Path(file.filename or "").name
+    if not safe_name.lower().endswith(".dxf"):
+        raise HTTPException(status_code=400, detail="Envie apenas arquivos DXF.")
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Arquivo vazio.")
+    if len(content) > 50 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Arquivo muito grande (limite 50MB).")
+    stored_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}__{safe_name}"
+    destination = STANDARD_DXF_DIR / stored_name
+    destination.write_bytes(content)
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            file_id = insert_standard_file(conn, safe_name, str(destination), _programador_audit_actor(user))
+        except sqlite3.IntegrityError as exc:
+            raise HTTPException(status_code=409, detail=f'Já existe um arquivo padrão chamado "{safe_name}".') from exc
+        record_programador_audit(
+            conn, _programador_audit_actor(user), "ARQUIVO_PADRAO_CADASTRADO",
+            arquivo_nome=safe_name, entidade_tipo="arquivo_padrao", entidade_id=file_id,
+        )
+        conn.commit()
+        return {"ok": True, "id": file_id, "nome": safe_name}
+    except Exception:
+        conn.rollback()
+        destination.unlink(missing_ok=True)
+        raise
+    finally:
+        conn.close()
+
+
+@app.get("/api/arquivos-padrao/{arquivo_padrao_id}/download")
+def download_standard_file(arquivo_padrao_id: int):
+    conn = get_conn()
+    try:
+        row = _standard_file_row(conn, arquivo_padrao_id)
+        path = _safe_standard_path(row["path"])
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="Arquivo padrão não está disponível no armazenamento.")
+        return FileResponse(path, filename=row["nome"], media_type="application/octet-stream")
+    finally:
+        conn.close()
+
+
+@app.post("/api/arquivos-padrao/{arquivo_padrao_id}/enviar")
+def queue_standard_file(arquivo_padrao_id: int, req: StandardFileQueueRequest, request: Request):
+    actor = optional_programador_auth(request) or {
+        "id": None, "nome": "Facilitador", "login": "facilitador", "role": "facilitador"
+    }
+    conn = get_conn()
+    copied_path: Path | None = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        feeding.ensure_schema(conn)
+        row = _standard_file_row(conn, arquivo_padrao_id)
+        source = _safe_standard_path(row["path"])
+        if not source.is_file():
+            raise HTTPException(status_code=404, detail="Arquivo padrão não está disponível no armazenamento.")
+        try:
+            priority = normalize_priority(req.priority)
+            cnc_ids = validate_compatible_cnc_ids(conn, [req.cnc_id])
+        except PlanClassificationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        safe_name = row["nome"]
+        stored_name = f"padrao_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}__{safe_name}"
+        copied_path = DXF_DIR / stored_name
+        shutil.copyfile(source, copied_path)
+        cursor = conn.execute(
+            """
+            INSERT INTO arquivos_dxf
+                (nome,path,criado_em,status,priority,criado_por_usuario_id,criado_por_nome_snapshot,alimentacao_cnc)
+            VALUES(?,?,?,'DISPONIVEL',?,?,?,1)
+            """,
+            (safe_name, str(copied_path), datetime.now().isoformat(timespec="seconds"), priority,
+             actor.get("id"), actor.get("nome")),
+        )
+        arquivo_id = int(cursor.lastrowid)
+        set_plan_classification(conn, arquivo_id, priority, cnc_ids)
+        try:
+            result = feeding.move(conn, arquivo_id, cnc_ids[0], actor)
+        except feeding.FeedingError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        record_programador_audit(
+            conn, actor, "ARQUIVO_PADRAO_ENVIADO", arquivo_id=arquivo_id, arquivo_nome=safe_name,
+            entidade_tipo="arquivo_padrao", entidade_id=arquivo_padrao_id, cnc_destino=cnc_ids[0],
+            valor_novo={"priority": priority, "cnc_id": cnc_ids[0]},
+        )
+        conn.commit()
+        return {"ok": True, "arquivo_id": arquivo_id, "arquivo_nome": safe_name, **result}
+    except Exception:
+        conn.rollback()
+        if copied_path:
+            copied_path.unlink(missing_ok=True)
+        raise
+    finally:
+        conn.close()
 
 
 # =========================

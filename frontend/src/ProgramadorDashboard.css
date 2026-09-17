@@ -1545,6 +1545,23 @@ body::after{
   .pgCardsAlmox{grid-template-columns: 1fr;}
 }
 
+/* Biblioteca permanente de detalhes e arquivos padrão */
+.pgStandardLibrary{border:1px solid var(--stroke);border-radius:20px;background:var(--card);overflow:hidden;box-shadow:var(--shadow)}
+.pgStandardHeader{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 24px;border-bottom:1px solid var(--stroke);background:linear-gradient(135deg,var(--card),var(--brand-soft))}
+.pgStandardHeader h2{margin:4px 0 6px;color:var(--text);font-size:24px}.pgStandardHeader p{margin:0;color:var(--muted);font-size:13px}
+.pgStandardEyebrow{color:var(--brand);font-size:10px;font-weight:900;letter-spacing:.18em}
+.pgStandardList{display:grid;gap:8px;padding:16px}
+.pgStandardRow{display:grid;grid-template-columns:48px minmax(0,1fr) auto;align-items:center;gap:14px;padding:13px 14px;border:1px solid var(--stroke);border-radius:14px;background:var(--card2)}
+.pgStandardIcon{width:46px;height:40px;display:grid;place-items:center;border-radius:10px;background:var(--brand-soft);border:1px solid var(--stroke2);color:var(--brand);font-size:11px;font-weight:950;letter-spacing:.08em}
+.pgStandardInfo{display:grid;gap:4px;min-width:0}.pgStandardInfo strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-size:14px}.pgStandardInfo span{color:var(--muted);font-size:11px}
+.pgStandardActions{display:flex;align-items:center;gap:8px}.pgStandardEmpty{min-height:180px;display:grid;place-content:center;text-align:center;gap:7px;color:var(--muted)}.pgStandardEmpty strong{color:var(--text)}
+.pgStandardQueueModal{width:min(560px,96vw);display:flex;flex-direction:column;background:var(--bg2);color:var(--text);border:1px solid var(--stroke2);border-radius:20px;box-shadow:0 32px 90px rgba(0,0,0,.42);overflow:hidden}
+.pgStandardQueueFields{display:grid;gap:16px;padding:22px 24px}.pgStandardQueueFields label{display:grid;gap:7px}.pgStandardQueueFields label>span{color:var(--muted);font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
+.pgStandardQueueFields select{width:100%;height:44px;padding:0 12px;border:1px solid var(--stroke2);border-radius:11px;background:var(--card2);color:var(--text);font-weight:800}.pgStandardQueueFields select option{background:var(--bg2);color:var(--text)}
+.pgStandardQueueFields p{margin:0;padding:11px 12px;border-radius:10px;background:var(--brand-soft);color:var(--muted);font-size:12px}
+.pgThemeDark .pgStandardQueueModal{--bg2:#0f172a;--card2:rgba(15,23,42,.94);--text:#f8fafc;--muted:#a8b3c7;--stroke:rgba(148,163,184,.22);--stroke2:rgba(148,163,184,.34);--brand:#a5b4fc;--brand-soft:rgba(99,102,241,.16)}
+@media(max-width:720px){.pgStandardHeader{align-items:flex-start;flex-direction:column}.pgStandardRow{grid-template-columns:42px minmax(0,1fr)}.pgStandardActions{grid-column:1/-1;justify-content:flex-end}}
+
 /* ===== Dashboard estilo analytics ===== */
 .pgDashBoardLike{
   display:flex;

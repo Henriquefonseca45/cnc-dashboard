@@ -6,6 +6,7 @@ from backend.programador_auth import ensure_programador_auth_schema
 from backend.programador_audit import ensure_programador_audit_schema
 from backend.programador_admin import ensure_programador_admin_schema
 from backend.cnc_feeding import ensure_schema as ensure_feeding_schema
+from backend.standard_files import ensure_schema as ensure_standard_files_schema
 
 def main():
     conn = get_conn()
@@ -105,6 +106,7 @@ def main():
     """)
     ensure_programador_auth_schema(conn)
     ensure_programador_admin_schema(conn)
+    ensure_standard_files_schema(conn)
 
     # =========================
     # TABELA LOGS_OPERACAO

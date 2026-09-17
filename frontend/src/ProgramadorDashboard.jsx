@@ -6,7 +6,7 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { ImagePlus } from "lucide-react";
 import PlanClassificationModal from "./PlanClassificationModal";
-import { priorityLabel } from "./planClassification";
+import { PLAN_PRIORITIES, priorityLabel } from "./planClassification";
 
 const CHAT_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 const VCARVE_AGENT_URL = "http://127.0.0.1:8765/abrir-vcarve";
@@ -1812,9 +1812,17 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const [includeDone, setIncludeDone] = useState(false);
 
   const fileInputRef = useRef(null);
+  const standardFileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [classificationModal, setClassificationModal] = useState(null);
   const [classificationError, setClassificationError] = useState("");
+  const [standardFiles, setStandardFiles] = useState([]);
+  const [standardFilesLoading, setStandardFilesLoading] = useState(false);
+  const [standardFilesUploading, setStandardFilesUploading] = useState(false);
+  const [standardFileToQueue, setStandardFileToQueue] = useState(null);
+  const [standardQueuePriority, setStandardQueuePriority] = useState("normal");
+  const [standardQueueMachine, setStandardQueueMachine] = useState("");
+  const [standardQueueSaving, setStandardQueueSaving] = useState(false);
 
   const [draggingId, setDraggingId] = useState(null);
 
@@ -3494,6 +3502,84 @@ function imprimirGrafico7() {
     await api.post(path, { ordered_item_ids: orderedItemIds });
   }
 
+  async function fetchStandardFiles() {
+    setStandardFilesLoading(true);
+    try {
+      const response = await api.get("/api/arquivos-padrao");
+      setStandardFiles(response.data?.items || []);
+    } catch (error) {
+      setErr(getErrMsg(error));
+    } finally {
+      setStandardFilesLoading(false);
+    }
+  }
+
+  async function uploadStandardFiles(event) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (!files.length) return;
+    setErr("");
+    setMsg("");
+    setStandardFilesUploading(true);
+    try {
+      for (const file of files) {
+        const form = new FormData();
+        form.append("file", file);
+        await api.post("/api/arquivos-padrao", form);
+      }
+      setMsg(`${files.length} arquivo(s) adicionado(s) à biblioteca padrão.`);
+      await fetchStandardFiles();
+    } catch (error) {
+      setErr(getErrMsg(error));
+    } finally {
+      setStandardFilesUploading(false);
+    }
+  }
+
+  async function downloadStandardFile(item) {
+    try {
+      const response = await api.get(`/api/arquivos-padrao/${item.id}/download`, { responseType: "blob" });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: response.data?.type || "application/octet-stream" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = item.nome;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      setErr(getErrMsg(error));
+    }
+  }
+
+  function openStandardQueueModal(item) {
+    const firstMachine = (maquinas || []).find(isProductionMachine)?.id || "";
+    setStandardFileToQueue(item);
+    setStandardQueuePriority("normal");
+    setStandardQueueMachine(firstMachine);
+  }
+
+  async function sendStandardFileToQueue(event) {
+    event.preventDefault();
+    if (!standardFileToQueue || !standardQueueMachine) return;
+    setStandardQueueSaving(true);
+    setErr("");
+    setMsg("");
+    try {
+      await api.post(`/api/arquivos-padrao/${standardFileToQueue.id}/enviar`, {
+        priority: standardQueuePriority,
+        cnc_id: standardQueueMachine,
+      });
+      setMsg(`“${standardFileToQueue.nome}” enviado para ${standardQueueMachine}.`);
+      setStandardFileToQueue(null);
+      await reloadAll();
+    } catch (error) {
+      setErr(getErrMsg(error));
+    } finally {
+      setStandardQueueSaving(false);
+    }
+  }
+
   async function reorderFilaLocalAndPersist(dragItemId, overItemId) {
     if (readOnly && !isFacilitador) return;
     if (!dragItemId || !overItemId) return;
@@ -4867,6 +4953,12 @@ const limparLista = (lista) =>
               <span>Chat</span>
               {totalChatUnread > 0 && <span className="pgNavBadge">{totalChatUnread}</span>}
             </button>
+            <button
+              className={`pgTopNavItem ${view === "standardFiles" ? "active" : ""}`}
+              onClick={async () => { setView("standardFiles"); await fetchStandardFiles(); }}
+            >
+              Detalhes e arquivos padrão
+            </button>
           </nav>
         )}
 
@@ -4875,7 +4967,56 @@ const limparLista = (lista) =>
             <button className={`pgTopNavItem ${view === "dashboard" ? "active" : ""}`} onClick={() => setView("dashboard")}>
               Produção
             </button>
+            <button
+              className={`pgTopNavItem ${view === "standardFiles" ? "active" : ""}`}
+              onClick={async () => { setView("standardFiles"); await fetchStandardFiles(); }}
+            >
+              Detalhes e arquivos padrão
+            </button>
           </nav>
+        )}
+
+        {view === "standardFiles" && (
+          <section className="pgStandardLibrary">
+            <header className="pgStandardHeader">
+              <div>
+                <span className="pgStandardEyebrow">BIBLIOTECA PERMANENTE</span>
+                <h2>Detalhes e arquivos padrão</h2>
+                <p>Os arquivos permanecem aqui. Ao utilizar um padrão, escolha a prioridade e a CNC de destino.</p>
+              </div>
+              {!isFacilitador && (
+                <>
+                  <input ref={standardFileInputRef} hidden type="file" accept=".dxf,.DXF" multiple onChange={uploadStandardFiles} />
+                  <button className="pgBtn pgBtnPrimary" type="button" disabled={standardFilesUploading} onClick={() => standardFileInputRef.current?.click()}>
+                    {standardFilesUploading ? "Enviando..." : "Adicionar arquivos DXF"}
+                  </button>
+                </>
+              )}
+            </header>
+
+            <div className="pgStandardList">
+              {standardFilesLoading ? (
+                <div className="pgEmpty">Carregando biblioteca...</div>
+              ) : standardFiles.length === 0 ? (
+                <div className="pgStandardEmpty">
+                  <strong>Nenhum arquivo padrão cadastrado.</strong>
+                  <span>O Programador pode adicionar os primeiros arquivos DXF.</span>
+                </div>
+              ) : standardFiles.map((item) => (
+                <article className="pgStandardRow" key={item.id}>
+                  <div className="pgStandardIcon">DXF</div>
+                  <div className="pgStandardInfo">
+                    <strong title={item.nome}>{item.nome}</strong>
+                    <span>Adicionado em {fmtDate(item.criado_em)}{item.criado_por_nome_snapshot ? ` por ${item.criado_por_nome_snapshot}` : ""}</span>
+                  </div>
+                  <div className="pgStandardActions">
+                    <button className="pgBtn pgBtnGhost" type="button" onClick={() => downloadStandardFile(item)}>Baixar</button>
+                    <button className="pgBtn pgBtnPrimary" type="button" onClick={() => openStandardQueueModal(item)}>Enviar para CNC</button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
         )}
 
         {((!readOnly && view === "dashboard") || (isFacilitador && view === "dashboard")) && (
@@ -7002,6 +7143,43 @@ const limparLista = (lista) =>
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {standardFileToQueue && (
+        <div className="planClassOverlay" role="presentation">
+          <form className="pgStandardQueueModal" role="dialog" aria-modal="true" aria-labelledby="standard-queue-title" onSubmit={sendStandardFileToQueue}>
+            <header className="planClassHeader">
+              <div>
+                <div className="planClassEyebrow">UTILIZAR ARQUIVO PADRÃO</div>
+                <h2 id="standard-queue-title">Enviar para uma CNC</h2>
+                <p>{standardFileToQueue.nome}</p>
+              </div>
+              <button type="button" className="planClassClose" disabled={standardQueueSaving} onClick={() => setStandardFileToQueue(null)} aria-label="Fechar">×</button>
+            </header>
+            <div className="pgStandardQueueFields">
+              <label>
+                <span>Prioridade</span>
+                <select value={standardQueuePriority} onChange={(event) => setStandardQueuePriority(event.target.value)}>
+                  {PLAN_PRIORITIES.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Máquina de destino</span>
+                <select required value={standardQueueMachine} onChange={(event) => setStandardQueueMachine(event.target.value)}>
+                  <option value="">Selecione uma CNC</option>
+                  {(maquinas || []).filter(isProductionMachine).map((machine) => (
+                    <option key={machine.id} value={machine.id}>{machine.id} — {machine.nome || machine.id}</option>
+                  ))}
+                </select>
+              </label>
+              <p>Será criada uma cópia na fila escolhida. O arquivo original continuará nesta biblioteca.</p>
+            </div>
+            <footer className="planClassActions">
+              <button type="button" className="pgBtn pgBtnGhost" disabled={standardQueueSaving} onClick={() => setStandardFileToQueue(null)}>Cancelar</button>
+              <button type="submit" className="pgBtn pgBtnPrimary" disabled={standardQueueSaving || !standardQueueMachine}>{standardQueueSaving ? "Enviando..." : "Enviar para CNC"}</button>
+            </footer>
+          </form>
         </div>
       )}
 
