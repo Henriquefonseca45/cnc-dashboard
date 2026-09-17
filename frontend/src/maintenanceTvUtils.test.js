@@ -25,9 +25,10 @@ test("machines without maintenance receive no zero counter source", () => {
   assert.equal(card.maintenance, null);
 });
 
-test("machine cards receive machining and maintenance tones", () => {
-  assert.equal(maintenanceCardTone({ status: "USINANDO" }), "is-machining");
+test("only maintenance receives a colored card tone", () => {
+  assert.equal(maintenanceCardTone({ status: "USINANDO" }), "");
   assert.equal(maintenanceCardTone({ status: "MANUTENÇÃO" }), "is-maintenance");
   assert.equal(maintenanceCardTone({ status: "USINANDO", maintenance: { id: 1 } }), "is-maintenance");
   assert.equal(maintenanceCardTone({ status: "OCIOSA" }), "");
+  assert.equal(maintenanceCardTone({ status: "SETUP" }), "");
 });

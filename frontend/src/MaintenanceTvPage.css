@@ -10,3 +10,22 @@
 .maintenanceMachineCard__head:not(.has-maintenance){grid-template-columns:auto minmax(0,1fr)}.maintenanceMachineCard__head:not(.has-maintenance)>span{justify-self:end;max-width:100%;overflow:visible;text-overflow:clip;white-space:normal;text-align:center;line-height:1.1;overflow-wrap:break-word}
 @media(max-width:900px){.maintenanceTv{height:auto;min-height:100vh;overflow:auto}.maintenanceTv__sync{display:none}.maintenanceTv__grid{height:auto;min-height:calc(100vh - 54px);grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:none;grid-auto-rows:minmax(300px,46vh);overflow:visible}.maintenanceTv__toolbar>div>span{display:none}}
 @media(max-width:560px){.maintenanceTv__grid{grid-template-columns:1fr;grid-auto-rows:minmax(310px,auto)}.maintenanceTv__toolbar strong{font-size:12px}.maintenanceTv__offline{display:flex!important}}
+
+/* Mecânica TV: somente manutenção recebe cor de destaque. */
+.maintenanceQueueCard__title b{background:#eab308;color:#422006}
+.maintenanceQueueItem{border-color:#fde047;background:#fefce8}
+.maintenanceTv--dark .maintenanceQueueItem{border-color:rgba(250,204,21,.72);background:rgba(113,63,18,.36)}
+.maintenanceQueueItem>strong{background:#eab308;color:#422006}
+.maintenanceQueueItem b,.maintenanceQueueItem em,.maintenanceQueueCard__more{color:#854d0e}
+.maintenanceTv--dark .maintenanceQueueItem b,.maintenanceTv--dark .maintenanceQueueItem em,.maintenanceTv--dark .maintenanceQueueCard__more{color:#fde68a}
+.maintenanceMachineCard.is-maintenance{border-color:#eab308;background:linear-gradient(145deg,rgba(254,252,232,.98),rgba(255,255,255,.94));box-shadow:inset 0 4px 0 #eab308,0 20px 55px -42px rgba(202,138,4,.72)}
+.maintenanceTv--dark .maintenanceMachineCard.is-maintenance{border-color:#facc15;background:linear-gradient(145deg,rgba(113,63,18,.62),rgba(15,23,42,.94));box-shadow:inset 0 4px 0 #facc15,0 22px 60px -38px rgba(250,204,21,.42)}
+.maintenanceMachineCard__head time{color:#a16207}
+.maintenanceMachineCard.is-maintenance .maintenanceMachineCard__head>span{background:#eab308;color:#422006}
+.maintenanceTv--dark .maintenanceMachineCard.is-maintenance .maintenanceMachineCard__head>span{background:#facc15;color:#422006}
+.maintenanceMachineCard__badge{background:#eab308;color:#422006}
+.maintenanceMachineCard dd.work-order{color:#a16207}.maintenanceTv--dark .maintenanceMachineCard dd.work-order{color:#fde68a}
+.maintenanceMachineCard>p{border-left-color:#eab308;background:rgba(254,252,232,.94)}.maintenanceTv--dark .maintenanceMachineCard>p{background:rgba(113,63,18,.3)}
+.maintenanceMachineCard.is-maintenance .maintenanceMachineCard__idle{color:#854d0e}.maintenanceTv--dark .maintenanceMachineCard.is-maintenance .maintenanceMachineCard__idle{color:#fde68a}
+.maintenanceMachineCard__type{border-color:#ca8a04;background:linear-gradient(135deg,#eab308,#facc15);color:#422006;box-shadow:0 6px 16px rgba(202,138,4,.26)}
+.maintenanceTv--dark .maintenanceMachineCard__type{border-color:#facc15;background:linear-gradient(135deg,#ca8a04,#facc15);color:#271600;box-shadow:0 8px 20px rgba(250,204,21,.25)}

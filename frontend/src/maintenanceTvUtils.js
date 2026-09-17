@@ -27,6 +27,5 @@ export function maintenanceCardTone(machine) {
     .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase();
   if (machine?.maintenance || status.includes("MANUT")) return "is-maintenance";
-  if (status.includes("USINANDO")) return "is-machining";
   return "";
 }
