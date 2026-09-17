@@ -1817,12 +1817,22 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const [classificationModal, setClassificationModal] = useState(null);
   const [classificationError, setClassificationError] = useState("");
   const [standardFiles, setStandardFiles] = useState([]);
+  const [standardFilesSearch, setStandardFilesSearch] = useState("");
   const [standardFilesLoading, setStandardFilesLoading] = useState(false);
   const [standardFilesUploading, setStandardFilesUploading] = useState(false);
   const [standardFileToQueue, setStandardFileToQueue] = useState(null);
   const [standardQueuePriority, setStandardQueuePriority] = useState("normal");
   const [standardQueueMachine, setStandardQueueMachine] = useState("");
   const [standardQueueSaving, setStandardQueueSaving] = useState(false);
+  const filteredStandardFiles = useMemo(() => {
+    const query = normUpper(standardFilesSearch).trim();
+    if (!query) return standardFiles;
+    const terms = query.split(/\s+/).filter(Boolean);
+    return standardFiles.filter((item) => {
+      const name = normUpper(item.nome);
+      return terms.every((term) => name.includes(term));
+    });
+  }, [standardFiles, standardFilesSearch]);
 
   const [draggingId, setDraggingId] = useState(null);
 
@@ -4994,6 +5004,26 @@ const limparLista = (lista) =>
               )}
             </header>
 
+            <div className="pgStandardSearchBar">
+              <label className="pgStandardSearch">
+                <span aria-hidden="true">⌕</span>
+                <input
+                  type="search"
+                  value={standardFilesSearch}
+                  onChange={(event) => setStandardFilesSearch(event.target.value)}
+                  placeholder="Pesquisar pelo nome do arquivo..."
+                  aria-label="Pesquisar arquivos padrão"
+                  autoComplete="off"
+                />
+                {standardFilesSearch && (
+                  <button type="button" onClick={() => setStandardFilesSearch("")} aria-label="Limpar pesquisa">×</button>
+                )}
+              </label>
+              <span className="pgStandardSearchCount">
+                {filteredStandardFiles.length} de {standardFiles.length} arquivo(s)
+              </span>
+            </div>
+
             <div className="pgStandardList">
               {standardFilesLoading ? (
                 <div className="pgEmpty">Carregando biblioteca...</div>
@@ -5002,7 +5032,12 @@ const limparLista = (lista) =>
                   <strong>Nenhum arquivo padrão cadastrado.</strong>
                   <span>O Programador pode adicionar os primeiros arquivos DXF.</span>
                 </div>
-              ) : standardFiles.map((item) => (
+              ) : filteredStandardFiles.length === 0 ? (
+                <div className="pgStandardEmpty">
+                  <strong>Nenhum arquivo encontrado.</strong>
+                  <span>Tente pesquisar usando outra parte do nome.</span>
+                </div>
+              ) : filteredStandardFiles.map((item) => (
                 <article className="pgStandardRow" key={item.id}>
                   <div className="pgStandardIcon">DXF</div>
                   <div className="pgStandardInfo">

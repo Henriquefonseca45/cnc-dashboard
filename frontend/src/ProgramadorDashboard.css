@@ -1550,6 +1550,10 @@ body::after{
 .pgStandardHeader{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 24px;border-bottom:1px solid var(--stroke);background:linear-gradient(135deg,var(--card),var(--brand-soft))}
 .pgStandardHeader h2{margin:4px 0 6px;color:var(--text);font-size:24px}.pgStandardHeader p{margin:0;color:var(--muted);font-size:13px}
 .pgStandardEyebrow{color:var(--brand);font-size:10px;font-weight:900;letter-spacing:.18em}
+.pgStandardSearchBar{display:flex;align-items:center;gap:14px;padding:14px 16px;border-bottom:1px solid var(--stroke);background:var(--card2)}
+.pgStandardSearch{flex:1;min-width:0;display:flex;align-items:center;gap:9px;height:43px;padding:0 12px;border:1px solid var(--stroke2);border-radius:11px;background:var(--card)}.pgStandardSearch:focus-within{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+.pgStandardSearch>span{color:var(--brand);font-size:23px;line-height:1}.pgStandardSearch input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font:inherit;font-size:13px}.pgStandardSearch input::placeholder{color:var(--muted2)}.pgStandardSearch input::-webkit-search-cancel-button{display:none}
+.pgStandardSearch button{width:28px;height:28px;border:0;border-radius:8px;background:var(--brand-soft);color:var(--brand);font-size:19px;cursor:pointer}.pgStandardSearchCount{flex:0 0 auto;color:var(--muted);font-size:11px;font-weight:800}
 .pgStandardList{display:grid;gap:8px;padding:16px}
 .pgStandardRow{display:grid;grid-template-columns:48px minmax(0,1fr) auto;align-items:center;gap:14px;padding:13px 14px;border:1px solid var(--stroke);border-radius:14px;background:var(--card2)}
 .pgStandardIcon{width:46px;height:40px;display:grid;place-items:center;border-radius:10px;background:var(--brand-soft);border:1px solid var(--stroke2);color:var(--brand);font-size:11px;font-weight:950;letter-spacing:.08em}
@@ -1560,7 +1564,7 @@ body::after{
 .pgStandardQueueFields select{width:100%;height:44px;padding:0 12px;border:1px solid var(--stroke2);border-radius:11px;background:var(--card2);color:var(--text);font-weight:800}.pgStandardQueueFields select option{background:var(--bg2);color:var(--text)}
 .pgStandardQueueFields p{margin:0;padding:11px 12px;border-radius:10px;background:var(--brand-soft);color:var(--muted);font-size:12px}
 .pgThemeDark .pgStandardQueueModal{--bg2:#0f172a;--card2:rgba(15,23,42,.94);--text:#f8fafc;--muted:#a8b3c7;--stroke:rgba(148,163,184,.22);--stroke2:rgba(148,163,184,.34);--brand:#a5b4fc;--brand-soft:rgba(99,102,241,.16)}
-@media(max-width:720px){.pgStandardHeader{align-items:flex-start;flex-direction:column}.pgStandardRow{grid-template-columns:42px minmax(0,1fr)}.pgStandardActions{grid-column:1/-1;justify-content:flex-end}}
+@media(max-width:720px){.pgStandardHeader{align-items:flex-start;flex-direction:column}.pgStandardSearchBar{align-items:stretch;flex-direction:column;gap:7px}.pgStandardRow{grid-template-columns:42px minmax(0,1fr)}.pgStandardActions{grid-column:1/-1;justify-content:flex-end}}
 
 /* ===== Dashboard estilo analytics ===== */
 .pgDashBoardLike{
