@@ -220,6 +220,8 @@ body::after{
 .pgBtnPrimary{background:var(--brand);color:#fff;border-color:var(--brand)}
 .pgBtnPrimary:hover{background:var(--brand-2)}
 .pgBtnGhost{background: rgba(255,255,255,.55)}
+.pgBtnDanger{background:rgba(239,68,68,.12);color:#ef4444;border-color:rgba(239,68,68,.35)}
+.pgBtnDanger:hover{background:#ef4444;color:#fff;border-color:#ef4444}
 
 .pgVisualTabs{
   margin-top:14px;
@@ -3614,6 +3616,18 @@ body::after{
 .pgThemeDark .pgBtnPrimary:hover {
   background: linear-gradient(180deg, #3d4999 0%, #2d387f 100%);
   border-color: #6070d0;
+}
+
+.pgThemeDark .pgBtnDanger {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.pgThemeDark .pgBtnDanger:hover {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
 }
 
 .pgThemeDark .pgVisualTabBtn:focus-visible,

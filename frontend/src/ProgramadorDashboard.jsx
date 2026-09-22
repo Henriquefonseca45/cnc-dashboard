@@ -1824,6 +1824,7 @@ export default function ProgramadorDashboard({ mode = "programador" }) {
   const [standardQueuePriority, setStandardQueuePriority] = useState("normal");
   const [standardQueueMachine, setStandardQueueMachine] = useState("");
   const [standardQueueSaving, setStandardQueueSaving] = useState(false);
+  const [standardFileDeletingId, setStandardFileDeletingId] = useState(null);
   const filteredStandardFiles = useMemo(() => {
     const query = normUpper(standardFilesSearch).trim();
     if (!query) return standardFiles;
@@ -3590,6 +3591,26 @@ function imprimirGrafico7() {
     }
   }
 
+  async function deleteStandardFile(item) {
+    if (readOnly || isFacilitador || !item?.id) return;
+    const nome = item.nome || `arquivo ${item.id}`;
+    if (!window.confirm(`Tem certeza que deseja excluir o arquivo padrão "${nome}" da biblioteca?`)) return;
+
+    setErr("");
+    setMsg("");
+    setStandardFileDeletingId(item.id);
+    try {
+      await api.delete(`/api/arquivos-padrao/${item.id}`);
+      setMsg(`Arquivo padrão "${nome}" excluído com sucesso.`);
+      await fetchStandardFiles();
+    } catch (error) {
+      setErr(getErrMsg(error));
+    } finally {
+      setStandardFileDeletingId(null);
+    }
+  }
+
+
   async function reorderFilaLocalAndPersist(dragItemId, overItemId) {
     if (readOnly && !isFacilitador) return;
     if (!dragItemId || !overItemId) return;
@@ -5047,6 +5068,17 @@ const limparLista = (lista) =>
                   <div className="pgStandardActions">
                     <button className="pgBtn pgBtnGhost" type="button" onClick={() => downloadStandardFile(item)}>Baixar</button>
                     <button className="pgBtn pgBtnPrimary" type="button" onClick={() => openStandardQueueModal(item)}>Enviar para CNC</button>
+                    {!readOnly && !isFacilitador && (
+                      <button
+                        className="pgBtn pgBtnDanger"
+                        type="button"
+                        disabled={standardFileDeletingId === item.id}
+                        onClick={() => deleteStandardFile(item)}
+                        title="Excluir arquivo padrão"
+                      >
+                        {standardFileDeletingId === item.id ? "Excluindo..." : "Excluir"}
+                      </button>
+                    )}
                   </div>
                 </article>
               ))}

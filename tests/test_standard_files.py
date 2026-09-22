@@ -84,6 +84,42 @@ class StandardFilesTests(unittest.TestCase):
         self.assertEqual(context.exception.status_code, 422)
         self.assertEqual(list(main.DXF_DIR.iterdir()), [])
 
+    def test_programador_deletes_standard_file_and_frees_name(self):
+        uploaded = self.upload("excluir-me.dxf")
+        self.assertEqual(len(main.get_standard_files()["items"]), 1)
+        self.assertEqual(len(list(main.STANDARD_DXF_DIR.iterdir())), 1)
+
+        deleted = main.delete_standard_file(uploaded["id"], self.actor)
+        self.assertTrue(deleted["ok"])
+        self.assertEqual(deleted["nome"], "excluir-me.dxf")
+
+        # No longer in standard files list
+        self.assertEqual(len(main.get_standard_files()["items"]), 0)
+        # Storage file deleted
+        self.assertEqual(len(list(main.STANDARD_DXF_DIR.iterdir())), 0)
+
+        # Re-uploading with same name works
+        reuploaded = self.upload("excluir-me.dxf")
+        self.assertTrue(reuploaded["ok"])
+        self.assertEqual(len(main.get_standard_files()["items"]), 1)
+
+        # Deleting nonexistent or already deleted raises 404
+        with self.assertRaises(HTTPException) as ctx:
+            main.delete_standard_file(uploaded["id"], self.actor)
+        self.assertEqual(ctx.exception.status_code, 404)
+
+        # Verify audit record
+        conn = db.get_conn()
+        try:
+            audit_row = conn.execute(
+                "SELECT acao, arquivo_nome_snapshot, entidade_tipo FROM programador_auditoria WHERE acao='ARQUIVO_PADRAO_EXCLUIDO'"
+            ).fetchone()
+            self.assertIsNotNone(audit_row)
+            self.assertEqual(audit_row["arquivo_nome_snapshot"], "excluir-me.dxf")
+            self.assertEqual(audit_row["entidade_tipo"], "arquivo_padrao")
+        finally:
+            conn.close()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -26,8 +26,12 @@ from openpyxl import Workbook
 
 from backend.db import get_conn
 from backend import cnc_feeding as feeding
-from backend.standard_files import ensure_schema as ensure_standard_files_schema, insert_file as insert_standard_file, list_files as list_standard_files
-from backend.config_maquinas import MAQUINAS
+from backend.standard_files import (
+    ensure_schema as ensure_standard_files_schema,
+    insert_file as insert_standard_file,
+    list_files as list_standard_files,
+    delete_file as delete_standard_file_db,
+)
 from backend.audit import log_action
 from backend.maintenance import (
     MaintenanceError,
@@ -3900,6 +3904,39 @@ def queue_standard_file(arquivo_padrao_id: int, req: StandardFileQueueRequest, r
         raise
     finally:
         conn.close()
+
+
+@app.delete("/api/arquivos-padrao/{arquivo_padrao_id}")
+def delete_standard_file(arquivo_padrao_id: int, user: dict = Depends(require_programador_auth)):
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = _standard_file_row(conn, arquivo_padrao_id)
+        path = _safe_standard_path(row["path"])
+        delete_standard_file_db(conn, arquivo_padrao_id)
+        record_programador_audit(
+            conn,
+            _programador_audit_actor(user),
+            "ARQUIVO_PADRAO_EXCLUIDO",
+            arquivo_nome=row["nome"],
+            entidade_tipo="arquivo_padrao",
+            entidade_id=arquivo_padrao_id,
+            valor_anterior={"nome": row["nome"], "path": row["path"]},
+            valor_novo={"ativo": 0},
+        )
+        conn.commit()
+        try:
+            if path.is_file():
+                path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return {"ok": True, "id": arquivo_padrao_id, "nome": row["nome"]}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
 
 
 # =========================

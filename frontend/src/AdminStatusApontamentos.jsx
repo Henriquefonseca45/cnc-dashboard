@@ -332,7 +332,7 @@ export default function AdminStatusApontamentos() {
                         <td>{fmtDate(row.criado_em)}</td>
                         <td><strong>{row.cnc_id || "-"}</strong></td>
                         <td>{row.arquivo_nome || row.arquivo_id || "-"}</td>
-                        <td>Posicao {row.posicao_anterior ?? "-"} -> {row.posicao_nova ?? "-"}</td>
+                        <td>Posicao {row.posicao_anterior ?? "-"} &rarr; {row.posicao_nova ?? "-"}</td>
                         <td>{row.ip_origem || "-"}</td>
                       </tr>
                     ))

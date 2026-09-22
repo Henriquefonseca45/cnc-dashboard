@@ -43,3 +43,15 @@ def insert_file(conn, name: str, path: str, actor: dict) -> int:
     )
     return int(cursor.lastrowid)
 
+
+def delete_file(conn, file_id: int) -> bool:
+    ensure_schema(conn)
+    row = conn.execute("SELECT * FROM arquivos_padrao WHERE id=? AND ativo=1", (file_id,)).fetchone()
+    if not row:
+        return False
+    now_tag = datetime.now().strftime("%Y%m%d%H%M%S_%f")
+    conn.execute(
+        "UPDATE arquivos_padrao SET ativo=0, nome=? WHERE id=?",
+        (f"__excluido_{file_id}_{now_tag}__{row['nome']}", file_id),
+    )
+    return True
