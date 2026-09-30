@@ -203,7 +203,7 @@ class MorningStatusTests(unittest.TestCase):
             confirm_morning_status(self.connect, "CNC01", self.pending()["id"], "SETUP", {}, now=self.at("05:10:00"))
         self.assertIsNotNone(self.pending())
 
-    def test_maintenance_at_2319_can_resume_same_type_and_work_order_at_0505(self):
+    def test_maintenance_auto_shutdown_resumes_same_type_and_work_order_at_0505(self):
         type_id = self.rows("SELECT id FROM maintenance_types WHERE name LIKE 'Mec%'")[0]["id"]
         change_machine_status(
             self.connect, "CNC01", "MANUTENÇÃO", ACTOR,
@@ -214,27 +214,49 @@ class MorningStatusTests(unittest.TestCase):
             self.connect, lambda _cnc: None,
             now=self.at("23:19:00", "2026-08-30"),
         )
-        change_machine_status(
-            self.connect, "CNC01", "DESLIGADA",
-            {"id": None, "name": "Sistema", "role": "ADMIN"},
-            now_factory=lambda: "2026-08-30T23:24:00-03:00",
+        process_status_confirmations(
+            self.connect,
+            lambda cnc: change_machine_status(
+                self.connect, cnc, "DESLIGADA",
+                {"id": None, "name": "Sistema", "role": "ADMIN"},
+                now_factory=lambda: "2026-08-30T23:24:00-03:00",
+            ),
+            now=self.at("23:24:00", "2026-08-30"),
         )
 
-        self.process()
-        resume = self.pending()["maintenanceResume"]
-        self.assertEqual(resume["maintenanceTypeId"], type_id)
-        self.assertEqual(resume["workOrder"], "OS-38406")
-
-        # Client values are deliberately different: the server must retain the prior OS/type.
-        self.answer(
-            status="MANUTENÇÃO", maintenance_type_id=999,
-            work_order="OS-ALTERADA", opening_notes="Alterada no cliente",
-        )
+        result = self.process()
+        self.assertEqual(result["auto_maintenance"], 1)
+        self.assertIsNone(self.pending())
+        machine = self.rows("SELECT * FROM maquinas WHERE id = 'CNC01'")[0]
+        self.assertEqual(machine["status"], "MANUTENÇÃO")
+        self.assertEqual(machine["status_desde"], "2026-08-31T05:05:00-03:00")
         calls = self.rows("SELECT * FROM cnc_maintenance_calls ORDER BY id")
         self.assertEqual(len(calls), 2)
         self.assertEqual(calls[-1]["maintenance_type_id"], type_id)
         self.assertEqual(calls[-1]["work_order"], "OS-38406")
-        self.assertEqual(calls[-1]["opening_notes"], "Retomada da manutenção do turno anterior.")
+        self.assertEqual(calls[-1]["opening_notes"], "Retomada automática da manutenção do turno anterior.")
+        self.assertEqual(self.process()["auto_maintenance"], 0)
+
+    def test_manual_shutdown_does_not_resume_maintenance_automatically(self):
+        type_id = self.rows("SELECT id FROM maintenance_types WHERE name LIKE 'Mec%'")[0]["id"]
+        change_machine_status(
+            self.connect, "CNC01", "MANUTENÇÃO", ACTOR,
+            maintenance_type_id=type_id, work_order="OS-MANUAL",
+            now_factory=lambda: "2026-08-30T22:00:00-03:00",
+        )
+        process_status_confirmations(
+            self.connect, lambda _cnc: None,
+            now=self.at("23:19:00", "2026-08-30"),
+        )
+        change_machine_status(
+            self.connect, "CNC01", "DESLIGADA", ACTOR,
+            now_factory=lambda: "2026-08-30T23:23:00-03:00",
+        )
+
+        result = self.process()
+        self.assertEqual(result["auto_maintenance"], 0)
+        self.assertEqual(self.rows("SELECT status FROM maquinas WHERE id = 'CNC01'")[0]["status"], "DESLIGADA")
+        self.assertIsNone(self.pending()["maintenanceResume"])
 
     def test_ordinary_morning_maintenance_still_requires_type_and_os(self):
         self.process()

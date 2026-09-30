@@ -42,7 +42,7 @@ def _changed(row, machine):
 
 
 def _maintenance_resume_candidate(conn, cnc_id, confirmation_date):
-    """Return the call that was open when the previous 23:19 prompt was created."""
+    """Return maintenance automatically shut down at 23:24 on the previous day."""
     required_tables = {"machine_status_confirmations", "cnc_maintenance_calls", "maintenance_types"}
     tables = {
         row["name"] for row in conn.execute(
@@ -60,8 +60,13 @@ def _maintenance_resume_candidate(conn, cnc_id, confirmation_date):
          AND c.started_at <= s.prompted_at
          AND (c.finished_at IS NULL OR c.finished_at >= s.prompted_at)
         JOIN maintenance_types t ON t.id = c.maintenance_type_id
+        JOIN maquinas m ON m.id = s.cnc_id
         WHERE s.confirmation_date = ? AND s.cnc_id = ?
+          AND s.action = 'AUTO_SHUTDOWN'
+          AND s.auto_shutdown_at IS NOT NULL
           AND UPPER(s.status_at_prompt) LIKE '%MANUT%'
+          AND UPPER(TRIM(m.status)) = 'DESLIGADA'
+          AND m.status_desde = s.auto_shutdown_at
         ORDER BY c.started_at DESC, c.id DESC
         LIMIT 1
     """, (previous_date, cnc_id)).fetchone()
@@ -72,6 +77,57 @@ def _maintenance_resume_candidate(conn, cnc_id, confirmation_date):
         "type": row["type_name"],
         "workOrder": row["work_order"] or "",
     }
+
+
+def _auto_resume_maintenance(get_connection, cnc_id, confirmation_id, *, now=None, legacy_hook=None):
+    """Atomically restore the maintenance closed by the previous 23:24 automation."""
+    current = now or _local_now()
+    conn = get_connection()
+    try:
+        candidate = _maintenance_resume_candidate(conn, cnc_id, current.date().isoformat())
+    finally:
+        conn.close()
+    if not candidate:
+        raise MaintenanceError(409, "A manutenção anterior não está mais disponível para retomada automática.")
+
+    resolved_time = []
+
+    def guard(conn, machine):
+        locked_now = now or _local_now()
+        ensure_schema(conn)
+        row = conn.execute(
+            "SELECT * FROM morning_status_confirmations WHERE id = ? AND cnc_id = ? AND action = 'PENDING'",
+            (confirmation_id, cnc_id),
+        ).fetchone()
+        locked_candidate = _maintenance_resume_candidate(conn, cnc_id, locked_now.date().isoformat())
+        if (
+            not row
+            or locked_now.weekday() >= 5
+            or row["confirmation_date"] != locked_now.date().isoformat()
+            or locked_now < datetime.fromisoformat(row["prompted_at"])
+            or _changed(row, machine)
+            or not locked_candidate
+            or locked_candidate != candidate
+        ):
+            raise MaintenanceError(409, "Esta manutenção não pode mais ser retomada automaticamente.")
+        timestamp = locked_now.isoformat(timespec="seconds")
+        resolved_time.append(timestamp)
+        conn.execute("""
+            UPDATE morning_status_confirmations
+            SET action = 'AUTO_MAINTENANCE', resolved_at = ?, resolved_by = 'Sistema',
+                selected_status = 'MANUTENÇÃO'
+            WHERE id = ?
+        """, (timestamp, row["id"]))
+
+    return change_machine_status(
+        get_connection, cnc_id, "MANUTENÇÃO",
+        {"id": None, "name": "Sistema", "role": "ADMIN"},
+        maintenance_type_id=candidate["maintenanceTypeId"],
+        work_order=candidate["workOrder"],
+        opening_notes="Retomada automática da manutenção do turno anterior.",
+        transaction_guard=guard, legacy_hook=legacy_hook,
+        now_factory=lambda: resolved_time[0],
+    )
 
 
 def _resolve(get_connection, cnc_id, confirmation_id, status, actor, *,
@@ -137,6 +193,7 @@ def process_morning_status_confirmations(get_connection, *, now=None, legacy_hoo
     prompt_at = current.replace(hour=5, minute=5, second=0, microsecond=0)
     deadline_at = current.replace(hour=5, minute=15, second=0, microsecond=0)
     due = []
+    maintenance_due = []
     created = 0
     conn = get_connection()
     try:
@@ -163,11 +220,29 @@ def process_morning_status_confirmations(get_connection, *, now=None, legacy_hoo
             if _changed(row, machine):
                 conn.execute("UPDATE morning_status_confirmations SET action = 'STATUS_CHANGED', resolved_at = ? WHERE id = ?",
                              (current.isoformat(timespec="seconds"), row["id"]))
+            elif current.weekday() < 5 and _maintenance_resume_candidate(conn, row["cnc_id"], today):
+                # This takes precedence over the 05:15 fallback and is retried if a
+                # transient history write fails.
+                maintenance_due.append((row["id"], row["cnc_id"]))
             elif current.weekday() < 5 and current >= datetime.fromisoformat(row["deadline_at"]):
                 due.append((row["id"], row["cnc_id"]))
         conn.commit()
     finally:
         conn.close()
+
+    maintenance_count = 0
+    for confirmation_id, cnc_id in maintenance_due:
+        try:
+            _auto_resume_maintenance(
+                get_connection, cnc_id, confirmation_id,
+                now=now, legacy_hook=legacy_hook,
+            )
+            maintenance_count += 1
+        except MaintenanceError as exc:
+            if exc.status_code != 409:
+                logger.exception("Falha ao retomar manutenção em %s", cnc_id)
+        except Exception:
+            logger.exception("Falha ao retomar manutenção em %s", cnc_id)
 
     count = 0
     for confirmation_id, cnc_id in due:
@@ -182,7 +257,7 @@ def process_morning_status_confirmations(get_connection, *, now=None, legacy_hoo
         except Exception:
             # The transaction rolls back, leaving the prompt pending for a retry.
             logger.exception("Falha ao aplicar falta de operador em %s", cnc_id)
-    return {"created": created, "auto_absent": count}
+    return {"created": created, "auto_maintenance": maintenance_count, "auto_absent": count}
 
 
 def get_pending_morning_status(get_connection, cnc_id, *, now=None):
