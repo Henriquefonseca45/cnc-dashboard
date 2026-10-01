@@ -4,6 +4,7 @@ import "./ProgramadorAuditHistory.css";
 
 
 const ACTION_LABELS = {
+  COMPETENCIA_ATUALIZADA: "Competência atualizada",
   ARQUIVO_IMPORTADO: "Importação",
   ARQUIVO_EXCLUIDO: "Exclusão",
   PRIORIDADE_ALTERADA: "Prioridade",

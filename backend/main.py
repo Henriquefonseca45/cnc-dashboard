@@ -95,6 +95,12 @@ from backend.programador_audit import (
     list_programador_audit,
     record_programador_audit,
 )
+from backend.programador_competencias import (
+    CompetenciaError,
+    ensure_schema as ensure_programador_competencias_schema,
+    get_matrix as get_programador_competencias,
+    set_levels as set_programador_competencias,
+)
 
 # =========================
 # APP
@@ -197,6 +203,16 @@ class DevProgramadorStatusUpdate(BaseModel):
 class DevProgramadorPasswordReset(BaseModel):
     senha_temporaria: str
     confirmar_senha_temporaria: str
+
+
+class ProgramadorCompetenciaChange(BaseModel):
+    colaborador_id: str
+    operacao_id: str
+    nivel: int
+
+
+class ProgramadorCompetenciasUpdate(BaseModel):
+    alteracoes: list[ProgramadorCompetenciaChange]
 
 
 def _programador_cookie_secure() -> bool:
@@ -461,6 +477,40 @@ def programador_auditoria_opcoes(_user: dict = Depends(require_lider)):
     conn = get_conn()
     try:
         return audit_filter_options(conn)
+    finally:
+        conn.close()
+
+
+@app.get("/programador/competencias")
+def programador_competencias_lista(_user: dict = Depends(require_programador_auth)):
+    conn = get_conn()
+    try:
+        return get_programador_competencias(conn)
+    finally:
+        conn.close()
+
+
+@app.put("/programador/competencias")
+def programador_competencias_salvar(
+    body: ProgramadorCompetenciasUpdate,
+    user: dict = Depends(require_programador_auth),
+):
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        result = set_programador_competencias(
+            conn,
+            [change.model_dump() for change in body.alteracoes],
+            user,
+        )
+        conn.commit()
+        return result
+    except CompetenciaError as exc:
+        conn.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -3184,6 +3234,7 @@ def start_status_confirmation_worker():
         ensure_programador_auth_schema(conn)
         ensure_programador_audit_schema(conn)
         ensure_programador_admin_schema(conn)
+        ensure_programador_competencias_schema(conn)
         feeding.ensure_schema(conn)
         ensure_standard_files_schema(conn)
         conn.commit()

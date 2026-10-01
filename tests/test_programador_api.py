@@ -123,6 +123,22 @@ class ProgramadorApiTests(unittest.TestCase):
         self.assertEqual(main.require_programador_auth(fake_request(token))["role"], "lider")
         self.assertEqual(main.require_lider(fake_request(token))["id"], self.lider["id"])
 
+    def test_programador_can_read_and_update_competency_matrix(self):
+        initial = main.programador_competencias_lista(self.programador)
+        self.assertEqual(initial["colaboradores"][0]["nome"], "Matheus")
+        self.assertEqual(len(initial["operacoes"]), 12)
+
+        updated = main.programador_competencias_salvar(
+            main.ProgramadorCompetenciasUpdate(alteracoes=[
+                main.ProgramadorCompetenciaChange(
+                    colaborador_id="matheus", operacao_id="zig-zag", nivel=3,
+                ),
+            ]),
+            self.programador,
+        )
+        self.assertEqual(updated["avaliacoes"]["matheus"]["zig-zag"]["nivel"], 3)
+        self.assertIn("COMPETENCIA_ATUALIZADA", self.audit_actions())
+
     def test_import_classification_queue_move_and_delete_generate_audit(self):
         upload = UploadFile(filename="48572.dxf", file=BytesIO(b"0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n"))
         metadata = json.dumps([{

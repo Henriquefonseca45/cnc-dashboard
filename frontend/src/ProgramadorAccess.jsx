@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import ProgramadorDashboard from "./ProgramadorDashboard.jsx";
 import ProgramadorAuditHistory from "./ProgramadorAuditHistory.jsx";
 import ProgramadorFirstAccess from "./ProgramadorFirstAccess.jsx";
+import ProgramadorCompetencyMatrix from "./ProgramadorCompetencyMatrix.jsx";
 import { api, getErrMsg } from "./api";
 import "./ProgramadorAccess.css";
 
@@ -117,7 +118,7 @@ export default function ProgramadorAccess() {
   const [user, setUser] = useState(null);
   const [authEnabled, setAuthEnabled] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState(() => location.pathname.endsWith("/historico") ? "historico" : "operacao");
+  const [view, setView] = useState(() => location.pathname.endsWith("/historico") ? "historico" : location.pathname.endsWith("/competencias") ? "competencias" : "operacao");
   const [themeMode, setThemeMode] = useState(() => {
     try { return localStorage.getItem("programador_dashboard_theme") || "dark"; } catch { return "dark"; }
   });
@@ -144,7 +145,7 @@ export default function ProgramadorAccess() {
   }, []);
 
   useEffect(() => {
-    const requestedView = location.pathname.endsWith("/historico") ? "historico" : "operacao";
+    const requestedView = location.pathname.endsWith("/historico") ? "historico" : location.pathname.endsWith("/competencias") ? "competencias" : "operacao";
     if (requestedView === "historico" && user && user.role !== "lider") {
       setView("operacao");
       navigate("/programador", { replace: true });
@@ -209,6 +210,7 @@ export default function ProgramadorAccess() {
         </div>
         <nav aria-label="Módulo Programador">
           <button className={view === "operacao" ? "active" : ""} onClick={() => navigate("/programador")}>Operação</button>
+          <button className={view === "competencias" ? "active" : ""} onClick={() => navigate("/programador/competencias")}>Matriz de Competências</button>
           {user.role === "lider" ? (
             <button className={view === "historico" ? "active" : ""} onClick={() => navigate("/programador/historico")}>Histórico</button>
           ) : null}
@@ -222,6 +224,8 @@ export default function ProgramadorAccess() {
       <div className="programadorModuleContent">
         {view === "historico" && user.role === "lider" ? (
           <ProgramadorAuditHistory />
+        ) : view === "competencias" ? (
+          <ProgramadorCompetencyMatrix />
         ) : (
           <ProgramadorDashboard authUser={user} />
         )}
