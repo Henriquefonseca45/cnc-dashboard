@@ -124,20 +124,38 @@ class ProgramadorApiTests(unittest.TestCase):
         self.assertEqual(main.require_lider(fake_request(token))["id"], self.lider["id"])
 
     def test_programador_can_read_and_update_competency_matrix(self):
-        initial = main.programador_competencias_lista(self.programador)
+        conn = database.get_conn()
+        matheus = auth.create_or_update_user(
+            conn, nome="Matheus", login="matheus", password="Senha-forte-03", role="programador"
+        )
+        conn.commit()
+        conn.close()
+        initial = main.programador_competencias_lista(matheus)
         self.assertEqual(initial["colaboradores"][0]["nome"], "Matheus")
         self.assertEqual(len(initial["operacoes"]), 12)
 
         updated = main.programador_competencias_salvar(
             main.ProgramadorCompetenciasUpdate(alteracoes=[
                 main.ProgramadorCompetenciaChange(
-                    colaborador_id="matheus", operacao_id="zig-zag", nivel=3,
+                    operacao_id="zig-zag", nivel=3,
                 ),
             ]),
-            self.programador,
+            matheus,
         )
-        self.assertEqual(updated["avaliacoes"]["matheus"]["zig-zag"]["nivel"], 3)
-        self.assertIn("COMPETENCIA_ATUALIZADA", self.audit_actions())
+        item = updated["avaliacoes"]["matheus"]["zig-zag"]
+        self.assertEqual(item["autoavaliacaoNivel"], 3)
+        self.assertEqual(item["status"], "PENDENTE")
+        validated = main.programador_competencias_validar(
+            main.ProgramadorCompetenciasReviewUpdate(alteracoes=[
+                main.ProgramadorCompetenciaReview(
+                    colaborador_id="matheus", operacao_id="zig-zag", nivel=2,
+                ),
+            ]),
+            self.lider,
+        )
+        self.assertEqual(validated["avaliacoes"]["matheus"]["zig-zag"]["nivelValidado"], 2)
+        self.assertIn("COMPETENCIA_AUTOAVALIADA", self.audit_actions())
+        self.assertIn("COMPETENCIA_VALIDADA", self.audit_actions())
 
     def test_import_classification_queue_move_and_delete_generate_audit(self):
         upload = UploadFile(filename="48572.dxf", file=BytesIO(b"0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n"))

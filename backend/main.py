@@ -99,7 +99,8 @@ from backend.programador_competencias import (
     CompetenciaError,
     ensure_schema as ensure_programador_competencias_schema,
     get_matrix as get_programador_competencias,
-    set_levels as set_programador_competencias,
+    review_levels as review_programador_competencias,
+    set_self_levels as set_programador_competencias,
 )
 
 # =========================
@@ -206,13 +207,22 @@ class DevProgramadorPasswordReset(BaseModel):
 
 
 class ProgramadorCompetenciaChange(BaseModel):
-    colaborador_id: str
     operacao_id: str
     nivel: int
 
 
 class ProgramadorCompetenciasUpdate(BaseModel):
     alteracoes: list[ProgramadorCompetenciaChange]
+
+
+class ProgramadorCompetenciaReview(BaseModel):
+    colaborador_id: str
+    operacao_id: str
+    nivel: int
+
+
+class ProgramadorCompetenciasReviewUpdate(BaseModel):
+    alteracoes: list[ProgramadorCompetenciaReview]
 
 
 def _programador_cookie_secure() -> bool:
@@ -482,10 +492,10 @@ def programador_auditoria_opcoes(_user: dict = Depends(require_lider)):
 
 
 @app.get("/programador/competencias")
-def programador_competencias_lista(_user: dict = Depends(require_programador_auth)):
+def programador_competencias_lista(user: dict = Depends(require_programador_auth)):
     conn = get_conn()
     try:
-        return get_programador_competencias(conn)
+        return get_programador_competencias(conn, user)
     finally:
         conn.close()
 
@@ -502,6 +512,29 @@ def programador_competencias_salvar(
             conn,
             [change.model_dump() for change in body.alteracoes],
             user,
+        )
+        conn.commit()
+        return result
+    except CompetenciaError as exc:
+        conn.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+@app.put("/programador/competencias/validacoes")
+def programador_competencias_validar(
+    body: ProgramadorCompetenciasReviewUpdate,
+    user: dict = Depends(require_lider),
+):
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        result = review_programador_competencias(
+            conn, [change.model_dump() for change in body.alteracoes], user,
         )
         conn.commit()
         return result

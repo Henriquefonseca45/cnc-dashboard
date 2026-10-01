@@ -50,6 +50,25 @@
 .coverageBadge.single { background: #fff0d2; color: #9b5e00; }
 .coverageBadge.covered { background: #e5f7ef; color: #167451; }
 .competencyEmpty { height: 100px; color: #7d899e; }
+.competencyFlowHint { color: #65738c; font-size: 11px; font-weight: 700; }
+.competencySelfList { display: grid; }
+.competencySelfTitle { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 18px; border-bottom: 1px solid #e2e7ef; }
+.competencySelfTitle strong { font-size: 16px; }
+.competencySelfTitle span { color: #78859a; font-size: 11px; }
+.competencySelfRow { display: grid; grid-template-columns: minmax(230px, 1fr) 180px 110px; align-items: center; gap: 16px; min-height: 68px; padding: 10px 18px; border-bottom: 1px solid #e6eaf1; }
+.competencySelfRow > div { display: grid; gap: 4px; }
+.competencySelfRow > div > strong { font-size: 12px; }
+.competencySelfRow > div > small { color: #7c899e; font-size: 10px; }
+.competencySelfRow select { width: 100%; height: 38px; padding: 0 8px; border: 1px solid #d8dfeb; border-radius: 8px; font: inherit; font-size: 10px; font-weight: 900; }
+.competencyStatus { display: inline-flex; justify-content: center; padding: 7px 8px; border-radius: 8px; font-size: 9px; font-weight: 900; }
+.competencyStatus.validated { background: #e4f7ee; color: #14704e; }
+.competencyStatus.pending { background: #fff0d2; color: #976000; }
+.competencyStatus.empty { background: #edf0f5; color: #71809a; }
+.competencyReviewCell { display: grid; justify-items: center; gap: 5px; min-width: 105px; padding: 5px; border: 1px solid transparent; border-radius: 9px; }
+.competencyReviewCell.pending { border-color: #efc36d; background: #fff8e8; }
+.competencyReviewCell small { color: #6f7c92; font-size: 9px; font-weight: 800; }
+.competencyReviewCell button { padding: 4px 7px; border: 0; border-radius: 6px; background: #136ee8; color: #fff; font-size: 9px; font-weight: 900; cursor: pointer; }
+.competencyReviewedMark { color: #71809a; font-size: 8px; font-weight: 800; }
 
 .programadorModule.theme-dark .competencyPage { background: #0c1120; color: #edf1ff; }
 .programadorModule.theme-dark .competencyHeading p { color: #95a1b8; }
@@ -62,6 +81,14 @@
 .programadorModule.theme-dark .competencyToolbar { border-color: #2c354b; }
 .programadorModule.theme-dark .competencySearch input { border-color: #35405a; background: #0e1526; color: #edf1ff; }
 .programadorModule.theme-dark .competencyCritical { color: #a9b3c6; }
+.programadorModule.theme-dark .competencyFlowHint,
+.programadorModule.theme-dark .competencySelfTitle span,
+.programadorModule.theme-dark .competencySelfRow > div > small { color: #96a2b8; }
+.programadorModule.theme-dark .competencySelfTitle,
+.programadorModule.theme-dark .competencySelfRow { border-color: #293249; }
+.programadorModule.theme-dark .competencySelfRow select { border-color: #3a455f; }
+.programadorModule.theme-dark .competencyReviewCell.pending { border-color: #806224; background: #2e281b; }
+.programadorModule.theme-dark .competencyReviewCell small { color: #aab4c7; }
 .programadorModule.theme-dark .competencyTable th,
 .programadorModule.theme-dark .competencyTable td { border-color: #293249; }
 .programadorModule.theme-dark .competencyTable thead th { background: #101728; color: #93a0b7; }
@@ -82,5 +109,7 @@
   .competencyPage { padding: 16px; }
   .competencyKpis, .competencyLegend { grid-template-columns: 1fr; }
   .competencyHeaderActions, .competencyBtn { width: 100%; }
+  .competencySelfTitle { align-items: flex-start; flex-direction: column; }
+  .competencySelfRow { grid-template-columns: 1fr; }
 }
 
