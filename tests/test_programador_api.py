@@ -132,7 +132,7 @@ class ProgramadorApiTests(unittest.TestCase):
         conn.close()
         initial = main.programador_competencias_lista(matheus)
         self.assertEqual(initial["colaboradores"][0]["nome"], "Matheus")
-        self.assertEqual(len(initial["operacoes"]), 12)
+        self.assertEqual(len(initial["operacoes"]), 18)
 
         updated = main.programador_competencias_salvar(
             main.ProgramadorCompetenciasUpdate(alteracoes=[

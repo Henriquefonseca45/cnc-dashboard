@@ -21,18 +21,24 @@ COLABORADORES = (
 )
 
 OPERACOES = (
-    {"id": "zig-zag", "nome": "Zig Zag"},
-    {"id": "papelao-geral-cnc", "nome": "Papelão geral CNC"},
-    {"id": "papelao-emma", "nome": "Papelão EMMA"},
-    {"id": "montagem", "nome": "Montagem"},
-    {"id": "calco-nucleo", "nome": "Calço de núcleo"},
-    {"id": "anel-prensagem", "nome": "Anel de prensagem"},
-    {"id": "anel-equipotencial", "nome": "Anel equipotencial"},
-    {"id": "tijolinho", "nome": "Tijolinho"},
-    {"id": "gabaritos", "nome": "Gabaritos"},
-    {"id": "moldados-mini-angulo", "nome": "Moldados e mini angulo"},
-    {"id": "suporte-cnc", "nome": "Suporte CNC"},
-    {"id": "suporte-cf", "nome": "Suporte CF"},
+    {"id": "zig-zag", "nome": "Zig Zag", "categoria": "desenho"},
+    {"id": "papelao-geral-cnc", "nome": "Papelão geral CNC", "categoria": "desenho"},
+    {"id": "papelao-emma", "nome": "Papelão EMMA", "categoria": "desenho"},
+    {"id": "montagem", "nome": "Montagem", "categoria": "desenho"},
+    {"id": "calco-nucleo", "nome": "Calço de núcleo", "categoria": "desenho"},
+    {"id": "anel-prensagem", "nome": "Anel de prensagem", "categoria": "desenho"},
+    {"id": "anel-equipotencial", "nome": "Anel equipotencial", "categoria": "desenho"},
+    {"id": "tijolinho", "nome": "Tijolinho", "categoria": "desenho"},
+    {"id": "gabaritos", "nome": "Gabaritos", "categoria": "desenho"},
+    {"id": "moldados-mini-angulo", "nome": "Moldados e mini angulo", "categoria": "desenho"},
+    {"id": "suporte-cnc", "nome": "Suporte CNC", "categoria": "desenho"},
+    {"id": "suporte-cf", "nome": "Suporte CF", "categoria": "desenho"},
+    {"id": "programacao-suporte-cf", "nome": "Programação Suporte CF", "categoria": "programacao"},
+    {"id": "programacao-nesting-cnc", "nome": "Programação NestingCNC", "categoria": "programacao"},
+    {"id": "programacao-zig-zag", "nome": "Programação zig zag", "categoria": "programacao"},
+    {"id": "programacao-papelao", "nome": "Programação papelão", "categoria": "programacao"},
+    {"id": "programacao-tijolinho", "nome": "Programação tijolinho", "categoria": "programacao"},
+    {"id": "programacao-anel-equipotencial", "nome": "Programação anel equipotencial", "categoria": "programacao"},
 )
 
 _COLABORADORES = {item["id"]: item for item in COLABORADORES}

@@ -30,6 +30,11 @@
 .competencyLegendItem.level-3, .competencyTable select.level-3 { border-color: #5c9c7d; background: #8ac0a3; color: #143c2a; }
 .competencyLegendItem.level-4, .competencyTable select.level-4 { border-color: #245d4c; background: #2e6b58; color: #fff; }
 .competencyPanel { max-width: 1600px; margin: 0 auto; overflow: hidden; border: 1px solid #dce3ee; border-radius: 15px; background: #fff; box-shadow: 0 12px 36px -28px rgba(20, 36, 62, .55); }
+.competencyCategoryTabs { display: flex; gap: 8px; max-width: 1600px; margin: 0 auto 10px; padding: 5px; border: 1px solid #dce3ee; border-radius: 12px; background: #fff; }
+.competencyCategoryTabs button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 150px; height: 38px; padding: 0 16px; border: 0; border-radius: 9px; background: transparent; color: #68768e; font: inherit; font-size: 12px; font-weight: 900; cursor: pointer; }
+.competencyCategoryTabs button span { display: inline-flex; min-width: 22px; height: 22px; align-items: center; justify-content: center; border-radius: 7px; background: #e9edf4; font-size: 9px; }
+.competencyCategoryTabs button.active { background: linear-gradient(135deg, #1689ff, #145be6); color: #fff; box-shadow: 0 5px 14px rgba(20, 91, 230, .22); }
+.competencyCategoryTabs button.active span { background: rgba(255,255,255,.2); }
 .competencyToolbar { display: flex; align-items: end; justify-content: space-between; gap: 18px; padding: 14px 16px; border-bottom: 1px solid #e2e7ef; }
 .competencySearch { display: grid; gap: 5px; width: min(390px, 100%); color: #748097; font-size: 10px; font-weight: 900; text-transform: uppercase; }
 .competencySearch input { height: 38px; padding: 0 12px; border: 1px solid #d5deeb; border-radius: 9px; background: #fff; color: #24314a; font: inherit; font-size: 12px; outline: none; }
@@ -75,7 +80,12 @@
 .programadorModule.theme-dark .competencyBtn { border-color: #39435b; background: #12192b; color: #dce3f3; }
 .programadorModule.theme-dark .competencyBtn.primary { border-color: #267bea; background: linear-gradient(135deg, #148cff, #2454dc); color: #fff; }
 .programadorModule.theme-dark .competencyKpis article,
-.programadorModule.theme-dark .competencyPanel { border-color: #2d3750; background: #141b2e; }
+.programadorModule.theme-dark .competencyPanel,
+.programadorModule.theme-dark .competencyCategoryTabs { border-color: #2d3750; background: #141b2e; }
+.programadorModule.theme-dark .competencyCategoryTabs button { color: #a8b3c7; }
+.programadorModule.theme-dark .competencyCategoryTabs button span { background: #273149; }
+.programadorModule.theme-dark .competencyCategoryTabs button.active { color: #fff; }
+.programadorModule.theme-dark .competencyCategoryTabs button.active span { background: rgba(255,255,255,.2); }
 .programadorModule.theme-dark .competencyKpis span,
 .programadorModule.theme-dark .competencyKpis small { color: #8f9bb2; }
 .programadorModule.theme-dark .competencyToolbar { border-color: #2c354b; }
@@ -109,6 +119,7 @@
   .competencyPage { padding: 16px; }
   .competencyKpis, .competencyLegend { grid-template-columns: 1fr; }
   .competencyHeaderActions, .competencyBtn { width: 100%; }
+  .competencyCategoryTabs button { min-width: 0; flex: 1; }
   .competencySelfTitle { align-items: flex-start; flex-direction: column; }
   .competencySelfRow { grid-template-columns: 1fr; }
 }

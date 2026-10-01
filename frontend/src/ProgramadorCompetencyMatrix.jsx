@@ -31,6 +31,7 @@ export default function ProgramadorCompetencyMatrix() {
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
   const [criticalOnly, setCriticalOnly] = useState(false);
+  const [category, setCategory] = useState("desenho");
 
   async function load() {
     setLoading(true); setError("");
@@ -64,11 +65,12 @@ export default function ProgramadorCompetencyMatrix() {
     if (!data) return [];
     const term = search.trim().toLocaleLowerCase("pt-BR");
     return data.operacoes.filter((operation) => {
+      if ((operation.categoria || "desenho") !== category) return false;
       if (term && !operation.nome.toLocaleLowerCase("pt-BR").includes(term)) return false;
       if (!criticalOnly || !isLeader) return true;
       return data.colaboradores.filter((person) => assessment(person.id, operation.id)?.nivelValidado >= 3).length < 2;
     });
-  }, [criticalOnly, data, isLeader, search]);
+  }, [category, criticalOnly, data, isLeader, search]);
 
   const summary = useMemo(() => {
     if (!data) return { completed: 0, total: 0, pending: 0, uncovered: 0, single: 0 };
@@ -155,6 +157,15 @@ export default function ProgramadorCompetencyMatrix() {
 
       <section className="competencyLegend" aria-label="Escala de competências">{data.niveis.map((level) =>
         <div key={level.nivel} className={`competencyLegendItem level-${level.nivel}`} title={level.descricao}><strong>{level.nivel}</strong><span>{level.nome}</span><small>{level.descricao}</small></div>)}</section>
+
+      <nav className="competencyCategoryTabs" aria-label="Tipo de competência">
+        <button type="button" className={category === "desenho" ? "active" : ""} onClick={() => setCategory("desenho")}>
+          Desenho <span>{data.operacoes.filter((item) => (item.categoria || "desenho") === "desenho").length}</span>
+        </button>
+        <button type="button" className={category === "programacao" ? "active" : ""} onClick={() => setCategory("programacao")}>
+          Programação <span>{data.operacoes.filter((item) => item.categoria === "programacao").length}</span>
+        </button>
+      </nav>
 
       <section className="competencyPanel">
         <div className="competencyToolbar">

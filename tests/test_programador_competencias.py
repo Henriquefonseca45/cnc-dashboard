@@ -27,7 +27,9 @@ class ProgramadorCompetenciasTests(unittest.TestCase):
         self.assertEqual([p["nome"] for p in matrix["colaboradores"]], [
             "Matheus", "Paulo", "Dirley", "Lucas", "Bruno", "Aleixo",
         ])
-        self.assertEqual(len(matrix["operacoes"]), 12)
+        self.assertEqual(len(matrix["operacoes"]), 18)
+        self.assertEqual(len([item for item in matrix["operacoes"] if item["categoria"] == "desenho"]), 12)
+        self.assertEqual(len([item for item in matrix["operacoes"] if item["categoria"] == "programacao"]), 6)
         self.assertEqual([level["nivel"] for level in matrix["niveis"]], [0, 1, 2, 3, 4])
         self.assertEqual(resolve_colaborador(MATHEUS)["id"], "matheus")
 
@@ -78,6 +80,8 @@ class ProgramadorCompetenciasTests(unittest.TestCase):
     def test_catalog_ids_are_unique(self):
         self.assertEqual(len({item["id"] for item in COLABORADORES}), len(COLABORADORES))
         self.assertEqual(len({item["id"] for item in OPERACOES}), len(OPERACOES))
+        self.assertIn("programacao-zig-zag", {item["id"] for item in OPERACOES})
+        self.assertIn("zig-zag", {item["id"] for item in OPERACOES})
 
     def test_first_version_rows_migrate_to_pending_self_assessment(self):
         conn = sqlite3.connect(":memory:")
