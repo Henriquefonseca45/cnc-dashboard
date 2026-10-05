@@ -89,6 +89,47 @@ export default function ProgramadorCompetencyMatrix() {
     return { completed, total: data.operacoes.length * data.colaboradores.length, pending, uncovered, single };
   }, [data, isLeader]);
 
+  const chartData = useMemo(() => {
+    if (!data) return { bars: [], distribution: [] };
+    const operationsFor = (area) => data.operacoes.filter((operation) => (operation.categoria || "desenho") === area);
+    const average = (levels) => levels.length ? Math.round(levels.reduce((total, level) => total + level, 0) / (levels.length * 4) * 100) : 0;
+    let bars;
+    let distributionLevels;
+
+    if (isLeader) {
+      const selectedOperations = operationsFor(category);
+      bars = data.colaboradores.map((person) => {
+        const levels = selectedOperations.map((operation) => data.avaliacoes?.[person.id]?.[operation.id]?.nivelValidado)
+          .filter((level) => level != null);
+        return { label: person.nome, value: average(levels), detail: `${levels.length}/${selectedOperations.length} validadas` };
+      });
+      distributionLevels = data.colaboradores.flatMap((person) => selectedOperations
+        .map((operation) => data.avaliacoes?.[person.id]?.[operation.id]?.nivelValidado)
+        .filter((level) => level != null));
+    } else {
+      bars = ["desenho", "programacao"].map((area) => {
+        const operations = operationsFor(area);
+        const levels = operations.map((operation) => {
+          if (Object.prototype.hasOwnProperty.call(draft, operation.id)) return draft[operation.id];
+          return data.avaliacoes?.[currentPerson?.id]?.[operation.id]?.autoavaliacaoNivel;
+        }).filter((level) => level != null);
+        return { label: area === "desenho" ? "Desenho" : "Programação", value: average(levels), detail: `${levels.length}/${operations.length} preenchidas` };
+      });
+      distributionLevels = operationsFor(category).map((operation) => {
+        if (Object.prototype.hasOwnProperty.call(draft, operation.id)) return draft[operation.id];
+        return data.avaliacoes?.[currentPerson?.id]?.[operation.id]?.autoavaliacaoNivel;
+      }).filter((level) => level != null);
+    }
+
+    return {
+      bars,
+      distribution: data.niveis.map((level) => ({
+        ...level,
+        count: distributionLevels.filter((value) => value === level.nivel).length,
+      })),
+    };
+  }, [category, currentPerson?.id, data, draft, isLeader]);
+
   async function saveSelf() {
     if (!selfChanges.length) return;
     await saveRequest("/programador/competencias", selfChanges.map(([operacao_id, nivel]) => ({ operacao_id, nivel })), "Autoavaliação enviada ao líder.");
@@ -153,6 +194,30 @@ export default function ProgramadorCompetencyMatrix() {
         <article><span>Operações</span><strong>{data.operacoes.length}</strong><small>mapeadas</small></article>
         <article className={summary.pending ? "warning" : "good"}><span>Pendentes do líder</span><strong>{summary.pending}</strong><small>aguardando validação</small></article>
         <article className={isLeader && summary.uncovered ? "attention" : "good"}><span>Sem cobertura validada</span><strong>{isLeader ? summary.uncovered : "—"}</strong><small>ninguém validado como autônomo</small></article>
+      </section>
+
+      <section className="competencyCharts" aria-label="Gráficos de conhecimento">
+        <article className="competencyChartCard">
+          <header><div><span>VISÃO COMPARATIVA</span><h2>{isLeader ? `Conhecimento validado por pessoa — ${category === "desenho" ? "Desenho" : "Programação"}` : "Minha autoavaliação por área"}</h2></div><small>Escala convertida para 0–100%</small></header>
+          <div className="competencyHorizontalChart">
+            {chartData.bars.map((item) => <div className="competencyBarRow" key={item.label}>
+              <div className="competencyBarLabel"><strong>{item.label}</strong><small>{item.detail}</small></div>
+              <div className="competencyBarTrack" aria-label={`${item.label}: ${item.value}%`}><span style={{ width: `${item.value}%` }} /></div>
+              <b>{item.value}%</b>
+            </div>)}
+          </div>
+        </article>
+        <article className="competencyChartCard">
+          <header><div><span>DISTRIBUIÇÃO</span><h2>Níveis em {category === "desenho" ? "Desenho" : "Programação"}</h2></div><small>{isLeader ? "Somente validações do líder" : "Sua autoavaliação"}</small></header>
+          <div className="competencyColumnChart">
+            {chartData.distribution.map((item) => {
+              const max = Math.max(1, ...chartData.distribution.map((level) => level.count));
+              return <div className="competencyColumn" key={item.nivel} title={`${item.nome}: ${item.count}`}>
+                <b>{item.count}</b><div className="competencyColumnTrack"><span className={`level-${item.nivel}`} style={{ height: `${item.count / max * 100}%` }} /></div><strong>{item.nivel}</strong><small>{item.nome}</small>
+              </div>;
+            })}
+          </div>
+        </article>
       </section>
 
       <section className="competencyLegend" aria-label="Escala de competências">{data.niveis.map((level) =>

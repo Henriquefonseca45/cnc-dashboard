@@ -19,6 +19,32 @@
 .competencyKpis .attention strong { color: #dc3545; }
 .competencyKpis .warning strong { color: #d88300; }
 .competencyKpis .good strong { color: #16825a; }
+.competencyCharts { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(360px, .65fr); gap: 12px; max-width: 1600px; margin: 0 auto 14px; }
+.competencyChartCard { min-width: 0; padding: 16px 18px; border: 1px solid #dce3ee; border-radius: 14px; background: #fff; box-shadow: 0 8px 28px -24px rgba(20, 36, 62, .45); }
+.competencyChartCard > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.competencyChartCard > header span { color: #1685e8; font-size: 8px; font-weight: 900; letter-spacing: .14em; }
+.competencyChartCard > header h2 { margin: 4px 0 0; font-size: 13px; }
+.competencyChartCard > header small { color: #8995a8; font-size: 9px; white-space: nowrap; }
+.competencyHorizontalChart { display: grid; gap: 9px; }
+.competencyBarRow { display: grid; grid-template-columns: 112px minmax(100px, 1fr) 38px; align-items: center; gap: 10px; }
+.competencyBarLabel { display: grid; min-width: 0; }
+.competencyBarLabel strong { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.competencyBarLabel small { color: #8a96aa; font-size: 8px; }
+.competencyBarTrack { height: 10px; overflow: hidden; border-radius: 999px; background: #e9edf4; }
+.competencyBarTrack span { display: block; height: 100%; min-width: 0; border-radius: inherit; background: linear-gradient(90deg, #1689ff, #44c7a1); transition: width .25s ease; }
+.competencyBarRow > b { color: #40506a; font-size: 10px; text-align: right; }
+.competencyColumnChart { display: grid; grid-template-columns: repeat(5, minmax(46px, 1fr)); align-items: end; gap: 8px; height: 155px; }
+.competencyColumn { display: grid; grid-template-rows: 16px 1fr 16px 24px; align-items: end; height: 100%; text-align: center; }
+.competencyColumn > b { color: #53627b; font-size: 10px; }
+.competencyColumnTrack { display: flex; height: 90px; align-items: end; justify-content: center; border-bottom: 1px solid #cfd7e4; }
+.competencyColumnTrack span { display: block; width: min(38px, 72%); min-height: 2px; border-radius: 6px 6px 0 0; transition: height .25s ease; }
+.competencyColumnTrack .level-0 { background: #aab3ae; }
+.competencyColumnTrack .level-1 { background: #e1bc70; }
+.competencyColumnTrack .level-2 { background: #df9840; }
+.competencyColumnTrack .level-3 { background: #69a98a; }
+.competencyColumnTrack .level-4 { background: #2e6b58; }
+.competencyColumn > strong { font-size: 10px; }
+.competencyColumn > small { overflow: hidden; color: #7e8ba0; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
 .competencyLegend { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; max-width: 1600px; margin: 0 auto 14px; }
 .competencyLegendItem { display: grid; grid-template-columns: 28px 1fr; gap: 1px 8px; min-width: 0; padding: 10px 12px; border: 1px solid transparent; border-radius: 10px; }
 .competencyLegendItem strong { grid-row: span 2; align-self: center; font-size: 20px; text-align: center; }
@@ -80,6 +106,7 @@
 .programadorModule.theme-dark .competencyBtn { border-color: #39435b; background: #12192b; color: #dce3f3; }
 .programadorModule.theme-dark .competencyBtn.primary { border-color: #267bea; background: linear-gradient(135deg, #148cff, #2454dc); color: #fff; }
 .programadorModule.theme-dark .competencyKpis article,
+.programadorModule.theme-dark .competencyChartCard,
 .programadorModule.theme-dark .competencyPanel,
 .programadorModule.theme-dark .competencyCategoryTabs { border-color: #2d3750; background: #141b2e; }
 .programadorModule.theme-dark .competencyCategoryTabs button { color: #a8b3c7; }
@@ -88,6 +115,13 @@
 .programadorModule.theme-dark .competencyCategoryTabs button.active span { background: rgba(255,255,255,.2); }
 .programadorModule.theme-dark .competencyKpis span,
 .programadorModule.theme-dark .competencyKpis small { color: #8f9bb2; }
+.programadorModule.theme-dark .competencyChartCard > header small,
+.programadorModule.theme-dark .competencyBarLabel small,
+.programadorModule.theme-dark .competencyColumn > small { color: #909db3; }
+.programadorModule.theme-dark .competencyBarTrack { background: #273149; }
+.programadorModule.theme-dark .competencyBarRow > b,
+.programadorModule.theme-dark .competencyColumn > b { color: #c8d1e2; }
+.programadorModule.theme-dark .competencyColumnTrack { border-color: #3b465f; }
 .programadorModule.theme-dark .competencyToolbar { border-color: #2c354b; }
 .programadorModule.theme-dark .competencySearch input { border-color: #35405a; background: #0e1526; color: #edf1ff; }
 .programadorModule.theme-dark .competencyCritical { color: #a9b3c6; }
@@ -112,6 +146,7 @@
   .competencyHeaderActions { justify-content: flex-start; }
   .competencyKpis { grid-template-columns: 1fr 1fr; }
   .competencyLegend { grid-template-columns: 1fr 1fr; }
+  .competencyCharts { grid-template-columns: 1fr; }
   .competencyToolbar { align-items: flex-start; flex-direction: column; }
 }
 
