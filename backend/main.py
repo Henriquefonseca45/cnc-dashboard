@@ -5114,6 +5114,8 @@ def fila_item_to_pool(item_id: int, user: dict = Depends(require_programador_aut
         raise HTTPException(status_code=409, detail=f"Nao pode voltar para o pool: item ja foi finalizado ({st}).")
 
     cur.execute("DELETE FROM fila_itens WHERE id=?", (item_id,))
+    if feeding.is_detail_plan(row["arquivo_nome"]):
+        cur.execute("DELETE FROM arquivo_cnc_compatibilidade WHERE arquivo_id=?", (row["arquivo_id"],))
     _reindex_fila(conn, row["maquina_id"])
     _log_chapa_movimentacao(
         conn,

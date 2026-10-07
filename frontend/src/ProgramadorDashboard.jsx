@@ -817,6 +817,16 @@ function extractEspessuraLabel(text = "") {
   return "Sem espessura";
 }
 
+function isDetailPlanName(name = "") {
+  return String(name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().includes("DETALHE");
+}
+
+function compatibleCncLabel(plan) {
+  const compatible = plan?.compatible_cncs || [];
+  if (compatible.length) return compatible.map((cnc) => cnc.id).join(" · ");
+  return isDetailPlanName(plan?.arquivo_nome || plan?.nome) ? "Todas as CNCs" : "Classificação pendente";
+}
+
 function buildEspessuraSummary(items = [], getText) {
   const map = new Map();
 
@@ -4742,7 +4752,7 @@ const limparLista = (lista) =>
                           <div className="rowTitle" title={plan.arquivo_nome || plan.nome || ""}>{plan.arquivo_nome || plan.nome}</div>
                           <div className="rowMeta pgSidebarPlanMeta">
                             <span className={`planPoolPriority ${plan.priority || "normal"}`}>{priorityLabel(plan.priority)}</span>
-                            <span className="planPoolCncs">{(plan.compatible_cncs || []).length ? plan.compatible_cncs.map((cnc) => cnc.id).join(" · ") : "Classificação pendente"}</span>
+                            <span className="planPoolCncs">{compatibleCncLabel(plan)}</span>
                           </div>
                           <div className="pgSidebarPlanActions">
                             {!isFacilitador && (
@@ -5278,7 +5288,7 @@ const limparLista = (lista) =>
                                   Entrada na fila: <time>{fmtDate(it.criado_em)}</time>
                                 </span>
                                 <span className={`planPoolPriority ${it.priority || "normal"}`}>{priorityLabel(it.priority)}</span>
-                                <span className="planPoolCncs">{(it.compatible_cncs || []).length ? it.compatible_cncs.map((cncItem) => cncItem.id).join(" · ") : "Legado: todas"}</span>
+                                <span className="planPoolCncs">{isDetailPlanName(it.arquivo_nome) && !(it.compatible_cncs || []).length ? "Todas as CNCs" : (it.compatible_cncs || []).length ? it.compatible_cncs.map((cncItem) => cncItem.id).join(" · ") : "Legado: todas"}</span>
                               </div>
                             </div>
 

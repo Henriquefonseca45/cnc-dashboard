@@ -36,16 +36,17 @@ def ensure_schema(conn):
         conn.execute("UPDATE arquivos_dxf SET programado=1 WHERE id IN (SELECT arquivo_id FROM fila_itens WHERE status IN ('PROGRAMANDO','BAIXADO','EM_EXECUCAO'))")
     conn.execute('CREATE INDEX IF NOT EXISTS idx_feeding_queue ON fila_itens(maquina_id,status,posicao)')
     conn.execute('CREATE INDEX IF NOT EXISTS idx_feeding_pool ON arquivos_dxf(alimentacao_cnc,alimentacao_pausada,status)')
-    # Upgrade old guards once. Queues no longer have a fixed capacity limit.
-    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='feeding_guard_v3_insert'").fetchone():
+    # Upgrade old guards once. Queues no longer have a fixed capacity limit and
+    # detail plans may be manually routed to any production CNC.
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='feeding_guard_v4_insert'").fetchone():
         return
-    for version in ('', '_v2', '_v3'):
+    for version in ('', '_v2', '_v3', '_v4'):
         for event in ('insert', 'update'):
             conn.execute(f'DROP TRIGGER IF EXISTS feeding_guard{version}_{event}')
     for event in ('INSERT', 'UPDATE'):
         admission = '1' if event == 'INSERT' else f'(OLD.status NOT IN {ACTIVE_SQL} OR OLD.maquina_id<>NEW.maquina_id OR OLD.arquivo_id<>NEW.arquivo_id)'
         conn.execute(f"""
-            CREATE TRIGGER IF NOT EXISTS feeding_guard_v3_{event.lower()}
+            CREATE TRIGGER IF NOT EXISTS feeding_guard_v4_{event.lower()}
             BEFORE {event} ON fila_itens
             WHEN NEW.status IN {ACTIVE_SQL}
             BEGIN
@@ -57,6 +58,7 @@ def ensure_schema(conn):
                     THEN RAISE(ABORT,'Já existe plano usinando nesta CNC.') END;
                 SELECT CASE WHEN {admission} AND NOT EXISTS(SELECT 1 FROM arquivo_cnc_compatibilidade WHERE arquivo_id=NEW.arquivo_id AND cnc_id=NEW.maquina_id)
                     AND EXISTS(SELECT 1 FROM arquivos_dxf WHERE id=NEW.arquivo_id AND alimentacao_cnc=1)
+                    AND NOT EXISTS(SELECT 1 FROM arquivos_dxf WHERE id=NEW.arquivo_id AND UPPER(nome) LIKE '%DETALHE%')
                     THEN RAISE(ABORT,'CNC não autorizada para este plano.') END;
             END
         """)
@@ -168,6 +170,13 @@ def compatibility(conn, arquivo_id):
     return [r[0] for r in conn.execute('SELECT cnc_id FROM arquivo_cnc_compatibilidade WHERE arquivo_id=? ORDER BY cnc_id', (arquivo_id,))]
 
 
+def is_detail_plan(plan):
+    """Detail plans are intentionally unrestricted after returning to the pool."""
+    name = plan.get('nome') if isinstance(plan, dict) else plan
+    normalized = unicodedata.normalize('NFKD', str(name or '')).encode('ascii', 'ignore').decode().upper()
+    return 'DETALHE' in normalized
+
+
 def distribute(conn):
     """Assign every compatible plan and keep each CNC ordered by the official priorities."""
     all_machines = machines(conn)
@@ -267,7 +276,10 @@ def move(conn, arquivo_id, destination, actor=None):
     if destination == source and destination:
         return {'item_id': current['id'], 'maquina_id': destination}
     if destination:
-        if destination not in compatibility(conn, arquivo_id):
+        valid_machines = {machine['id'] for machine in machines(conn)}
+        if destination not in valid_machines:
+            raise FeedingError('CNC não encontrada.')
+        if destination not in compatibility(conn, arquivo_id) and not is_detail_plan(plan):
             raise FeedingError(f'Este plano não está habilitado para a {destination}.')
         items = queue(conn, destination)
         destination_position = max((int(x.get('posicao') or 0) for x in items), default=0) + 1
@@ -277,6 +289,8 @@ def move(conn, arquivo_id, destination, actor=None):
                          (destination, destination_position, current['id']))
         else:
             conn.execute('DELETE FROM fila_itens WHERE id=?', (current['id'],))
+            if is_detail_plan(plan):
+                conn.execute('DELETE FROM arquivo_cnc_compatibilidade WHERE arquivo_id=?', (arquivo_id,))
     elif destination:
         cursor = conn.execute("INSERT INTO fila_itens(maquina_id,arquivo_id,posicao,status,criado_em) VALUES(?,?,?,'AGUARDANDO',?)",
                               (destination, arquivo_id, destination_position, datetime.now().isoformat(timespec='seconds')))

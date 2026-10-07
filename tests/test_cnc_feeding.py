@@ -254,6 +254,17 @@ class CncFeedingTests(unittest.TestCase):
             main.feeding_move(plan, main.FeedingMoveRequest(cnc_id='CNC02'), self.actor)
         self.assertEqual(self.rows()[0]['arquivo_id'], plan)
 
+    def test_detail_returned_to_pool_can_move_to_any_machine(self):
+        plan = self.upload(cncs=['CNC01'], name='DETALHE DES 13974239.dxf')
+        main.feeding_move(plan, main.FeedingMoveRequest(), self.actor)
+
+        waiting = next(item for item in self.overview()['waiting'] if item['id'] == plan)
+        self.assertTrue(waiting['alimentacao_pausada'])
+        self.assertEqual(waiting['compatible_cnc_ids'], [])
+
+        main.feeding_move(plan, main.FeedingMoveRequest(cnc_id='CNC03'), self.actor)
+        self.assertEqual(self.rows('CNC03')[0]['arquivo_id'], plan)
+
     def test_manual_move_and_pool_pause_resume(self):
         plan = self.upload(cncs=['CNC01', 'CNC02'])
         main.feeding_move(plan, main.FeedingMoveRequest(cnc_id='CNC02'), self.actor)
