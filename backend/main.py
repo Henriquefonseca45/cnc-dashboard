@@ -491,7 +491,7 @@ def programador_auditoria_opcoes(_user: dict = Depends(require_lider)):
         conn.close()
 
 
-@app.get("/programador/competencias")
+@app.get("/api/programador/competencias")
 def programador_competencias_lista(user: dict = Depends(require_programador_auth)):
     conn = get_conn()
     try:
@@ -500,7 +500,7 @@ def programador_competencias_lista(user: dict = Depends(require_programador_auth
         conn.close()
 
 
-@app.put("/programador/competencias")
+@app.put("/api/programador/competencias")
 def programador_competencias_salvar(
     body: ProgramadorCompetenciasUpdate,
     user: dict = Depends(require_programador_auth),
@@ -525,7 +525,7 @@ def programador_competencias_salvar(
         conn.close()
 
 
-@app.put("/programador/competencias/validacoes")
+@app.put("/api/programador/competencias/validacoes")
 def programador_competencias_validar(
     body: ProgramadorCompetenciasReviewUpdate,
     user: dict = Depends(require_lider),

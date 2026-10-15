@@ -157,6 +157,22 @@ class ProgramadorApiTests(unittest.TestCase):
         self.assertIn("COMPETENCIA_AUTOAVALIADA", self.audit_actions())
         self.assertIn("COMPETENCIA_VALIDADA", self.audit_actions())
 
+    def test_competency_api_does_not_conflict_with_spa_page_route(self):
+        api_methods = {
+            method
+            for route in main.app.routes
+            if getattr(route, "path", None) == "/api/programador/competencias"
+            for method in (getattr(route, "methods", None) or set())
+        }
+        old_page_get_routes = [
+            route for route in main.app.routes
+            if getattr(route, "path", None) == "/programador/competencias"
+            and "GET" in (getattr(route, "methods", None) or set())
+        ]
+        self.assertIn("GET", api_methods)
+        self.assertIn("PUT", api_methods)
+        self.assertEqual(old_page_get_routes, [])
+
     def test_import_classification_queue_move_and_delete_generate_audit(self):
         upload = UploadFile(filename="48572.dxf", file=BytesIO(b"0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n"))
         metadata = json.dumps([{

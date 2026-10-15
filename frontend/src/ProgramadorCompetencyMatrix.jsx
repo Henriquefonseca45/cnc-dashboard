@@ -36,7 +36,7 @@ export default function ProgramadorCompetencyMatrix() {
   async function load() {
     setLoading(true); setError("");
     try {
-      const response = await api.get("/programador/competencias");
+      const response = await api.get("/api/programador/competencias");
       setData(response.data); setDraft({}); setReviewDraft({});
     } catch (err) { setError(getErrMsg(err)); }
     finally { setLoading(false); }
@@ -132,12 +132,12 @@ export default function ProgramadorCompetencyMatrix() {
 
   async function saveSelf() {
     if (!selfChanges.length) return;
-    await saveRequest("/programador/competencias", selfChanges.map(([operacao_id, nivel]) => ({ operacao_id, nivel })), "Autoavaliação enviada ao líder.");
+    await saveRequest("/api/programador/competencias", selfChanges.map(([operacao_id, nivel]) => ({ operacao_id, nivel })), "Autoavaliação enviada ao líder.");
   }
 
   async function saveReviews() {
     if (!reviewChanges.length) return;
-    await saveRequest("/programador/competencias/validacoes", reviewChanges.map(([key, nivel]) => {
+    await saveRequest("/api/programador/competencias/validacoes", reviewChanges.map(([key, nivel]) => {
       const [colaborador_id, operacao_id] = key.split("|");
       return { colaborador_id, operacao_id, nivel };
     }), `${reviewChanges.length} ${reviewChanges.length === 1 ? "competência validada" : "competências validadas"}.`);
