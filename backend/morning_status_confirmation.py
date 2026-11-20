@@ -8,7 +8,7 @@ from backend.status_confirmation import _local_now
 
 STATUSES = (
     "DESLIGADA", "USINANDO", "DETALHE CNC", "RNC", "ABERTURA MATERIAL",
-    "SETUP", "REFEIÇÃO", "MANUTENÇÃO", "AGUAR.EMPILHADEIRA", "AGUARDANDO FRESA",
+    "SETUP", "REFEIÇÃO", "MANUTENÇÃO", "MANUTENÇÃO PREDIAL", "AGUAR.EMPILHADEIRA", "AGUARDANDO FRESA",
     "FALTA DE OPERADOR", "REUNIÃO", "TROCA CHAPA SACRIFICIO", "OCIOSA",
 )
 logger = logging.getLogger(__name__)

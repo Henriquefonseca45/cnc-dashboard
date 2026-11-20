@@ -9,6 +9,7 @@ class CncAssistantTests(unittest.TestCase):
         self.assertEqual(normalize_status("USINANDO"), "usinando")
         self.assertEqual(normalize_status("EM_EXECUCAO"), "usinando")
         self.assertEqual(normalize_status("MANUTENCAO"), "manutencao")
+        self.assertEqual(normalize_status("MANUTENÇÃO PREDIAL"), "parada_nao_programada")
         self.assertEqual(normalize_status("PARADA"), "parada_nao_programada")
         self.assertEqual(normalize_status("PARADA PROGRAMADA"), "parada_programada")
         self.assertEqual(normalize_status("DESLIGADA"), "desligada")

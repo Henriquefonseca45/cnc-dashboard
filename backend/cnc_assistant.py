@@ -66,6 +66,8 @@ def normalize_status(raw_status: str | None) -> str:
         return "usinando"
     if "SETUP" in status:
         return "setup"
+    if "MANUT" in status and "PREDIAL" in status:
+        return "parada_nao_programada"
     if "MANUT" in status:
         return "manutencao"
     if "PARADA PROGRAM" in status or "PROGRAMADA" in status:

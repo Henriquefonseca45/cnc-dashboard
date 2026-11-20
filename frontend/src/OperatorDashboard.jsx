@@ -107,7 +107,8 @@ function U(s) {
 }
 
 function isManutencaoStatus(status = "") {
-  return U(status).includes("MANUT");
+  const normalized = U(status);
+  return normalized.includes("MANUT") && !normalized.includes("PREDIAL");
 }
 
 function isLubricationMaintenanceType(typeName = "") {
@@ -2027,6 +2028,7 @@ export default function OperatorDashboard() {
                   <option value="SETUP">SETUP</option>
                   <option value="REFEIÇÃO">REFEIÇÃO</option>
                   <option value="MANUTENÇÃO">MANUTENÇÃO</option>
+                  <option value="MANUTENÇÃO PREDIAL">MANUTENÇÃO PREDIAL</option>
                   <option value="AGUAR.EMPILHADEIRA">AGUAR.EMPILHADEIRA</option>
                   <option value="AGUARDANDO FRESA">AGUARDANDO FRESA</option>
                   <option value="FALTA DE OPERADOR">FALTA DE OPERADOR</option>

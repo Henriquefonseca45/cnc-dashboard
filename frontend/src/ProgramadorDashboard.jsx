@@ -1131,6 +1131,7 @@ function dashboardBucket(status = "") {
   if (s.includes("USIN") || s.includes("CORT")) return "usinando";
   if (s.includes("TROCA") && s.includes("SACRIFIC")) return "troca_sacrificio";
   if (s.includes("SETUP")) return "setup";
+  if (s.includes("MANUT") && s.includes("PREDIAL")) return "parada";
   if (s.includes("MANUT")) return "manutencao";
   if ((s.includes("AGUAR") || s.includes("AGUARD")) && (s.includes("EMPILH") || s.includes("EMPILHADEIRA")))
     return "falta_material";

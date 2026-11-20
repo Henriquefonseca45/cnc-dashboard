@@ -37,7 +37,8 @@ def iso_now() -> str:
 def is_maintenance_status(value: str | None) -> bool:
     text = unicodedata.normalize("NFD", str(value or ""))
     text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
-    return "MANUT" in text.upper()
+    normalized = text.upper()
+    return "MANUT" in normalized and "PREDIAL" not in normalized
 
 
 def is_lubrication_type(value: str | None) -> bool:

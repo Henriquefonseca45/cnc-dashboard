@@ -1820,6 +1820,8 @@ def _infer_motivo_from_status(status: str) -> str | None:
         return "ABERTURA MATERIAL"
     if "SETUP" in s:
         return "SETUP"
+    if "MANUT" in s and "PREDIAL" in s:
+        return "MANUTENCAO PREDIAL"
     if "MANUT" in s:
         return "MANUTENCAO"
     if "EMPILH" in s:
@@ -1990,6 +1992,8 @@ def _dashboard_bucket_from_status(status: str, motivo: str | None = None) -> str
         return "troca_sacrificio"
     if "SETUP" in txt:
         return "setup"
+    if "MANUT" in txt and "PREDIAL" in txt:
+        return "parada"
     if "MANUT" in txt:
         return "manutencao"
     if ("AGUAR" in txt or "AGUARD" in txt) and ("EMPILH" in txt or "EMPILHADEIRA" in txt):

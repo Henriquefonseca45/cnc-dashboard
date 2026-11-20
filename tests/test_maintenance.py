@@ -95,6 +95,17 @@ class MaintenanceServiceTests(unittest.TestCase):
         self.assertEqual(calls[0]["status"], "OPEN")
         self.assertEqual(calls[0]["started_at"], "2026-08-04T09:00:00-03:00")
 
+    def test_building_maintenance_is_an_unplanned_stop_without_technical_call(self):
+        result = change_machine_status(
+            self.connect,
+            "CNC01",
+            "MANUTENÇÃO PREDIAL",
+            ACTOR,
+            now_factory=lambda: "2026-08-04T09:00:00-03:00",
+        )
+        self.assertEqual(result["machine"]["status"], "MANUTENÇÃO PREDIAL")
+        self.assertEqual(self.rows("SELECT * FROM cnc_maintenance_calls"), [])
+
     def test_rolls_back_call_when_status_side_effect_fails(self):
         def fail(*_args):
             raise RuntimeError("snapshot failed")
